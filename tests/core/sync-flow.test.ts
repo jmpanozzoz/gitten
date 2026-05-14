@@ -1,0 +1,93 @@
+import { test, expect, mock } from "bun:test";
+import { SyncFlow } from "../../src/core/sync-flow";
+import { createGitMock } from "../mocks/git-client.mock";
+import { createUIMock } from "../mocks/ui.mock";
+
+const DIRTY_STATUS = { files: [{ path: "src/app.ts" }], isClean: () => false };
+const CLEAN_STATUS = { files: [], isClean: () => true };
+
+test("stages, commits and pushes when working tree is dirty", async () => {
+  const git = createGitMock({
+    getStatus: mock(() => Promise.resolve(DIRTY_STATUS)),
+    addAll: mock(() => Promise.resolve()),
+    commit: mock(() => Promise.resolve()),
+    push: mock(() => Promise.resolve()),
+  });
+  const ui = createUIMock({
+    askText: mock(() => Promise.resolve("feat: my commit")),
+  });
+
+  await new SyncFlow(git, ui).run();
+
+  expect(git.addAll).toHaveBeenCalledTimes(1);
+  expect(git.commit).toHaveBeenCalledWith("feat: my commit");
+  expect(git.push).toHaveBeenCalledTimes(1);
+});
+
+test("uses default commit message when input is empty", async () => {
+  const git = createGitMock({
+    getStatus: mock(() => Promise.resolve(DIRTY_STATUS)),
+    addAll: mock(() => Promise.resolve()),
+    commit: mock(() => Promise.resolve()),
+    push: mock(() => Promise.resolve()),
+  });
+  const ui = createUIMock({
+    askText: mock(() => Promise.resolve("")),
+  });
+
+  await new SyncFlow(git, ui).run();
+
+  expect(git.commit).toHaveBeenCalledWith("chore: update");
+});
+
+test("skips staging and commit when working tree is clean", async () => {
+  const git = createGitMock({
+    getStatus: mock(() => Promise.resolve(CLEAN_STATUS)),
+    push: mock(() => Promise.resolve()),
+  });
+  const ui = createUIMock();
+
+  await new SyncFlow(git, ui).run();
+
+  expect(git.addAll).not.toHaveBeenCalled();
+  expect(git.commit).not.toHaveBeenCalled();
+  expect(git.push).toHaveBeenCalledTimes(1);
+});
+
+test("retries with upstream flag when push has no upstream", async () => {
+  const git = createGitMock({
+    getStatus: mock(() => Promise.resolve(CLEAN_STATUS)),
+    push: mock()
+      .mockRejectedValueOnce(new Error("has no upstream"))
+      .mockResolvedValueOnce(undefined),
+  });
+  const ui = createUIMock();
+
+  await new SyncFlow(git, ui).run();
+
+  expect(git.push).toHaveBeenCalledTimes(2);
+  expect(git.push).toHaveBeenLastCalledWith(true);
+});
+
+test("shows error and aborts when push is rejected due to remote changes", async () => {
+  const git = createGitMock({
+    getStatus: mock(() => Promise.resolve(CLEAN_STATUS)),
+    push: mock(() => Promise.reject(new Error("rejected — fetch first"))),
+  });
+  const ui = createUIMock();
+
+  await new SyncFlow(git, ui).run();
+
+  expect(ui.error).toHaveBeenCalled();
+  expect(git.push).toHaveBeenCalledTimes(1);
+});
+
+test("rethrows unexpected push errors", async () => {
+  const git = createGitMock({
+    getStatus: mock(() => Promise.resolve(CLEAN_STATUS)),
+    push: mock(() => Promise.reject(new Error("permission denied (publickey)"))),
+  });
+  const ui = createUIMock();
+
+  expect(new SyncFlow(git, ui).run()).rejects.toThrow("permission denied");
+});

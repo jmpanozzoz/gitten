@@ -1,12 +1,24 @@
 {
   "name": "gitten",
+  "version": "0.1.0",
   "module": "index.ts",
   "type": "module",
   "private": true,
+  "scripts": {
+    "dev": "bun --hot index.ts",
+    "build": "bun build index.ts --compile --outfile gitten",
+    "test": "bun test"
+  },
   "devDependencies": {
-    "@types/bun": "latest"
+    "@types/bun": "latest",
+    "@types/node": "^25.8.0"
   },
   "peerDependencies": {
     "typescript": "^5"
+  },
+  "dependencies": {
+    "@clack/prompts": "^1.4.0",
+    "picocolors": "^1.1.1",
+    "simple-git": "^3.36.0"
   }
 }
