@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.1](https://github.com/jmpanozzoz/gitten/compare/v0.3.0...v0.3.1) (2026-05-14)
+
+
+### Bug Fixes
+
+* correct release-please tag format and sync versions to 0.3.0 ([#31](https://github.com/jmpanozzoz/gitten/issues/31)) ([78f90e1](https://github.com/jmpanozzoz/gitten/commit/78f90e163bfc4fb6ae5932644efa3681a4f33c59))
+
 ## [0.3.0](https://github.com/jmpanozzoz/gitten/compare/gitten-v0.2.1...gitten-v0.3.0) (2026-05-14)
 
 
