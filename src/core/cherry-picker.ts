@@ -4,10 +4,23 @@ import type { IUI } from "./ports/ui.port";
 
 const COMMIT_LOG_LIMIT = 15;
 
+function stdinResolution(): Promise<boolean> {
+  return new Promise((resolve) => {
+    const rl = readline.createInterface({ input: process.stdin });
+    process.stdin.setRawMode(true);
+    process.stdin.once("data", (key: Buffer) => {
+      rl.close();
+      process.stdin.setRawMode(false);
+      resolve(key[0] !== 0x1b);
+    });
+  });
+}
+
 export class CherryPicker {
   constructor(
     private readonly git: IGitClient,
-    private readonly ui: IUI
+    private readonly ui: IUI,
+    private readonly waitForResolution: () => Promise<boolean> = stdinResolution
   ) {}
 
   async run(): Promise<void> {
@@ -64,19 +77,5 @@ export class CherryPicker {
       await this.git.cherryPickAbort();
       this.ui.info("Cherry-pick aborted. Working tree is clean.");
     }
-  }
-
-  private waitForResolution(): Promise<boolean> {
-    return new Promise((resolve) => {
-      const rl = readline.createInterface({ input: process.stdin });
-      process.stdin.setRawMode(true);
-
-      process.stdin.once("data", (key: Buffer) => {
-        rl.close();
-        process.stdin.setRawMode(false);
-        // ESC key = 0x1B
-        resolve(key[0] !== 0x1b);
-      });
-    });
   }
 }
