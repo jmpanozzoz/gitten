@@ -42,7 +42,7 @@ export class GitClient implements IGitClient {
   }
 
   async getLog(branch: string, limit: number): Promise<CommitSummary[]> {
-    const log = await this.git.log({ from: "", to: branch, maxCount: limit });
+    const log = await this.git.log([branch, `--max-count=${limit}`]);
     return log.all.map((entry) => ({
       hash: entry.hash.slice(0, 7),
       message: entry.message,
