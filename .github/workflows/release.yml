@@ -1,0 +1,46 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build & Publish
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Run tests
+        run: bun test
+
+      - name: Build binaries
+        run: |
+          bun build index.ts --compile --target=bun-darwin-arm64  --outfile dist/gitten-darwin-arm64
+          bun build index.ts --compile --target=bun-darwin-x64    --outfile dist/gitten-darwin-x64
+          bun build index.ts --compile --target=bun-linux-x64     --outfile dist/gitten-linux-x64
+          bun build index.ts --compile --target=bun-linux-arm64   --outfile dist/gitten-linux-arm64
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/gitten-darwin-arm64
+            dist/gitten-darwin-x64
+            dist/gitten-linux-x64
+            dist/gitten-linux-arm64
+          generate_release_notes: true
