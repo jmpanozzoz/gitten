@@ -20,6 +20,9 @@ export function createGitMock(overrides: Partial<IGitClient> = {}): IGitClient {
     cherryPick: mock(() => Promise.resolve()),
     cherryPickContinue: mock(() => Promise.resolve()),
     cherryPickAbort: mock(() => Promise.resolve()),
+    pull: mock(() => Promise.resolve()),
+    mergeAbort: mock(() => Promise.resolve()),
+    mergeContinue: mock(() => Promise.resolve()),
     getStatus: mock(() =>
       Promise.resolve({ files: [], isClean: () => true } satisfies StatusSummary)
     ),
