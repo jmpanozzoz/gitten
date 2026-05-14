@@ -6,14 +6,25 @@ import { CherryPicker } from "./core/cherry-picker";
 import { SyncFlow } from "./core/sync-flow";
 import { RemoteManager } from "./core/remote-manager";
 import { PullFlow } from "./core/pull-flow";
+import { checkForUpdate } from "./utils/update-checker";
+import type { IGitClient } from "./core/ports/git-client.port";
+import type { IUI } from "./core/ports/ui.port";
+import { version } from "../package.json";
 
 type MenuOption = "branch" | "clean" | "cherry" | "pull" | "sync" | "remotes" | "exit";
 
-export async function app(): Promise<void> {
-  const git = new GitClient();
-  const ui = new UI();
-
+export async function app(
+  git: IGitClient = new GitClient(),
+  ui: IUI = new UI()
+): Promise<void> {
   ui.intro("🐱 Gitten — Your Git assistant");
+
+  const latestVersion = await checkForUpdate(version);
+  if (latestVersion) {
+    ui.info(
+      `Update available: v${latestVersion} — run the install script to upgrade:\n  curl -fsSL https://raw.githubusercontent.com/jmpanozzoz/gitten/main/install.sh | bash`
+    );
+  }
 
   const isRepo = await git.checkIsRepo();
   if (!isRepo) {
