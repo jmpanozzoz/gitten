@@ -19,7 +19,10 @@ export class UI implements IUI {
     message: string,
     options: { value: T; label: string }[]
   ): Promise<T> {
-    const result = await clack.select({ message, options });
+    const result = await clack.select({
+      message,
+      options: options as unknown as Parameters<typeof clack.select>[0]["options"],
+    });
     if (clack.isCancel(result)) {
       clack.cancel("Operation cancelled.");
       process.exit(0);
@@ -31,9 +34,9 @@ export class UI implements IUI {
     message: string,
     options: { value: T; label: string }[]
   ): Promise<T[]> {
-    const result = await clack.multiselect<{ value: T; label: string }[], T>({
+    const result = await clack.multiselect<T>({
       message,
-      options,
+      options: options as unknown as Parameters<typeof clack.multiselect<T>>[0]["options"],
       required: false,
     });
     if (clack.isCancel(result)) {
