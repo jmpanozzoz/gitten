@@ -1,0 +1,32 @@
+name: PR Title Check
+
+on:
+  pull_request:
+    branches:
+      - main
+    types: [opened, edited, synchronize, reopened]
+
+jobs:
+  check-title:
+    name: Conventional Commit Title
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate PR title
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          pattern='^(feat|fix|chore|docs|test|refactor|perf|ci|build|revert)(\(.+\))?(!)?: .+'
+          if ! echo "$PR_TITLE" | grep -qE "$pattern"; then
+            echo "PR title does not follow Conventional Commits format."
+            echo ""
+            echo "  Got: $PR_TITLE"
+            echo ""
+            echo "  Expected: <type>(<optional scope>): <description>"
+            echo "  Valid types: feat, fix, chore, docs, test, refactor, perf, ci, build, revert"
+            echo "  Example: fix: correct pull feedback message"
+            echo ""
+            echo "  release-please uses this title to determine the version bump."
+            echo "  A generic title like 'Dev (#17)' produces no release."
+            exit 1
+          fi
+          echo "PR title is valid: $PR_TITLE"
