@@ -18,6 +18,10 @@ export interface Remote {
   url: string;
 }
 
+export interface PullResult {
+  filesChanged: number;
+}
+
 export interface IGitClient {
   checkIsRepo(): Promise<boolean>;
   hasIndexLock(): Promise<boolean>;
@@ -36,7 +40,7 @@ export interface IGitClient {
   cherryPick(hash: string): Promise<void>;
   cherryPickContinue(): Promise<void>;
   cherryPickAbort(): Promise<void>;
-  pull(): Promise<void>;
+  pull(): Promise<PullResult>;
   mergeAbort(): Promise<void>;
   mergeContinue(): Promise<void>;
   getStatus(): Promise<StatusSummary>;
