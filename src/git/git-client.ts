@@ -54,6 +54,11 @@ export class GitClient implements IGitClient {
     return { all: result.all, current: result.current };
   }
 
+  async getBranchLastActivity(branch: string): Promise<string> {
+    const result = await this.git.raw(["log", "-1", "--format=%cr", branch]);
+    return result.trim() || "no commits";
+  }
+
   async branchExists(name: string): Promise<boolean> {
     const { all } = await this.getBranches();
     return all.includes(name);
