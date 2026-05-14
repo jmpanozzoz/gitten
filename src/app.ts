@@ -4,7 +4,6 @@ import { BranchCreator } from "./core/branch-creator";
 import { BranchCleaner } from "./core/branch-cleaner";
 import { CherryPicker } from "./core/cherry-picker";
 import { SyncFlow } from "./core/sync-flow";
-import { join } from "node:path";
 
 type MenuOption = "branch" | "clean" | "cherry" | "sync" | "exit";
 
