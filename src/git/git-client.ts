@@ -1,10 +1,16 @@
 import simpleGit from "simple-git";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import type { IGitClient, BranchSummary, CommitSummary, StatusSummary, Remote, PullResult } from "../core/ports/git-client.port";
+import type { IGitClient, BranchSummary, CommitSummary, StatusSummary, Remote, PullResult, DiffStat } from "../core/ports/git-client.port";
 
 export class GitClient implements IGitClient {
-  private readonly git = simpleGit(process.cwd());
+  private readonly git: ReturnType<typeof simpleGit>;
+  private readonly cwd: string;
+
+  constructor(cwd = process.cwd()) {
+    this.cwd = cwd;
+    this.git = simpleGit(cwd);
+  }
 
   async checkIsRepo(): Promise<boolean> {
     return this.git.checkIsRepo();
@@ -32,7 +38,7 @@ export class GitClient implements IGitClient {
   }
 
   async hasIndexLock(): Promise<boolean> {
-    return existsSync(join(process.cwd(), ".git", "index.lock"));
+    return existsSync(join(this.cwd, ".git", "index.lock"));
   }
 
   async getCurrentBranch(): Promise<string> {
@@ -40,9 +46,23 @@ export class GitClient implements IGitClient {
     return status.current ?? "";
   }
 
+  async getRepoContext(): Promise<RepoContext> {
+    const status = await this.git.status();
+    return {
+      branch: status.current ?? "",
+      modifiedCount: status.files.length,
+      commitsAhead: status.ahead,
+    };
+  }
+
   async getBranches(): Promise<BranchSummary> {
     const result = await this.git.branchLocal();
     return { all: result.all, current: result.current };
+  }
+
+  async getBranchLastActivity(branch: string): Promise<string> {
+    const result = await this.git.raw(["log", "-1", "--format=%cr", branch]);
+    return result.trim() || "no commits";
   }
 
   async branchExists(name: string): Promise<boolean> {
@@ -105,6 +125,11 @@ export class GitClient implements IGitClient {
 
   async addAll(): Promise<void> {
     await this.git.add(".");
+  }
+
+  async getDiffStat(): Promise<DiffStat> {
+    const diff = await this.git.diffSummary(["--cached"]);
+    return { insertions: diff.insertions, deletions: diff.deletions };
   }
 
   async commit(message: string): Promise<void> {
