@@ -29,16 +29,15 @@ export class SyncFlow {
   }
 
   private async stageAndCommit(): Promise<void> {
-    const message = await this.ui.askText(
-      "Commit message:",
-      DEFAULT_COMMIT_MESSAGE
-    );
+    await this.ui.spin("Staging...", () => this.git.addAll());
+
+    const stat = await this.git.getDiffStat();
+    this.ui.info(`+${stat.insertions} −${stat.deletions} lines staged`);
+
+    const message = await this.ui.askText("Commit message:", DEFAULT_COMMIT_MESSAGE);
     const finalMessage = message.trim() || DEFAULT_COMMIT_MESSAGE;
 
-    await this.ui.spin("Staging and committing...", async () => {
-      await this.git.addAll();
-      await this.git.commit(finalMessage);
-    });
+    await this.ui.spin("Committing...", () => this.git.commit(finalMessage));
   }
 
   private async safePush(): Promise<void> {

@@ -1,7 +1,7 @@
 import simpleGit from "simple-git";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import type { IGitClient, BranchSummary, CommitSummary, StatusSummary, Remote, PullResult, RepoContext } from "../core/ports/git-client.port";
+import type { IGitClient, BranchSummary, CommitSummary, StatusSummary, Remote, PullResult, DiffStat } from "../core/ports/git-client.port";
 
 export class GitClient implements IGitClient {
   private readonly git = simpleGit(process.cwd());
@@ -114,6 +114,11 @@ export class GitClient implements IGitClient {
 
   async addAll(): Promise<void> {
     await this.git.add(".");
+  }
+
+  async getDiffStat(): Promise<DiffStat> {
+    const diff = await this.git.diffSummary(["--cached"]);
+    return { insertions: diff.insertions, deletions: diff.deletions };
   }
 
   async commit(message: string): Promise<void> {
