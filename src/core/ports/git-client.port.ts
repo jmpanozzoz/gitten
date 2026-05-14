@@ -22,6 +22,11 @@ export interface PullResult {
   filesChanged: number;
 }
 
+export interface DiffStat {
+  insertions: number;
+  deletions: number;
+}
+
 export interface IGitClient {
   checkIsRepo(): Promise<boolean>;
   hasIndexLock(): Promise<boolean>;
@@ -45,6 +50,7 @@ export interface IGitClient {
   mergeContinue(): Promise<void>;
   getStatus(): Promise<StatusSummary>;
   addAll(): Promise<void>;
+  getDiffStat(): Promise<DiffStat>;
   commit(message: string): Promise<void>;
   push(setUpstream?: boolean): Promise<void>;
 }
