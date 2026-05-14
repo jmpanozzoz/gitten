@@ -1,7 +1,7 @@
 import simpleGit from "simple-git";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import type { IGitClient, BranchSummary, CommitSummary, StatusSummary, Remote, PullResult } from "../core/ports/git-client.port";
+import type { IGitClient, BranchSummary, CommitSummary, StatusSummary, Remote, PullResult, RepoContext } from "../core/ports/git-client.port";
 
 export class GitClient implements IGitClient {
   private readonly git = simpleGit(process.cwd());
@@ -38,6 +38,15 @@ export class GitClient implements IGitClient {
   async getCurrentBranch(): Promise<string> {
     const status = await this.git.status();
     return status.current ?? "";
+  }
+
+  async getRepoContext(): Promise<RepoContext> {
+    const status = await this.git.status();
+    return {
+      branch: status.current ?? "",
+      modifiedCount: status.files.length,
+      commitsAhead: status.ahead,
+    };
   }
 
   async getBranches(): Promise<BranchSummary> {

@@ -1,5 +1,5 @@
 import { mock } from "bun:test";
-import type { IGitClient, BranchSummary, CommitSummary, StatusSummary, Remote, PullResult } from "../../src/core/ports/git-client.port";
+import type { IGitClient, BranchSummary, CommitSummary, StatusSummary, Remote, PullResult, RepoContext } from "../../src/core/ports/git-client.port";
 
 export function createGitMock(overrides: Partial<IGitClient> = {}): IGitClient {
   return {
@@ -11,6 +11,9 @@ export function createGitMock(overrides: Partial<IGitClient> = {}): IGitClient {
     removeRemote: mock(() => Promise.resolve()),
     setRemoteUrl: mock(() => Promise.resolve()),
     getCurrentBranch: mock(() => Promise.resolve("main")),
+    getRepoContext: mock(() =>
+      Promise.resolve({ branch: "main", modifiedCount: 0, commitsAhead: 0 } satisfies RepoContext)
+    ),
     getBranches: mock(() => Promise.resolve({ all: [], current: "main" } satisfies BranchSummary)),
     branchExists: mock(() => Promise.resolve(false)),
     checkoutNewBranch: mock(() => Promise.resolve()),
