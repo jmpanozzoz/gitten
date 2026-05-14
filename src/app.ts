@@ -34,23 +34,7 @@ export async function app(): Promise<void> {
     process.exit(1);
   }
 
-  const branch = await git.getCurrentBranch();
   const repoName = process.cwd().split("/").pop() ?? "unknown";
-  ui.info(`Context: ${repoName} | branch: ${branch}`);
-
-  const choice = await ui.askSelect<MenuOption>("What do you want to do?", [
-    { value: "branch", label: "🌿 New Standardized Branch" },
-    { value: "clean", label: "🧹 Clean Old Branches" },
-    { value: "cherry", label: "🍒 Quick Cherry Pick" },
-    { value: "sync", label: "🚀 Sync (Stage, Commit & Push)" },
-    { value: "remotes", label: "🔗 Manage Remotes" },
-    { value: "exit", label: "🚪 Exit" },
-  ]);
-
-  if (choice === "exit") {
-    ui.outro("See you later! 👋");
-    return;
-  }
 
   const handlers: Record<Exclude<MenuOption, "exit">, () => Promise<void>> = {
     branch: () => new BranchCreator(git, ui).run(),
@@ -60,7 +44,23 @@ export async function app(): Promise<void> {
     remotes: () => new RemoteManager(git, ui).run(),
   };
 
-  await handlers[choice as Exclude<MenuOption, "exit">]();
+  while (true) {
+    const branch = await git.getCurrentBranch();
+    ui.info(`Context: ${repoName} | branch: ${branch}`);
 
-  ui.outro("Done. See you next time! 👋");
+    const choice = await ui.askSelect<MenuOption>("What do you want to do?", [
+      { value: "branch", label: "🌿 New Standardized Branch" },
+      { value: "clean", label: "🧹 Clean Old Branches" },
+      { value: "cherry", label: "🍒 Quick Cherry Pick" },
+      { value: "sync", label: "🚀 Sync (Stage, Commit & Push)" },
+      { value: "remotes", label: "🔗 Manage Remotes" },
+      { value: "exit", label: "🚪 Exit" },
+    ]);
+
+    if (choice === "exit") break;
+
+    await handlers[choice as Exclude<MenuOption, "exit">]();
+  }
+
+  ui.outro("See you later! 👋");
 }
