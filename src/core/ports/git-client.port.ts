@@ -36,6 +36,9 @@ export interface IGitClient {
   cherryPick(hash: string): Promise<void>;
   cherryPickContinue(): Promise<void>;
   cherryPickAbort(): Promise<void>;
+  pull(): Promise<void>;
+  mergeAbort(): Promise<void>;
+  mergeContinue(): Promise<void>;
   getStatus(): Promise<StatusSummary>;
   addAll(): Promise<void>;
   commit(message: string): Promise<void>;

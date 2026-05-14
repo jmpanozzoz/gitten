@@ -5,8 +5,9 @@ import { BranchCleaner } from "./core/branch-cleaner";
 import { CherryPicker } from "./core/cherry-picker";
 import { SyncFlow } from "./core/sync-flow";
 import { RemoteManager } from "./core/remote-manager";
+import { PullFlow } from "./core/pull-flow";
 
-type MenuOption = "branch" | "clean" | "cherry" | "sync" | "remotes" | "exit";
+type MenuOption = "branch" | "clean" | "cherry" | "pull" | "sync" | "remotes" | "exit";
 
 export async function app(): Promise<void> {
   const git = new GitClient();
@@ -40,6 +41,7 @@ export async function app(): Promise<void> {
     branch: () => new BranchCreator(git, ui).run(),
     clean: () => new BranchCleaner(git, ui).run(),
     cherry: () => new CherryPicker(git, ui).run(),
+    pull: () => new PullFlow(git, ui).run(),
     sync: () => new SyncFlow(git, ui).run(),
     remotes: () => new RemoteManager(git, ui).run(),
   };
@@ -52,6 +54,7 @@ export async function app(): Promise<void> {
       { value: "branch", label: "🌿 New Standardized Branch" },
       { value: "clean", label: "🧹 Clean Old Branches" },
       { value: "cherry", label: "🍒 Quick Cherry Pick" },
+      { value: "pull", label: "🔽 Pull Latest Changes" },
       { value: "sync", label: "🚀 Sync (Stage, Commit & Push)" },
       { value: "remotes", label: "🔗 Manage Remotes" },
       { value: "exit", label: "🚪 Exit" },

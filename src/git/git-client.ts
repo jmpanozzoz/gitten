@@ -82,6 +82,18 @@ export class GitClient implements IGitClient {
     await this.git.raw(["cherry-pick", "--abort"]);
   }
 
+  async pull(): Promise<void> {
+    await this.git.pull();
+  }
+
+  async mergeAbort(): Promise<void> {
+    await this.git.merge(["--abort"]);
+  }
+
+  async mergeContinue(): Promise<void> {
+    await this.git.merge(["--continue", "--no-edit"]);
+  }
+
   async getStatus(): Promise<StatusSummary> {
     const status = await this.git.status();
     return {
