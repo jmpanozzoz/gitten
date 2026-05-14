@@ -338,6 +338,18 @@ This project uses **Semantic Versioning** (`MAJOR.MINOR.PATCH`) managed automati
 - The description must be in English, lowercase, imperative mood ("add" not "added")
 - `release-please` reads commit messages on `main` — commits that land via squash merge use the PR title, so **PR titles must also follow Conventional Commits format**
 
+### Critical: `dev → main` PR title
+
+The PR that merges `dev` into `main` **must** have a conventional commit title. Release-please cannot parse generic titles like `"Dev (#6)"` and will produce zero commits, skipping the release entirely.
+
+Use the highest-impact prefix present in the batch:
+
+```
+feat: remote management, pull flow, menu loop and UX improvements
+```
+
+If multiple features landed, pick `feat:`. If only fixes, pick `fix:`. Never use freeform titles on the `dev → main` PR.
+
 ---
 
 ## Branching Strategy
