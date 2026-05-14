@@ -1,5 +1,5 @@
 import { mock } from "bun:test";
-import type { IGitClient, BranchSummary, CommitSummary, StatusSummary, Remote } from "../../src/core/ports/git-client.port";
+import type { IGitClient, BranchSummary, CommitSummary, StatusSummary, Remote, PullResult } from "../../src/core/ports/git-client.port";
 
 export function createGitMock(overrides: Partial<IGitClient> = {}): IGitClient {
   return {
@@ -20,7 +20,7 @@ export function createGitMock(overrides: Partial<IGitClient> = {}): IGitClient {
     cherryPick: mock(() => Promise.resolve()),
     cherryPickContinue: mock(() => Promise.resolve()),
     cherryPickAbort: mock(() => Promise.resolve()),
-    pull: mock(() => Promise.resolve()),
+    pull: mock(() => Promise.resolve({ filesChanged: 0 } satisfies PullResult)),
     mergeAbort: mock(() => Promise.resolve()),
     mergeContinue: mock(() => Promise.resolve()),
     getStatus: mock(() =>

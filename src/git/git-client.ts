@@ -1,7 +1,7 @@
 import simpleGit from "simple-git";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import type { IGitClient, BranchSummary, CommitSummary, StatusSummary, Remote } from "../core/ports/git-client.port";
+import type { IGitClient, BranchSummary, CommitSummary, StatusSummary, Remote, PullResult } from "../core/ports/git-client.port";
 
 export class GitClient implements IGitClient {
   private readonly git = simpleGit(process.cwd());
@@ -82,8 +82,9 @@ export class GitClient implements IGitClient {
     await this.git.raw(["cherry-pick", "--abort"]);
   }
 
-  async pull(): Promise<void> {
-    await this.git.pull();
+  async pull(): Promise<PullResult> {
+    const result = await this.git.pull();
+    return { filesChanged: result.summary.changes };
   }
 
   async mergeAbort(): Promise<void> {
