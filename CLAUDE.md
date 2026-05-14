@@ -310,6 +310,22 @@ This guard must exist in every method of `UI` that wraps a clack prompt. The `IU
 
 ---
 
+## Branching Strategy
+
+- `main` — stable, released code only. Never commit directly.
+- `dev` — integration branch. All feature branches merge here via PR.
+- `feat/*` — new features (e.g. `feat/branch-creator`).
+- `hotfix/*` — urgent fixes on top of `main`, merged back into both `main` and `dev`.
+- `test/*` — experimental branches, never merged unless promoted to `feat/*`.
+
+**Rules:**
+- Always branch off `dev`, never off `main`.
+- All PRs target `dev`. Never open a PR directly to `main`.
+- Branch names must follow the prefixes above — no freeform names.
+- `main` only receives merges from `dev` when cutting a release.
+
+---
+
 ## Git Commits
 
 This is a public repository. **Never add AI co-author lines** (`Co-Authored-By: Claude`, `Co-Authored-By: GitHub Copilot`, or any similar attribution) to commit messages. Commits must look like they came from the human author only.
