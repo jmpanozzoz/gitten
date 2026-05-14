@@ -4,7 +4,13 @@ import { join } from "node:path";
 import type { IGitClient, BranchSummary, CommitSummary, StatusSummary, Remote, PullResult, DiffStat } from "../core/ports/git-client.port";
 
 export class GitClient implements IGitClient {
-  private readonly git = simpleGit(process.cwd());
+  private readonly git: ReturnType<typeof simpleGit>;
+  private readonly cwd: string;
+
+  constructor(cwd = process.cwd()) {
+    this.cwd = cwd;
+    this.git = simpleGit(cwd);
+  }
 
   async checkIsRepo(): Promise<boolean> {
     return this.git.checkIsRepo();
@@ -32,7 +38,7 @@ export class GitClient implements IGitClient {
   }
 
   async hasIndexLock(): Promise<boolean> {
-    return existsSync(join(process.cwd(), ".git", "index.lock"));
+    return existsSync(join(this.cwd, ".git", "index.lock"));
   }
 
   async getCurrentBranch(): Promise<string> {
