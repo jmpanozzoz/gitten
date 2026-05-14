@@ -1,13 +1,34 @@
 import simpleGit from "simple-git";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import type { IGitClient, BranchSummary, CommitSummary, StatusSummary } from "../core/ports/git-client.port";
+import type { IGitClient, BranchSummary, CommitSummary, StatusSummary, Remote } from "../core/ports/git-client.port";
 
 export class GitClient implements IGitClient {
   private readonly git = simpleGit(process.cwd());
 
   async checkIsRepo(): Promise<boolean> {
     return this.git.checkIsRepo();
+  }
+
+  async initRepo(): Promise<void> {
+    await this.git.init();
+  }
+
+  async getRemotes(): Promise<Remote[]> {
+    const remotes = await this.git.getRemotes(true);
+    return remotes.map((r) => ({ name: r.name, url: r.refs.fetch ?? r.refs.push ?? "" }));
+  }
+
+  async addRemote(name: string, url: string): Promise<void> {
+    await this.git.addRemote(name, url);
+  }
+
+  async removeRemote(name: string): Promise<void> {
+    await this.git.removeRemote(name);
+  }
+
+  async setRemoteUrl(name: string, url: string): Promise<void> {
+    await this.git.remote(["set-url", name, url]);
   }
 
   async hasIndexLock(): Promise<boolean> {

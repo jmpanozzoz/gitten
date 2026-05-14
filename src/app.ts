@@ -4,8 +4,9 @@ import { BranchCreator } from "./core/branch-creator";
 import { BranchCleaner } from "./core/branch-cleaner";
 import { CherryPicker } from "./core/cherry-picker";
 import { SyncFlow } from "./core/sync-flow";
+import { RemoteManager } from "./core/remote-manager";
 
-type MenuOption = "branch" | "clean" | "cherry" | "sync" | "exit";
+type MenuOption = "branch" | "clean" | "cherry" | "sync" | "remotes" | "exit";
 
 export async function app(): Promise<void> {
   const git = new GitClient();
@@ -15,8 +16,14 @@ export async function app(): Promise<void> {
 
   const isRepo = await git.checkIsRepo();
   if (!isRepo) {
-    ui.error("Not a Git repository. Run gitten from inside a project.");
-    process.exit(1);
+    const shouldInit = await ui.askConfirm("No Git repository found here. Initialize one?");
+    if (!shouldInit) {
+      ui.outro("Nothing to do. See you later! 👋");
+      return;
+    }
+    await new RemoteManager(git, ui).runInit();
+    ui.outro("Done. Run gitten again to manage your repo. 👋");
+    return;
   }
 
   const hasLock = await git.hasIndexLock();
@@ -36,6 +43,7 @@ export async function app(): Promise<void> {
     { value: "clean", label: "🧹 Clean Old Branches" },
     { value: "cherry", label: "🍒 Quick Cherry Pick" },
     { value: "sync", label: "🚀 Sync (Stage, Commit & Push)" },
+    { value: "remotes", label: "🔗 Manage Remotes" },
     { value: "exit", label: "🚪 Exit" },
   ]);
 
@@ -49,6 +57,7 @@ export async function app(): Promise<void> {
     clean: () => new BranchCleaner(git, ui).run(),
     cherry: () => new CherryPicker(git, ui).run(),
     sync: () => new SyncFlow(git, ui).run(),
+    remotes: () => new RemoteManager(git, ui).run(),
   };
 
   await handlers[choice as Exclude<MenuOption, "exit">]();
