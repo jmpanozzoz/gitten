@@ -17,8 +17,12 @@ export class PullFlow {
     }
 
     try {
-      await this.ui.spin("Pulling latest changes...", () => this.git.pull());
-      this.ui.success("Branch is up to date.");
+      const result = await this.ui.spin("Pulling latest changes...", () => this.git.pull());
+      if (result.filesChanged === 0) {
+        this.ui.info("Already up to date.");
+      } else {
+        this.ui.success(`Pulled successfully. ${result.filesChanged} file(s) changed.`);
+      }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message.toLowerCase() : "";
 

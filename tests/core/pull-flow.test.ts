@@ -17,17 +17,31 @@ test("shows info and returns when no remotes configured", async () => {
   expect(ui.info).toHaveBeenCalled();
 });
 
-test("pulls and shows success on clean fast-forward", async () => {
+test("shows info when already up to date", async () => {
   const git = createGitMock({
     getRemotes: mock(() => Promise.resolve(WITH_REMOTE)),
-    pull: mock(() => Promise.resolve()),
+    pull: mock(() => Promise.resolve({ filesChanged: 0 })),
   });
   const ui = createUIMock();
 
   await new PullFlow(git, ui).run();
 
   expect(git.pull).toHaveBeenCalledTimes(1);
-  expect(ui.success).toHaveBeenCalled();
+  expect(ui.info).toHaveBeenCalled();
+  expect(ui.success).not.toHaveBeenCalled();
+});
+
+test("shows success with file count when new commits pulled", async () => {
+  const git = createGitMock({
+    getRemotes: mock(() => Promise.resolve(WITH_REMOTE)),
+    pull: mock(() => Promise.resolve({ filesChanged: 3 })),
+  });
+  const ui = createUIMock();
+
+  await new PullFlow(git, ui).run();
+
+  expect(git.pull).toHaveBeenCalledTimes(1);
+  expect(ui.success).toHaveBeenCalledWith(expect.stringContaining("3"));
 });
 
 test("shows error when branch has no upstream", async () => {
