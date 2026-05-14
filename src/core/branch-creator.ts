@@ -1,7 +1,7 @@
 import type { IGitClient } from "./ports/git-client.port";
 import type { IUI, BranchType } from "./ports/ui.port";
 
-const BRANCH_TYPES: BranchType[] = ["feat", "fix", "hotfix", "chore", "docs"];
+type BranchTypeOrBack = BranchType | "back";
 
 export class BranchCreator {
   constructor(
@@ -10,16 +10,19 @@ export class BranchCreator {
   ) {}
 
   async run(): Promise<void> {
-    const type = await this.ui.askSelect<BranchType>("Branch type:", [
+    const type = await this.ui.askSelect<BranchTypeOrBack>("Branch type:", [
       { value: "feat", label: "feat — new feature" },
       { value: "fix", label: "fix — bug fix" },
       { value: "hotfix", label: "hotfix — urgent production fix" },
       { value: "chore", label: "chore — maintenance task" },
       { value: "docs", label: "docs — documentation only" },
+      { value: "back", label: "← Back" },
     ]);
 
+    if (type === "back") return;
+
     const description = await this.promptDescription();
-    const branchName = this.buildBranchName(type, description);
+    const branchName = this.buildBranchName(type as BranchType, description);
 
     const exists = await this.git.branchExists(branchName);
     if (exists) {
