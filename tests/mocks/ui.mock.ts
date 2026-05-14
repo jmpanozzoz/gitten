@@ -10,7 +10,7 @@ export function createUIMock(overrides: Partial<IUI> = {}): IUI {
     askMultiSelect: mock(() => Promise.resolve([])),
     askText: mock(() => Promise.resolve("")),
     askConfirm: mock(() => Promise.resolve(false)),
-    spin: mock((_msg: string, task: () => Promise<unknown>) => task()),
+    spin: mock((_msg: string, task: () => Promise<unknown>) => task()) as IUI["spin"],
     success: mock(() => {}),
     warn: mock(() => {}),
     error: mock(() => {}),
