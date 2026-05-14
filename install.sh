@@ -30,6 +30,12 @@ case "$OS" in
     ;;
 esac
 
+# ── Detect existing version ────────────────────────────────────────────────────
+PREVIOUS_VERSION=""
+if command -v "$BINARY" &>/dev/null; then
+  PREVIOUS_VERSION=$("$BINARY" --version 2>/dev/null || true)
+fi
+
 # ── Resolve install directory ──────────────────────────────────────────────────
 if [ -w "$DEFAULT_INSTALL_DIR" ]; then
   INSTALL_DIR="$DEFAULT_INSTALL_DIR"
@@ -63,5 +69,12 @@ if ! command -v "$BINARY" &>/dev/null && [[ "$INSTALL_DIR" != "$DEFAULT_INSTALL_
   echo "    export PATH=\"\$HOME/.local/bin:\$PATH\""
 fi
 
+NEW_VERSION=$("$DEST" --version 2>/dev/null || true)
+
 echo ""
-"$DEST" --version && echo "  gitten is ready. Run: gitten"
+if [[ -n "$PREVIOUS_VERSION" && "$PREVIOUS_VERSION" != "$NEW_VERSION" ]]; then
+  echo "  Updated: $PREVIOUS_VERSION → $NEW_VERSION"
+else
+  echo "  $NEW_VERSION installed successfully."
+fi
+echo "  Run: gitten"
