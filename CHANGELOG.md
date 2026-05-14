@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.0](https://github.com/jmpanozzoz/gitten/compare/v0.3.1...v0.4.0) (2026-05-14)
+
+
+### Features
+
+* update checker, branch dates, integration tests, Homebrew, README, UX improvements and fixes ([#34](https://github.com/jmpanozzoz/gitten/issues/34)) ([926bd77](https://github.com/jmpanozzoz/gitten/commit/926bd778e630614da5d834d2df637cb5f5fe4104))
+
 ## [0.3.1](https://github.com/jmpanozzoz/gitten/compare/v0.3.0...v0.3.1) (2026-05-14)
 
 
