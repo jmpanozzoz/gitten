@@ -47,7 +47,7 @@ export async function app(): Promise<void> {
   };
 
   while (true) {
-    const branch = await git.getCurrentBranch();
+    const branch = await ui.spin("Loading context...", () => git.getCurrentBranch());
     ui.info(`Context: ${repoName} | branch: ${branch}`);
 
     const choice = await ui.askSelect<MenuOption>("What do you want to do?", [
