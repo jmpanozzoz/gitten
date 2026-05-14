@@ -26,6 +26,26 @@ test("stages, commits and pushes when working tree is dirty", async () => {
   expect(git.push).toHaveBeenCalledTimes(1);
 });
 
+test("shows diff stat summary after staging", async () => {
+  const git = createGitMock({
+    getStatus: mock(() => Promise.resolve(DIRTY_STATUS)),
+    addAll: mock(() => Promise.resolve()),
+    getDiffStat: mock(() => Promise.resolve({ insertions: 42, deletions: 7 })),
+    commit: mock(() => Promise.resolve()),
+    push: mock(() => Promise.resolve()),
+  });
+  const ui = createUIMock({
+    ...CONFIRM_YES,
+    askText: mock(() => Promise.resolve("feat: my commit")),
+  });
+
+  await new SyncFlow(git, ui).run();
+
+  expect(git.getDiffStat).toHaveBeenCalledTimes(1);
+  expect(ui.info).toHaveBeenCalledWith(expect.stringContaining("42"));
+  expect(ui.info).toHaveBeenCalledWith(expect.stringContaining("7"));
+});
+
 test("uses default commit message when input is empty", async () => {
   const git = createGitMock({
     getStatus: mock(() => Promise.resolve(DIRTY_STATUS)),

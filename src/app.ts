@@ -58,8 +58,12 @@ export async function app(
   };
 
   while (true) {
-    const branch = await ui.spin("Loading context...", () => git.getCurrentBranch());
-    ui.info(`Context: ${repoName} | branch: ${branch}`);
+    const ctx = await ui.spin("Loading context...", () => git.getRepoContext());
+    const statusParts: string[] = [];
+    if (ctx.modifiedCount > 0) statusParts.push(`${ctx.modifiedCount} modified`);
+    if (ctx.commitsAhead > 0) statusParts.push(`${ctx.commitsAhead} ahead`);
+    const statusSuffix = statusParts.length > 0 ? ` · ${statusParts.join(" · ")}` : "";
+    ui.info(`Context: ${repoName} | branch: ${ctx.branch}${statusSuffix}`);
 
     const choice = await ui.askSelect<MenuOption>("What do you want to do?", [
       { value: "branch", label: "🌿 New Standardized Branch" },

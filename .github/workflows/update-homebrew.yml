@@ -1,0 +1,63 @@
+name: Update Homebrew Formula
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  update-formula:
+    name: Update Formula
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Compute SHA256 checksums
+        id: sha
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          VERSION="${TAG#v}"
+          ARM64_URL="https://github.com/jmpanozzoz/gitten/releases/download/${TAG}/gitten-darwin-arm64"
+          X64_URL="https://github.com/jmpanozzoz/gitten/releases/download/${TAG}/gitten-darwin-x64"
+
+          ARM64_SHA=$(curl -fsSL "$ARM64_URL" | sha256sum | cut -d' ' -f1)
+          X64_SHA=$(curl -fsSL "$X64_URL" | sha256sum | cut -d' ' -f1)
+
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "arm64_sha=$ARM64_SHA" >> "$GITHUB_OUTPUT"
+          echo "x64_sha=$X64_SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Update formula file
+        env:
+          VERSION: ${{ steps.sha.outputs.version }}
+          ARM64_SHA: ${{ steps.sha.outputs.arm64_sha }}
+          X64_SHA: ${{ steps.sha.outputs.x64_sha }}
+        run: |
+          sed -i "s/version \".*\"/version \"${VERSION}\"/" Formula/gitten.rb
+          sed -i "/gitten-darwin-arm64/{n;s/sha256 \".*\"/sha256 \"${ARM64_SHA}\"/}" Formula/gitten.rb
+          sed -i "/gitten-darwin-x64/{n;s/sha256 \".*\"/sha256 \"${X64_SHA}\"/}" Formula/gitten.rb
+
+      - name: Open PR with updated formula
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          BRANCH="chore/homebrew-formula-${TAG}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$BRANCH"
+          git add Formula/gitten.rb
+          git diff --cached --quiet && exit 0
+          git commit -m "chore: update Homebrew formula to ${TAG}"
+          git push origin "$BRANCH"
+          gh pr create \
+            --title "chore: update Homebrew formula to ${TAG}" \
+            --body "Automated formula update after release ${TAG}. SHA256 checksums recomputed from published assets." \
+            --base main \
+            --head "$BRANCH"
