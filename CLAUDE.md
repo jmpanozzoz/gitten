@@ -310,6 +310,36 @@ This guard must exist in every method of `UI` that wraps a clack prompt. The `IU
 
 ---
 
+## Versioning
+
+This project uses **Semantic Versioning** (`MAJOR.MINOR.PATCH`) managed automatically by [`release-please`](https://github.com/googleapis/release-please).
+
+### How it works
+
+`release-please` watches every commit that lands on `main` and maintains a **Release PR** automatically. When that PR is merged, it:
+1. Bumps `package.json` version
+2. Updates `CHANGELOG.md`
+3. Creates a git tag → triggers the existing `release.yml` workflow → publishes binaries
+
+**No manual tagging. No manual version bumps.**
+
+### Commit → version mapping
+
+| Commit prefix | Bump | Example |
+|---|---|---|
+| `fix:` | patch `0.1.x` | `fix: correct getLog query` |
+| `feat:` | minor `0.x.0` | `feat: remote management` |
+| `feat!:` or `BREAKING CHANGE:` in footer | major `x.0.0` | `feat!: redesign CLI interface` |
+| `chore:`, `docs:`, `test:`, `refactor:` | none (no release) | housekeeping commits |
+
+### Rules for commit messages
+
+- Always use [Conventional Commits](https://www.conventionalcommits.org/) format: `type(optional-scope): description`
+- The description must be in English, lowercase, imperative mood ("add" not "added")
+- `release-please` reads commit messages on `main` — commits that land via squash merge use the PR title, so **PR titles must also follow Conventional Commits format**
+
+---
+
 ## Branching Strategy
 
 - `main` — stable, released code only. Never commit directly.

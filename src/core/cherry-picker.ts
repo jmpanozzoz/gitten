@@ -34,8 +34,10 @@ export class CherryPicker {
 
     const sourceBranch = await this.ui.askSelect(
       "Pick commits from which branch?",
-      branches.map((b) => ({ value: b, label: b }))
+      [...branches.map((b) => ({ value: b, label: b })), { value: "back", label: "← Back" }]
     );
+
+    if (sourceBranch === "back") return;
 
     const commits = await this.git.getLog(sourceBranch, COMMIT_LOG_LIMIT);
 

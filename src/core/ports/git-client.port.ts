@@ -13,9 +13,19 @@ export interface StatusSummary {
   isClean(): boolean;
 }
 
+export interface Remote {
+  name: string;
+  url: string;
+}
+
 export interface IGitClient {
   checkIsRepo(): Promise<boolean>;
   hasIndexLock(): Promise<boolean>;
+  initRepo(): Promise<void>;
+  getRemotes(): Promise<Remote[]>;
+  addRemote(name: string, url: string): Promise<void>;
+  removeRemote(name: string): Promise<void>;
+  setRemoteUrl(name: string, url: string): Promise<void>;
   getCurrentBranch(): Promise<string>;
   getBranches(): Promise<BranchSummary>;
   branchExists(name: string): Promise<boolean>;
@@ -26,6 +36,9 @@ export interface IGitClient {
   cherryPick(hash: string): Promise<void>;
   cherryPickContinue(): Promise<void>;
   cherryPickAbort(): Promise<void>;
+  pull(): Promise<void>;
+  mergeAbort(): Promise<void>;
+  mergeContinue(): Promise<void>;
   getStatus(): Promise<StatusSummary>;
   addAll(): Promise<void>;
   commit(message: string): Promise<void>;

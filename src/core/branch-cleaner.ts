@@ -25,10 +25,7 @@ export class BranchCleaner {
       candidates.map((b) => ({ value: b, label: b }))
     );
 
-    if (selected.length === 0) {
-      this.ui.info("Nothing selected.");
-      return;
-    }
+    if (selected.length === 0) return;
 
     const deleteRemote = await this.ui.askConfirm("Also delete from origin?");
 

@@ -13,10 +13,16 @@ export class SyncFlow {
   async run(): Promise<void> {
     const status = await this.git.getStatus();
 
-    if (!status.isClean()) {
-      await this.stageAndCommit();
+    if (status.isClean()) {
+      const proceed = await this.ui.askConfirm("Nothing to commit. Push current branch?");
+      if (!proceed) return;
     } else {
-      this.ui.info("Nothing to commit. Pushing current branch...");
+      const fileCount = status.files.length;
+      const proceed = await this.ui.askConfirm(
+        `${fileCount} file(s) modified. Stage, commit and push?`
+      );
+      if (!proceed) return;
+      await this.stageAndCommit();
     }
 
     await this.safePush();

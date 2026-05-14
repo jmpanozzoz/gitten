@@ -16,4 +16,9 @@ process.on("unhandledRejection", (reason) => {
   process.exit(1);
 });
 
-app();
+app()
+  .then(() => process.exit(0))
+  .catch((err) => {
+    console.error("Unexpected error:", err instanceof Error ? err.message : err);
+    process.exit(1);
+  });
