@@ -20,10 +20,16 @@ export class BranchCleaner {
       return;
     }
 
-    const selected = await this.ui.askMultiSelect(
-      "Select branches to delete:",
-      candidates.map((b) => ({ value: b, label: b }))
+    const labelled = await this.ui.spin("Loading branch info...", () =>
+      Promise.all(
+        candidates.map(async (b) => ({
+          value: b,
+          label: `${b}  (${await this.git.getBranchLastActivity(b)})`,
+        }))
+      )
     );
+
+    const selected = await this.ui.askMultiSelect("Select branches to delete:", labelled);
 
     if (selected.length === 0) return;
 

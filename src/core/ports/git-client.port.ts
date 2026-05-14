@@ -32,6 +32,7 @@ export interface IGitClient {
   setRemoteUrl(name: string, url: string): Promise<void>;
   getCurrentBranch(): Promise<string>;
   getBranches(): Promise<BranchSummary>;
+  getBranchLastActivity(branch: string): Promise<string>;
   branchExists(name: string): Promise<boolean>;
   checkoutNewBranch(name: string): Promise<void>;
   deleteLocalBranch(name: string): Promise<void>;

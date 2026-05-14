@@ -81,3 +81,24 @@ test("continues deleting remaining branches after a single failure", async () =>
   expect(git.deleteLocalBranch).toHaveBeenCalledTimes(2);
   expect(ui.warn).toHaveBeenCalled();
 });
+
+test("shows last activity date in branch label", async () => {
+  const git = createGitMock({
+    getBranches: mock(() =>
+      Promise.resolve({ all: ["feat/old"], current: "main" })
+    ),
+    getBranchLastActivity: mock(() => Promise.resolve("3 months ago")),
+    deleteLocalBranch: mock(() => Promise.resolve()),
+  });
+  const ui = createUIMock({
+    askMultiSelect: mock((_, options) => {
+      expect(options[0].label).toContain("3 months ago");
+      return Promise.resolve([] as never);
+    }),
+    askConfirm: mock(() => Promise.resolve(false)),
+  });
+
+  await new BranchCleaner(git, ui).run();
+
+  expect(git.getBranchLastActivity).toHaveBeenCalledWith("feat/old");
+});

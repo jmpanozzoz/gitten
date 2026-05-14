@@ -12,6 +12,7 @@ export function createGitMock(overrides: Partial<IGitClient> = {}): IGitClient {
     setRemoteUrl: mock(() => Promise.resolve()),
     getCurrentBranch: mock(() => Promise.resolve("main")),
     getBranches: mock(() => Promise.resolve({ all: [], current: "main" } satisfies BranchSummary)),
+    getBranchLastActivity: mock(() => Promise.resolve("2 days ago")),
     branchExists: mock(() => Promise.resolve(false)),
     checkoutNewBranch: mock(() => Promise.resolve()),
     deleteLocalBranch: mock(() => Promise.resolve()),
