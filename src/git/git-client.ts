@@ -40,6 +40,15 @@ export class GitClient implements IGitClient {
     return status.current ?? "";
   }
 
+  async getRepoContext(): Promise<RepoContext> {
+    const status = await this.git.status();
+    return {
+      branch: status.current ?? "",
+      modifiedCount: status.files.length,
+      commitsAhead: status.ahead,
+    };
+  }
+
   async getBranches(): Promise<BranchSummary> {
     const result = await this.git.branchLocal();
     return { all: result.all, current: result.current };
