@@ -1,5 +1,5 @@
 import { mock } from "bun:test";
-import type { IGitClient, BranchSummary, CommitSummary, StatusSummary, Remote, PullResult, DiffStat } from "../../src/core/ports/git-client.port";
+import type { IGitClient, BranchSummary, CommitSummary, StatusSummary, Remote, PullResult, DiffStat, StashEntry } from "../../src/core/ports/git-client.port";
 
 export function createGitMock(overrides: Partial<IGitClient> = {}): IGitClient {
   return {
@@ -47,6 +47,11 @@ export function createGitMock(overrides: Partial<IGitClient> = {}): IGitClient {
     resetMixed: mock(() => Promise.resolve()),
     filterRepoAvailable: mock(() => Promise.resolve(true)),
     purgeFromHistory: mock(() => Promise.resolve()),
+    getStashes: mock(() => Promise.resolve([] as StashEntry[])),
+    stashWithMessage: mock(() => Promise.resolve()),
+    stashApply: mock(() => Promise.resolve()),
+    stashPop: mock(() => Promise.resolve()),
+    stashDrop: mock(() => Promise.resolve()),
     ...overrides,
   };
 }

@@ -1,7 +1,7 @@
 import simpleGit from "simple-git";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import type { IGitClient, BranchSummary, CommitSummary, StatusSummary, Remote, PullResult, DiffStat } from "../core/ports/git-client.port";
+import type { IGitClient, BranchSummary, CommitSummary, StatusSummary, Remote, PullResult, DiffStat, StashEntry } from "../core/ports/git-client.port";
 
 export class GitClient implements IGitClient {
   private readonly git: ReturnType<typeof simpleGit>;
@@ -212,5 +212,37 @@ export class GitClient implements IGitClient {
   async purgeFromHistory(paths: string[]): Promise<void> {
     const pathArgs = paths.flatMap((p) => ["--path", p]);
     await Bun.$`git filter-repo ${pathArgs} --invert-paths --force`.cwd(this.cwd);
+  }
+
+  async getStashes(): Promise<StashEntry[]> {
+    const raw = await this.git.raw(["stash", "list", "--format=%gd|%s|%cr"]);
+    if (!raw.trim()) return [];
+    return raw
+      .trim()
+      .split("\n")
+      .map((line) => {
+        const [ref, ...rest] = line.split("|");
+        const date = rest.pop() ?? "";
+        const message = rest.join("|");
+        const index = parseInt(ref.replace("stash@{", "").replace("}", ""), 10);
+        return { index, message, date };
+      });
+  }
+
+  async stashWithMessage(message: string): Promise<void> {
+    const args = message.trim() ? ["push", "-m", message] : ["push"];
+    await this.git.stash(args);
+  }
+
+  async stashApply(index: number): Promise<void> {
+    await this.git.stash(["apply", `stash@{${index}}`]);
+  }
+
+  async stashPop(index: number): Promise<void> {
+    await this.git.stash(["pop", `stash@{${index}}`]);
+  }
+
+  async stashDrop(index: number): Promise<void> {
+    await this.git.stash(["drop", `stash@{${index}}`]);
   }
 }
