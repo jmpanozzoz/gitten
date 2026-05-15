@@ -1,5 +1,6 @@
 import type { IGitClient } from "./ports/git-client.port";
 import type { IUI } from "./ports/ui.port";
+import { theme } from "../ui/theme";
 
 const DEFAULT_COMMIT_MESSAGE = "chore: update";
 const NO_UPSTREAM_ERROR = "no upstream";

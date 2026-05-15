@@ -83,16 +83,19 @@ The install script is idempotent — running it again fetches the latest release
 │  ○ 🚪 Exit
 ```
 
-### Sync — AI-assisted commit message, diff preview
+### Sync — staged diff preview, AI-assisted commit message
 
 ```
-◆  3 file(s) modified. Stage, commit and push?
+⠸  Staging...
+◇  +87 −12 lines staged
+│
+│  +import { jwtMiddleware } from "./middleware/jwt";
+│  +app.use("/api", jwtMiddleware);
+│  -// TODO: add auth
 │
 ◇  Commit message:
 │  feat: add JWT middleware
 │
-⠸  Staging...
-◇  +87 −12 lines staged
 ⠸  Committing...
 ⠸  Pushing...
 ◇  ✓ Pushed to origin/feat/auth
@@ -167,11 +170,12 @@ The install script is idempotent — running it again fetches the latest release
 
 | | What it does |
 |---|---|
+| 🏷️ **Tag / Release** | Reads conventional commits since last tag, infers semver bump (major/minor/patch), creates annotated tag, optionally pushes. |
 | ↩ **Undo Commit** | Search and select how far back to reset. Soft or mixed mode. |
 | ⚡ **Reset** | Discard all local changes or reset to remote HEAD. |
 | 🔗 **Remotes** | Add, change URL, or remove remotes. Handles `git init` for new repos. |
 | 🙈 **.gitignore** | Add patterns from templates or AI-generated suggestions. |
-| 🔥 **Purge History** | Remove a file from the entire git history (irreversible). |
+| 🔥 **Purge History** | Remove files from the entire git history (irreversible). Real-time search filter for large repos. |
 | ⚙️ **Settings** | Configure the AI provider (Anthropic / OpenAI) for smart suggestions. |
 
 **What gitten deliberately does NOT do:** interactive rebase, hunk-level staging, GitHub API integration, config files. Sharp focus, zero configuration.
@@ -195,11 +199,13 @@ src/
 │   ├── pull-flow.ts
 │   ├── sync-flow.ts
 │   ├── stash-manager.ts
+│   ├── amend-flow.ts
 │   ├── undo-commit.ts
 │   ├── reset-manager.ts
 │   ├── remote-manager.ts
 │   ├── gitignore-manager.ts
 │   ├── history-purge.ts
+│   ├── tag-wizard.ts
 │   ├── settings.ts
 │   ├── ai-suggester.ts
 │   └── ports/            # Interfaces for dependency injection
