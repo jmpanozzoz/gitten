@@ -180,4 +180,18 @@ export class GitClient implements IGitClient {
   async resetMixed(): Promise<void> {
     await this.git.reset(["HEAD~1"]);
   }
+
+  async filterRepoAvailable(): Promise<boolean> {
+    try {
+      await Bun.$`git filter-repo --version`.quiet();
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  async purgeFromHistory(paths: string[]): Promise<void> {
+    const pathArgs = paths.flatMap((p) => ["--path", p]);
+    await Bun.$`git filter-repo ${pathArgs} --invert-paths --force`.cwd(this.cwd);
+  }
 }

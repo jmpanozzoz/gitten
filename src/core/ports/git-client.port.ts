@@ -62,4 +62,6 @@ export interface IGitClient {
   getLastCommit(): Promise<CommitSummary>;
   resetSoft(): Promise<void>;
   resetMixed(): Promise<void>;
+  filterRepoAvailable(): Promise<boolean>;
+  purgeFromHistory(paths: string[]): Promise<void>;
 }

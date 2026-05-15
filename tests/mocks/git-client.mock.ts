@@ -41,6 +41,8 @@ export function createGitMock(overrides: Partial<IGitClient> = {}): IGitClient {
     getLastCommit: mock(() => Promise.resolve({ hash: "abc1234", message: "chore: update" })),
     resetSoft: mock(() => Promise.resolve()),
     resetMixed: mock(() => Promise.resolve()),
+    filterRepoAvailable: mock(() => Promise.resolve(true)),
+    purgeFromHistory: mock(() => Promise.resolve()),
     ...overrides,
   };
 }
