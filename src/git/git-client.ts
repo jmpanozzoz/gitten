@@ -66,6 +66,13 @@ export class GitClient implements IGitClient {
     return { all: result.all, current: result.current };
   }
 
+  async getRemoteBranches(): Promise<string[]> {
+    const result = await this.git.branch(["-r"]);
+    return result.all
+      .map((b) => b.trim().replace(/^origin\//, ""))
+      .filter((b) => !b.includes("HEAD") && b.length > 0);
+  }
+
   async getBranchLastActivity(branch: string): Promise<string> {
     const result = await this.git.raw(["log", "-1", "--format=%cr", branch]);
     return result.trim() || "no commits";
@@ -90,6 +97,10 @@ export class GitClient implements IGitClient {
 
   async deleteLocalBranch(name: string): Promise<void> {
     await this.git.deleteLocalBranch(name);
+  }
+
+  async deleteLocalBranchForce(name: string): Promise<void> {
+    await this.git.deleteLocalBranch(name, true);
   }
 
   async deleteRemoteBranch(name: string): Promise<void> {
