@@ -22,6 +22,15 @@ Rules:
 - No period at the end
 - Output ONLY the commit message — nothing else`;
 
+const REVIEW_SYSTEM_PROMPT = `You are a senior code reviewer. Given a staged git diff, identify concrete issues only.
+
+Rules:
+- Report only real problems: bugs, hardcoded secrets or values, missing error handling, obvious security issues, forgotten TODOs/FIXMEs
+- One finding per line, no numbering, no bullet points
+- Max 5 findings
+- If nothing is wrong, output exactly: OK
+- Be brief — max 10 words per finding`;
+
 const GITIGNORE_SYSTEM_PROMPT = `You are a .gitignore expert. Given a list of tracked files and the current .gitignore content, suggest additional patterns that should be ignored for this project.
 
 Rules:
@@ -44,6 +53,20 @@ export async function suggestCommitMessage(
 ): Promise<string | null> {
   const truncated = diff.length > MAX_DIFF_CHARS ? diff.slice(0, MAX_DIFF_CHARS) + "\n...(truncated)" : diff;
   return callAI(COMMIT_SYSTEM_PROMPT, `Staged diff:\n\`\`\`\n${truncated}\n\`\`\``, config);
+}
+
+export async function reviewStagedDiff(
+  diff: string,
+  config: AIConfig
+): Promise<string[]> {
+  const truncated = diff.length > MAX_DIFF_CHARS ? diff.slice(0, MAX_DIFF_CHARS) + "\n...(truncated)" : diff;
+  try {
+    const result = await callAI(REVIEW_SYSTEM_PROMPT, `Staged diff:\n\`\`\`\n${truncated}\n\`\`\``, config);
+    if (!result || result.trim() === "OK") return [];
+    return result.split("\n").map((l) => l.trim()).filter(Boolean);
+  } catch {
+    return [];
+  }
 }
 
 export async function suggestGitignorePatterns(

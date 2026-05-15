@@ -6,12 +6,14 @@ const DEFAULT_COMMIT_MESSAGE = "chore: update";
 const NO_UPSTREAM_ERROR = "no upstream";
 
 export type AISuggester = (diff: string) => Promise<string | null>;
+export type AiReviewer = (diff: string) => Promise<string[]>;
 
 export class SyncFlow {
   constructor(
     private readonly git: IGitClient,
     private readonly ui: IUI,
-    private readonly aiSuggester?: AISuggester
+    private readonly aiSuggester?: AISuggester,
+    private readonly aiReviewer?: AiReviewer
   ) {}
 
   async run(): Promise<void> {
@@ -50,6 +52,7 @@ export class SyncFlow {
     this.ui.info(`+${stat.insertions} −${stat.deletions} lines staged`);
 
     await this.showDiffPreview();
+    await this.runAiReview();
 
     const placeholder = await this.resolveCommitPlaceholder();
     const message = await this.ui.askText("Commit message:", undefined, placeholder);
@@ -79,6 +82,32 @@ export class SyncFlow {
 
     this.ui.info(colored);
     if (remaining > 0) this.ui.info(theme.muted(`...and ${remaining} more lines`));
+  }
+
+  private async runAiReview(): Promise<void> {
+    if (!this.aiReviewer) return;
+
+    const proceed = await this.ui.askConfirm("✨ Review staged diff with AI before committing?");
+    if (!proceed) return;
+
+    const diff = await this.git.getStagedDiff();
+    let findings: string[] = [];
+
+    try {
+      findings = await this.ui.spin("Reviewing...", () => this.aiReviewer!(diff));
+    } catch (err) {
+      this.ui.warn(`AI review failed: ${err instanceof Error ? err.message : "unknown error"}`);
+      return;
+    }
+
+    if (findings.length === 0) {
+      this.ui.success("No issues found — looking good!");
+      return;
+    }
+
+    for (const finding of findings) {
+      this.ui.warn(`⚠ ${finding}`);
+    }
   }
 
   private async resolveCommitPlaceholder(): Promise<string> {
