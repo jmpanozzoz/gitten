@@ -1,5 +1,6 @@
 import type { IGitClient } from "./ports/git-client.port";
 import type { IUI } from "./ports/ui.port";
+import { theme } from "../ui/theme";
 
 const DEFAULT_COMMIT_MESSAGE = "chore: update";
 const NO_UPSTREAM_ERROR = "no upstream";
@@ -48,6 +49,8 @@ export class SyncFlow {
     const stat = await this.git.getDiffStat();
     this.ui.info(`+${stat.insertions} −${stat.deletions} lines staged`);
 
+    await this.showDiffPreview();
+
     const placeholder = await this.resolveCommitPlaceholder();
     const message = await this.ui.askText("Commit message:", undefined, placeholder);
     const finalMessage = message.trim() || DEFAULT_COMMIT_MESSAGE;
@@ -55,6 +58,27 @@ export class SyncFlow {
     await this.ui.spin("Committing...", () => this.git.commit(finalMessage));
 
     return this.ui.askConfirm("Push now?");
+  }
+
+  private async showDiffPreview(): Promise<void> {
+    const diff = await this.git.getStagedDiff();
+    if (!diff) return;
+
+    const MAX_LINES = 30;
+    const lines = diff.split("\n");
+    const preview = lines.slice(0, MAX_LINES);
+    const remaining = lines.length - MAX_LINES;
+
+    const colored = preview
+      .map((line) => {
+        if (line.startsWith("+") && !line.startsWith("+++")) return theme.diffAdd(line);
+        if (line.startsWith("-") && !line.startsWith("---")) return theme.diffRemove(line);
+        return theme.muted(line);
+      })
+      .join("\n");
+
+    this.ui.info(colored);
+    if (remaining > 0) this.ui.info(theme.muted(`...and ${remaining} more lines`));
   }
 
   private async resolveCommitPlaceholder(): Promise<string> {
