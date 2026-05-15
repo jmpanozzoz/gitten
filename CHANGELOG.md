@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.0](https://github.com/jmpanozzoz/gitten/compare/v0.5.0...v0.6.0) (2026-05-15)
+
+
+### Features
+
+* Implement project scaffold with CI/CD, testing, and AI features ([#65](https://github.com/jmpanozzoz/gitten/issues/65)) ([cac7de5](https://github.com/jmpanozzoz/gitten/commit/cac7de57d40476dd131ffa579f0173e2bf14d8da))
+
 ## [0.5.0](https://github.com/jmpanozzoz/gitten/compare/v0.4.1...v0.5.0) (2026-05-15)
 
 
