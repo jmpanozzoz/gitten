@@ -24,7 +24,7 @@ test("aborts with instructions when git filter-repo is not installed", async () 
   await new HistoryPurge(git, ui).run();
 
   expect(ui.error).toHaveBeenCalled();
-  expect(ui.askMultiSelect).not.toHaveBeenCalled();
+  expect(ui.askSearchMultiSelect).not.toHaveBeenCalled();
 });
 
 test("aborts when working tree has uncommitted changes", async () => {
@@ -39,7 +39,7 @@ test("aborts when working tree has uncommitted changes", async () => {
   await new HistoryPurge(git, ui).run();
 
   expect(ui.error).toHaveBeenCalled();
-  expect(ui.askMultiSelect).not.toHaveBeenCalled();
+  expect(ui.askSearchMultiSelect).not.toHaveBeenCalled();
 });
 
 test("aborts when no files are selected", async () => {
@@ -49,7 +49,7 @@ test("aborts when no files are selected", async () => {
     purgeFromHistory: mock(() => Promise.resolve()),
   });
   const ui = createUIMock({
-    askMultiSelect: mock(() => Promise.resolve([])),
+    askSearchMultiSelect: mock(() => Promise.resolve([])),
   });
 
   await new HistoryPurge(git, ui).run();
@@ -66,7 +66,7 @@ test("aborts without purging when user declines first confirmation", async () =>
     purgeFromHistory: mock(() => Promise.resolve()),
   });
   const ui = createUIMock({
-    askMultiSelect: mock(() => Promise.resolve([".env"])),
+    askSearchMultiSelect: mock(() => Promise.resolve([".env"])),
     askConfirm: mock(() => Promise.resolve(false)),
   });
 
@@ -82,7 +82,7 @@ test("aborts without purging when user declines second confirmation", async () =
     purgeFromHistory: mock(() => Promise.resolve()),
   });
   const ui = createUIMock({
-    askMultiSelect: mock(() => Promise.resolve([".env"])),
+    askSearchMultiSelect: mock(() => Promise.resolve([".env"])),
     askConfirm: mock()
       .mockResolvedValueOnce(true)
       .mockResolvedValueOnce(false),
@@ -102,7 +102,7 @@ test("calls purgeFromHistory with selected files after double confirmation", asy
     purgeFromHistory: mock(() => Promise.resolve()),
   });
   const ui = createUIMock({
-    askMultiSelect: mock(() => Promise.resolve([".env", "secrets.json"])),
+    askSearchMultiSelect: mock(() => Promise.resolve([".env", "secrets.json"])),
     ...confirmTwice(),
   });
 
@@ -119,7 +119,7 @@ test("shows force-push reminder after successful purge", async () => {
     purgeFromHistory: mock(() => Promise.resolve()),
   });
   const ui = createUIMock({
-    askMultiSelect: mock(() => Promise.resolve([".env"])),
+    askSearchMultiSelect: mock(() => Promise.resolve([".env"])),
     ...confirmTwice(),
   });
 
@@ -135,7 +135,7 @@ test("shows selected file names in the warning before confirming", async () => {
     purgeFromHistory: mock(() => Promise.resolve()),
   });
   const ui = createUIMock({
-    askMultiSelect: mock(() => Promise.resolve([".env"])),
+    askSearchMultiSelect: mock(() => Promise.resolve([".env"])),
     askConfirm: mock(() => Promise.resolve(false)),
   });
 
