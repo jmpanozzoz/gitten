@@ -156,7 +156,9 @@ export class SyncFlow {
         return;
       }
 
-      throw err;
+      const raw = err instanceof Error ? err.message : String(err);
+      this.ui.error(`Push failed: ${raw}`);
+      this.ui.info("Your commit is saved locally. Push manually with: git push");
     }
   }
 }
