@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.0](https://github.com/jmpanozzoz/gitten/compare/v0.4.1...v0.5.0) (2026-05-15)
+
+
+### Features
+
+* add reset manager, multi-commit undo, AI branch suggestions, More submenu and UX polish ([#60](https://github.com/jmpanozzoz/gitten/issues/60)) ([307b1d0](https://github.com/jmpanozzoz/gitten/commit/307b1d02de97a117a551da2ed45dace667924406))
+
 ## [0.4.1](https://github.com/jmpanozzoz/gitten/compare/v0.4.0...v0.4.1) (2026-05-15)
 
 
