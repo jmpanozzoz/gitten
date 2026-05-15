@@ -32,7 +32,7 @@ export class HistoryPurge {
       return;
     }
 
-    const selected = await this.ui.askMultiSelect(
+    const selected = await this.ui.askSearchMultiSelect(
       "Select files to remove from ALL history:",
       tracked.map((f) => ({ value: f, label: f }))
     );

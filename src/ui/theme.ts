@@ -10,4 +10,6 @@ export const theme = {
   highlight: (msg: string) => pc.magenta(msg),
   additions: (n: number) => pc.green(`+${n}`),
   deletions: (n: number) => pc.red(`−${n}`),
+  diffAdd: (line: string) => pc.green(line),
+  diffRemove: (line: string) => pc.red(line),
 };
