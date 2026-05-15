@@ -155,7 +155,7 @@ The install script is idempotent — running it again fetches the latest release
 
 | | What it does |
 |---|---|
-| 🚀 **Sync** | Stage → diff preview → AI commit message → push. Auto-detects missing upstream. |
+| 🚀 **Sync** | Stage → diff preview → optional AI code review → AI commit message → push. Auto-detects missing upstream. |
 | 🔽 **Pull** | Pulls with upstream detection. Distinguishes "already up to date" from "N files changed". |
 | 🌿 **New Branch** | Enforces `type/kebab-case-name`. AI-suggested names. Prevents duplicates. |
 | 🔀 **Switch Branch** | Real-time search filter across all local branches. Stashes uncommitted work if needed. |
