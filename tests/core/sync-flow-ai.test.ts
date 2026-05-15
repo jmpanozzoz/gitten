@@ -31,7 +31,7 @@ test("uses AI suggestion as initialValue when user accepts", async () => {
   await flow.run();
 
   expect(aiSuggester).toHaveBeenCalledTimes(1);
-  expect(git.getStagedDiff).toHaveBeenCalledTimes(1);
+  expect(git.getStagedDiff).toHaveBeenCalledTimes(2); // once for preview, once for AI suggestion
   const initialValue = (ui.askText as ReturnType<typeof mock>).mock.calls[0][2];
   expect(initialValue).toBe("feat: ai suggestion");
 });

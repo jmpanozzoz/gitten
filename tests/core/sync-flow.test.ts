@@ -150,6 +150,48 @@ test("shows diff stat summary after staging", async () => {
   expect(ui.info).toHaveBeenCalledWith(expect.stringContaining("7"));
 });
 
+test("calls getStagedDiff and displays preview before asking commit message", async () => {
+  const git = createGitMock({
+    getStatus: mock(() => Promise.resolve(DIRTY_STATUS)),
+    addFiles: mock(() => Promise.resolve()),
+    getStagedDiff: mock(() => Promise.resolve("+const x = 1;\n-const x = 0;\n context line")),
+    commit: mock(() => Promise.resolve()),
+  });
+  const ui = createUIMock({
+    ...SELECT_ALL,
+    ...CONFIRM_NO,
+    askText: mock(() => Promise.resolve("feat: preview")),
+  });
+
+  await new SyncFlow(git, ui).run();
+
+  expect(git.getStagedDiff).toHaveBeenCalledTimes(1);
+  expect(ui.info).toHaveBeenCalledWith(expect.stringContaining("+const x = 1;"));
+});
+
+test("skips diff preview when staged diff is empty", async () => {
+  const git = createGitMock({
+    getStatus: mock(() => Promise.resolve(DIRTY_STATUS)),
+    addFiles: mock(() => Promise.resolve()),
+    getStagedDiff: mock(() => Promise.resolve("")),
+    commit: mock(() => Promise.resolve()),
+  });
+  const ui = createUIMock({
+    ...SELECT_ALL,
+    ...CONFIRM_NO,
+    askText: mock(() => Promise.resolve("feat: no preview")),
+  });
+  const infoCallsBefore = (createUIMock().info as ReturnType<typeof mock>).mock.calls.length;
+
+  await new SyncFlow(git, ui).run();
+
+  expect(git.getStagedDiff).toHaveBeenCalledTimes(1);
+  // info was called for the stat line, but not for a diff preview
+  const infoCalls = (ui.info as ReturnType<typeof mock>).mock.calls.map((c) => c[0] as string);
+  expect(infoCalls.every((msg) => !msg.includes("+") || msg.includes("staged"))).toBe(true);
+  void infoCallsBefore;
+});
+
 // ─── clean working tree ───────────────────────────────────────────────────────
 
 test("skips staging and commit when working tree is clean but has commits ahead", async () => {

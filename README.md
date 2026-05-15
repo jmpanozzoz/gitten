@@ -83,16 +83,19 @@ The install script is idempotent — running it again fetches the latest release
 │  ○ 🚪 Exit
 ```
 
-### Sync — AI-assisted commit message, diff preview
+### Sync — staged diff preview, AI-assisted commit message
 
 ```
-◆  3 file(s) modified. Stage, commit and push?
+⠸  Staging...
+◇  +87 −12 lines staged
+│
+│  +import { jwtMiddleware } from "./middleware/jwt";
+│  +app.use("/api", jwtMiddleware);
+│  -// TODO: add auth
 │
 ◇  Commit message:
 │  feat: add JWT middleware
 │
-⠸  Staging...
-◇  +87 −12 lines staged
 ⠸  Committing...
 ⠸  Pushing...
 ◇  ✓ Pushed to origin/feat/auth
