@@ -171,7 +171,7 @@ The install script is idempotent — running it again fetches the latest release
 | ⚡ **Reset** | Discard all local changes or reset to remote HEAD. |
 | 🔗 **Remotes** | Add, change URL, or remove remotes. Handles `git init` for new repos. |
 | 🙈 **.gitignore** | Add patterns from templates or AI-generated suggestions. |
-| 🔥 **Purge History** | Remove a file from the entire git history (irreversible). |
+| 🔥 **Purge History** | Remove files from the entire git history (irreversible). Real-time search filter for large repos. |
 | ⚙️ **Settings** | Configure the AI provider (Anthropic / OpenAI) for smart suggestions. |
 
 **What gitten deliberately does NOT do:** interactive rebase, hunk-level staging, GitHub API integration, config files. Sharp focus, zero configuration.
