@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.0](https://github.com/jmpanozzoz/gitten/compare/v0.6.0...v0.7.0) (2026-05-15)
+
+
+### Features
+
+* Implement project scaffold with CI/CD, remote management, and AI features ([#69](https://github.com/jmpanozzoz/gitten/issues/69)) ([dc12005](https://github.com/jmpanozzoz/gitten/commit/dc120052ebd8d62a29ae6071bd4a1a993d209975))
+
 ## [0.6.0](https://github.com/jmpanozzoz/gitten/compare/v0.5.0...v0.6.0) (2026-05-15)
 
 
