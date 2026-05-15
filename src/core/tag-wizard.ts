@@ -13,9 +13,9 @@ function inferBump(commits: CommitSummary[]): BumpType {
   return "patch";
 }
 
-function bumpVersion(tag: string | null, bump: BumpType): string {
-  if (!tag) return "v0.1.0";
-  const clean = tag.replace(/^v/, "");
+function bumpVersion(base: string | null, bump: BumpType): string {
+  if (!base) return "v0.1.0";
+  const clean = base.replace(/^v/, "");
   const parts = clean.split(".").map(Number);
   if (parts.length !== 3 || parts.some(isNaN)) return "v0.1.0";
   const [major, minor, patch] = parts;
@@ -31,6 +31,7 @@ export class TagWizard {
   ) {}
 
   async run(): Promise<void> {
+    const pkgVersion = await this.git.getPackageVersion();
     const lastTag = await this.git.getLastTag();
     const branch = await this.git.getCurrentBranch();
     const commits = lastTag
@@ -43,15 +44,19 @@ export class TagWizard {
     }
 
     const bump = inferBump(commits);
-    const suggested = bumpVersion(lastTag, bump);
+    const base = pkgVersion ?? lastTag;
+    const suggested = bumpVersion(base, bump);
 
+    const baseLabel = pkgVersion
+      ? `package.json: ${pkgVersion}`
+      : lastTag
+        ? `last tag: ${lastTag}`
+        : "no previous version";
     this.ui.info(
-      lastTag
-        ? `Last tag: ${lastTag} · ${commits.length} commit(s) since → suggested bump: ${bump}`
-        : `No previous tag · ${commits.length} commit(s) → suggested: ${suggested}`
+      `Current version (${baseLabel}) · ${commits.length} commit(s) → suggested: ${suggested} (${bump})`
     );
 
-    const version = await this.ui.askText("Tag name:", "v1.0.0", suggested);
+    const version = await this.ui.askText("Tag name:", suggested, suggested);
     const finalVersion = version.trim() || suggested;
 
     if (!/^v?\d+\.\d+\.\d+/.test(finalVersion)) {
