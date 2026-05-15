@@ -47,12 +47,17 @@ export class GitClient implements IGitClient {
   }
 
   async getRepoContext(): Promise<RepoContext> {
-    const status = await this.git.status();
+    const [status, diff] = await Promise.all([
+      this.git.status(),
+      this.git.diffSummary(["HEAD"]).catch(() => ({ insertions: 0, deletions: 0 })),
+    ]);
     return {
       branch: status.current ?? "",
       modifiedCount: status.files.length,
       commitsAhead: status.ahead,
       commitsBehind: status.behind,
+      insertions: diff.insertions,
+      deletions: diff.deletions,
     };
   }
 
