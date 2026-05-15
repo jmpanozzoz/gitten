@@ -251,4 +251,17 @@ export class GitClient implements IGitClient {
   async stashDrop(index: number): Promise<void> {
     await this.git.stash(["drop", `stash@{${index}}`]);
   }
+
+  async discardLocalChanges(): Promise<void> {
+    await this.git.raw(["restore", "."]);
+    await this.git.clean("fd");
+  }
+
+  async fetchRemote(): Promise<void> {
+    await this.git.fetch();
+  }
+
+  async resetHardToRemote(branch: string): Promise<void> {
+    await this.git.reset(["--hard", `origin/${branch}`]);
+  }
 }

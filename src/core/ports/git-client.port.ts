@@ -82,6 +82,9 @@ export interface IGitClient {
   stashApply(index: number): Promise<void>;
   stashPop(index: number): Promise<void>;
   stashDrop(index: number): Promise<void>;
+  discardLocalChanges(): Promise<void>;
+  fetchRemote(): Promise<void>;
+  resetHardToRemote(branch: string): Promise<void>;
 }
 
 export interface StashEntry {

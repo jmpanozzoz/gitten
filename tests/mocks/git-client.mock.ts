@@ -52,6 +52,9 @@ export function createGitMock(overrides: Partial<IGitClient> = {}): IGitClient {
     stashApply: mock(() => Promise.resolve()),
     stashPop: mock(() => Promise.resolve()),
     stashDrop: mock(() => Promise.resolve()),
+    discardLocalChanges: mock(() => Promise.resolve()),
+    fetchRemote: mock(() => Promise.resolve()),
+    resetHardToRemote: mock(() => Promise.resolve()),
     ...overrides,
   };
 }
