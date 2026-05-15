@@ -118,13 +118,20 @@ export class GitClient implements IGitClient {
   async getStatus(): Promise<StatusSummary> {
     const status = await this.git.status();
     return {
-      files: status.files.map((f) => ({ path: f.path })),
+      files: status.files.map((f) => ({
+        path: f.path,
+        status: f.working_dir !== " " ? f.working_dir : f.index,
+      })),
       isClean: () => status.isClean(),
     };
   }
 
   async addAll(): Promise<void> {
     await this.git.add(".");
+  }
+
+  async addFiles(paths: string[]): Promise<void> {
+    await this.git.add(paths);
   }
 
   async getDiffStat(): Promise<DiffStat> {

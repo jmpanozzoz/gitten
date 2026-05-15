@@ -17,19 +17,25 @@ export class SyncFlow {
       const proceed = await this.ui.askConfirm("Nothing to commit. Push current branch?");
       if (!proceed) return;
     } else {
-      const fileCount = status.files.length;
-      const proceed = await this.ui.askConfirm(
-        `${fileCount} file(s) modified. Stage, commit and push?`
-      );
-      if (!proceed) return;
-      await this.stageAndCommit();
+      const staged = await this.selectFiles(status.files);
+      if (staged.length === 0) return;
+      await this.stageAndCommit(staged);
     }
 
     await this.safePush();
   }
 
-  private async stageAndCommit(): Promise<void> {
-    await this.ui.spin("Staging...", () => this.git.addAll());
+  private async selectFiles(
+    files: { path: string; status: string }[]
+  ): Promise<string[]> {
+    return this.ui.askMultiSelect(
+      "Select files to stage:",
+      files.map((f) => ({ value: f.path, label: `${f.status}  ${f.path}` }))
+    );
+  }
+
+  private async stageAndCommit(paths: string[]): Promise<void> {
+    await this.ui.spin("Staging...", () => this.git.addFiles(paths));
 
     const stat = await this.git.getDiffStat();
     this.ui.info(`+${stat.insertions} −${stat.deletions} lines staged`);
@@ -56,9 +62,7 @@ export class SyncFlow {
       }
 
       if (message.includes("rejected") || message.includes("fetch first")) {
-        this.ui.error(
-          "Push rejected — the remote has new commits. Run a pull first."
-        );
+        this.ui.error("Push rejected — the remote has new commits. Run a pull first.");
         return;
       }
 
