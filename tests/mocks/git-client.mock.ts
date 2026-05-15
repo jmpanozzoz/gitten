@@ -21,6 +21,7 @@ export function createGitMock(overrides: Partial<IGitClient> = {}): IGitClient {
     checkoutBranch: mock(() => Promise.resolve()),
     stash: mock(() => Promise.resolve()),
     deleteLocalBranch: mock(() => Promise.resolve()),
+    deleteLocalBranchForce: mock(() => Promise.resolve()),
     deleteRemoteBranch: mock(() => Promise.resolve()),
     getLog: mock(() => Promise.resolve([] satisfies CommitSummary[])),
     cherryPick: mock(() => Promise.resolve()),

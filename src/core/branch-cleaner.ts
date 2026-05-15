@@ -40,7 +40,7 @@ export class BranchCleaner {
 
     for (const branch of selected) {
       try {
-        await this.git.deleteLocalBranch(branch);
+        await this.git.deleteLocalBranchForce(branch);
         localDeleted++;
       } catch {
         this.ui.warn(`Could not delete local branch "${branch}" — skipping.`);

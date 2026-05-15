@@ -30,7 +30,7 @@ test("deletes selected local branches", async () => {
     getBranches: mock(() =>
       Promise.resolve({ all: ["feat/old", "fix/typo"], current: "main" })
     ),
-    deleteLocalBranch: mock(() => Promise.resolve()),
+    deleteLocalBranchForce: mock(() => Promise.resolve()),
   });
   const ui = createUIMock({
     askSearchMultiSelect: mock(() => Promise.resolve(["feat/old", "fix/typo"] as never)),
@@ -39,8 +39,8 @@ test("deletes selected local branches", async () => {
 
   await new BranchCleaner(git, ui).run();
 
-  expect(git.deleteLocalBranch).toHaveBeenCalledWith("feat/old");
-  expect(git.deleteLocalBranch).toHaveBeenCalledWith("fix/typo");
+  expect(git.deleteLocalBranchForce).toHaveBeenCalledWith("feat/old");
+  expect(git.deleteLocalBranchForce).toHaveBeenCalledWith("fix/typo");
   expect(git.deleteRemoteBranch).not.toHaveBeenCalled();
 });
 
@@ -49,7 +49,7 @@ test("also deletes remote branches when confirmed", async () => {
     getBranches: mock(() =>
       Promise.resolve({ all: ["feat/old"], current: "main" })
     ),
-    deleteLocalBranch: mock(() => Promise.resolve()),
+    deleteLocalBranchForce: mock(() => Promise.resolve()),
     deleteRemoteBranch: mock(() => Promise.resolve()),
   });
   const ui = createUIMock({
@@ -67,7 +67,7 @@ test("continues deleting remaining branches after a single failure", async () =>
     getBranches: mock(() =>
       Promise.resolve({ all: ["feat/a", "feat/b"], current: "main" })
     ),
-    deleteLocalBranch: mock()
+    deleteLocalBranchForce: mock()
       .mockRejectedValueOnce(new Error("unmerged"))
       .mockResolvedValueOnce(undefined),
   });
@@ -78,7 +78,7 @@ test("continues deleting remaining branches after a single failure", async () =>
 
   await new BranchCleaner(git, ui).run();
 
-  expect(git.deleteLocalBranch).toHaveBeenCalledTimes(2);
+  expect(git.deleteLocalBranchForce).toHaveBeenCalledTimes(2);
   expect(ui.warn).toHaveBeenCalled();
 });
 
@@ -88,7 +88,7 @@ test("shows last activity date in branch label", async () => {
       Promise.resolve({ all: ["feat/old"], current: "main" })
     ),
     getBranchLastActivity: mock(() => Promise.resolve("3 months ago")),
-    deleteLocalBranch: mock(() => Promise.resolve()),
+    deleteLocalBranchForce: mock(() => Promise.resolve()),
   });
   const ui = createUIMock({
     askSearchMultiSelect: mock((_, options) => {

@@ -92,6 +92,10 @@ export class GitClient implements IGitClient {
     await this.git.deleteLocalBranch(name);
   }
 
+  async deleteLocalBranchForce(name: string): Promise<void> {
+    await this.git.deleteLocalBranch(name, true);
+  }
+
   async deleteRemoteBranch(name: string): Promise<void> {
     await this.git.push(["origin", "--delete", name]);
   }

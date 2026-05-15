@@ -54,6 +54,7 @@ export interface IGitClient {
   checkoutBranch(name: string): Promise<void>;
   stash(): Promise<void>;
   deleteLocalBranch(name: string): Promise<void>;
+  deleteLocalBranchForce(name: string): Promise<void>;
   deleteRemoteBranch(name: string): Promise<void>;
   getLog(branch: string, limit: number): Promise<CommitSummary[]>;
   cherryPick(hash: string): Promise<void>;
