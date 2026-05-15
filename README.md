@@ -167,6 +167,7 @@ The install script is idempotent — running it again fetches the latest release
 
 | | What it does |
 |---|---|
+| 🗂️ **Worktrees** | List, add, and remove git worktrees. Work on multiple branches in parallel in separate directories. |
 | ↩ **Undo Commit** | Search and select how far back to reset. Soft or mixed mode. |
 | ⚡ **Reset** | Discard all local changes or reset to remote HEAD. |
 | 🔗 **Remotes** | Add, change URL, or remove remotes. Handles `git init` for new repos. |
@@ -200,6 +201,7 @@ src/
 │   ├── remote-manager.ts
 │   ├── gitignore-manager.ts
 │   ├── history-purge.ts
+│   ├── worktree-manager.ts
 │   ├── settings.ts
 │   ├── ai-suggester.ts
 │   └── ports/            # Interfaces for dependency injection
