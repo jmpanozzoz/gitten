@@ -1,7 +1,7 @@
 import simpleGit from "simple-git";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import type { IGitClient, BranchSummary, CommitSummary, StatusSummary, Remote, PullResult, DiffStat, StashEntry } from "../core/ports/git-client.port";
+import type { IGitClient, BranchSummary, CommitSummary, StatusSummary, Remote, PullResult, DiffStat, StashEntry, WorktreeEntry } from "../core/ports/git-client.port";
 
 export class GitClient implements IGitClient {
   private readonly git: ReturnType<typeof simpleGit>;
@@ -197,6 +197,45 @@ export class GitClient implements IGitClient {
     const entry = log.latest;
     if (!entry) throw new Error("does not have any commits yet");
     return { hash: entry.hash.slice(0, 7), message: entry.message };
+  }
+
+  async amendCommit(message: string): Promise<void> {
+    await this.git.raw(["commit", "--amend", "-m", message]);
+  }
+
+  async amendNoEdit(): Promise<void> {
+    await this.git.raw(["commit", "--amend", "--no-edit"]);
+  }
+
+  async getWorktrees(): Promise<WorktreeEntry[]> {
+    const raw = await this.git.raw(["worktree", "list", "--porcelain"]);
+    const entries: WorktreeEntry[] = [];
+    const blocks = raw.trim().split(/\n\n+/);
+    for (const block of blocks) {
+      const lines = block.trim().split("\n");
+      const pathLine = lines.find((l) => l.startsWith("worktree "));
+      const branchLine = lines.find((l) => l.startsWith("branch "));
+      const isMain = lines.some((l) => l === "bare") || entries.length === 0;
+      const isLocked = lines.some((l) => l.startsWith("locked"));
+      if (!pathLine) continue;
+      const path = pathLine.replace("worktree ", "").trim();
+      const branch = branchLine
+        ? branchLine.replace("branch refs/heads/", "").trim()
+        : "(detached)";
+      entries.push({ path, branch, isMain: entries.length === 0, isLocked });
+    }
+    return entries;
+  }
+
+  async addWorktree(path: string, branch: string, newBranch: boolean): Promise<void> {
+    const args = newBranch
+      ? ["worktree", "add", "-b", branch, path]
+      : ["worktree", "add", path, branch];
+    await this.git.raw(args);
+  }
+
+  async removeWorktree(path: string): Promise<void> {
+    await this.git.raw(["worktree", "remove", path]);
   }
 
   async resetSoft(n: number): Promise<void> {

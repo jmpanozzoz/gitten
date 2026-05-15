@@ -83,16 +83,19 @@ The install script is idempotent — running it again fetches the latest release
 │  ○ 🚪 Exit
 ```
 
-### Sync — AI-assisted commit message, diff preview
+### Sync — staged diff preview, AI-assisted commit message
 
 ```
-◆  3 file(s) modified. Stage, commit and push?
+⠸  Staging...
+◇  +87 −12 lines staged
+│
+│  +import { jwtMiddleware } from "./middleware/jwt";
+│  +app.use("/api", jwtMiddleware);
+│  -// TODO: add auth
 │
 ◇  Commit message:
 │  feat: add JWT middleware
 │
-⠸  Staging...
-◇  +87 −12 lines staged
 ⠸  Committing...
 ⠸  Pushing...
 ◇  ✓ Pushed to origin/feat/auth
@@ -155,7 +158,7 @@ The install script is idempotent — running it again fetches the latest release
 
 | | What it does |
 |---|---|
-| 🚀 **Sync** | Stage → diff preview → AI commit message → push. Auto-detects missing upstream. |
+| 🚀 **Sync** | Stage → diff preview → optional AI code review → AI commit message → push. Auto-detects missing upstream. |
 | 🔽 **Pull** | Pulls with upstream detection. Distinguishes "already up to date" from "N files changed". |
 | 🌿 **New Branch** | Enforces `type/kebab-case-name`. AI-suggested names. Prevents duplicates. |
 | 🔀 **Switch Branch** | Real-time search filter across all local branches. Stashes uncommitted work if needed. |
@@ -167,11 +170,12 @@ The install script is idempotent — running it again fetches the latest release
 
 | | What it does |
 |---|---|
+| 🗂️ **Worktrees** | List, add, and remove git worktrees. Work on multiple branches in parallel in separate directories. |
 | ↩ **Undo Commit** | Search and select how far back to reset. Soft or mixed mode. |
 | ⚡ **Reset** | Discard all local changes or reset to remote HEAD. |
 | 🔗 **Remotes** | Add, change URL, or remove remotes. Handles `git init` for new repos. |
 | 🙈 **.gitignore** | Add patterns from templates or AI-generated suggestions. |
-| 🔥 **Purge History** | Remove a file from the entire git history (irreversible). |
+| 🔥 **Purge History** | Remove files from the entire git history (irreversible). Real-time search filter for large repos. |
 | ⚙️ **Settings** | Configure the AI provider (Anthropic / OpenAI) for smart suggestions. |
 
 **What gitten deliberately does NOT do:** interactive rebase, hunk-level staging, GitHub API integration, config files. Sharp focus, zero configuration.
@@ -195,11 +199,13 @@ src/
 │   ├── pull-flow.ts
 │   ├── sync-flow.ts
 │   ├── stash-manager.ts
+│   ├── amend-flow.ts
 │   ├── undo-commit.ts
 │   ├── reset-manager.ts
 │   ├── remote-manager.ts
 │   ├── gitignore-manager.ts
 │   ├── history-purge.ts
+│   ├── worktree-manager.ts
 │   ├── settings.ts
 │   ├── ai-suggester.ts
 │   └── ports/            # Interfaces for dependency injection

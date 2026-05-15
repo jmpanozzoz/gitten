@@ -74,6 +74,11 @@ export interface IGitClient {
   getTrackedFiles(): Promise<string[]>;
   untrackFiles(paths: string[]): Promise<void>;
   getLastCommit(): Promise<CommitSummary>;
+  amendCommit(message: string): Promise<void>;
+  amendNoEdit(): Promise<void>;
+  getWorktrees(): Promise<WorktreeEntry[]>;
+  addWorktree(path: string, branch: string, newBranch: boolean): Promise<void>;
+  removeWorktree(path: string): Promise<void>;
   resetSoft(n: number): Promise<void>;
   resetMixed(n: number): Promise<void>;
   filterRepoAvailable(): Promise<boolean>;
@@ -86,6 +91,13 @@ export interface IGitClient {
   discardLocalChanges(): Promise<void>;
   fetchRemote(): Promise<void>;
   resetHardToRemote(branch: string): Promise<void>;
+}
+
+export interface WorktreeEntry {
+  path: string;
+  branch: string;
+  isMain: boolean;
+  isLocked: boolean;
 }
 
 export interface StashEntry {
