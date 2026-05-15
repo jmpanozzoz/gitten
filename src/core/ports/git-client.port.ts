@@ -74,6 +74,8 @@ export interface IGitClient {
   getTrackedFiles(): Promise<string[]>;
   untrackFiles(paths: string[]): Promise<void>;
   getLastCommit(): Promise<CommitSummary>;
+  amendCommit(message: string): Promise<void>;
+  amendNoEdit(): Promise<void>;
   getWorktrees(): Promise<WorktreeEntry[]>;
   addWorktree(path: string, branch: string, newBranch: boolean): Promise<void>;
   removeWorktree(path: string): Promise<void>;
