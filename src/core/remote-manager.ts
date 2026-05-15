@@ -1,7 +1,7 @@
 import type { IGitClient } from "./ports/git-client.port";
 import type { IUI } from "./ports/ui.port";
 
-type RemoteAction = "add" | "change-url" | "remove" | "back";
+type RemoteAction = "add" | "change-url" | "remove";
 
 export class RemoteManager {
   constructor(
@@ -25,10 +25,8 @@ export class RemoteManager {
       { value: "add", label: "➕ Add remote" },
       { value: "change-url", label: "✏️  Change remote URL" },
       { value: "remove", label: "🗑️  Remove remote" },
-      { value: "back", label: "← Back" },
     ]);
 
-    if (action === "back") return;
     if (action === "add") return this.addRemote();
     if (action === "change-url") return this.changeUrl(remotes.map((r) => r.name));
     if (action === "remove") return this.remove(remotes.map((r) => r.name));

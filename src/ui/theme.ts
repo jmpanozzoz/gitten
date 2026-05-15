@@ -8,4 +8,6 @@ export const theme = {
   muted: (msg: string) => pc.gray(msg),
   bold: (msg: string) => pc.bold(msg),
   highlight: (msg: string) => pc.magenta(msg),
+  additions: (n: number) => pc.green(`+${n}`),
+  deletions: (n: number) => pc.red(`−${n}`),
 };

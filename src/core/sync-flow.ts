@@ -4,40 +4,74 @@ import type { IUI } from "./ports/ui.port";
 const DEFAULT_COMMIT_MESSAGE = "chore: update";
 const NO_UPSTREAM_ERROR = "no upstream";
 
+export type AISuggester = (diff: string) => Promise<string | null>;
+
 export class SyncFlow {
   constructor(
     private readonly git: IGitClient,
-    private readonly ui: IUI
+    private readonly ui: IUI,
+    private readonly aiSuggester?: AISuggester
   ) {}
 
   async run(): Promise<void> {
     const status = await this.git.getStatus();
 
     if (status.isClean()) {
+      if (status.commitsAhead === 0) {
+        this.ui.info("Already up to date — nothing to commit or push.");
+        return;
+      }
       const proceed = await this.ui.askConfirm("Nothing to commit. Push current branch?");
       if (!proceed) return;
     } else {
-      const fileCount = status.files.length;
-      const proceed = await this.ui.askConfirm(
-        `${fileCount} file(s) modified. Stage, commit and push?`
-      );
-      if (!proceed) return;
-      await this.stageAndCommit();
+      const staged = await this.selectFiles(status.files);
+      if (staged.length === 0) return;
+      const shouldPush = await this.stageAndCommit(staged);
+      if (!shouldPush) return;
     }
 
     await this.safePush();
   }
 
-  private async stageAndCommit(): Promise<void> {
-    await this.ui.spin("Staging...", () => this.git.addAll());
+  private async selectFiles(
+    files: { path: string; status: string }[]
+  ): Promise<string[]> {
+    return this.ui.askMultiSelect(
+      "Select files to stage:",
+      files.map((f) => ({ value: f.path, label: `${f.status}  ${f.path}` }))
+    );
+  }
+
+  private async stageAndCommit(paths: string[]): Promise<boolean> {
+    await this.ui.spin("Staging...", () => this.git.addFiles(paths));
 
     const stat = await this.git.getDiffStat();
     this.ui.info(`+${stat.insertions} −${stat.deletions} lines staged`);
 
-    const message = await this.ui.askText("Commit message:", DEFAULT_COMMIT_MESSAGE);
+    const placeholder = await this.resolveCommitPlaceholder();
+    const message = await this.ui.askText("Commit message:", placeholder);
     const finalMessage = message.trim() || DEFAULT_COMMIT_MESSAGE;
 
     await this.ui.spin("Committing...", () => this.git.commit(finalMessage));
+
+    return this.ui.askConfirm("Push now?");
+  }
+
+  private async resolveCommitPlaceholder(): Promise<string> {
+    if (!this.aiSuggester) return DEFAULT_COMMIT_MESSAGE;
+
+    const suggest = await this.ui.askConfirm("✨ Generate commit message with AI?");
+    if (!suggest) return DEFAULT_COMMIT_MESSAGE;
+
+    const diff = await this.git.getStagedDiff();
+    const suggestion = await this.ui.spin("Generating suggestion...", () => this.aiSuggester!(diff));
+
+    if (!suggestion) {
+      this.ui.warn("AI did not return a suggestion — type your message.");
+      return DEFAULT_COMMIT_MESSAGE;
+    }
+
+    return suggestion;
   }
 
   private async safePush(): Promise<void> {
@@ -56,9 +90,7 @@ export class SyncFlow {
       }
 
       if (message.includes("rejected") || message.includes("fetch first")) {
-        this.ui.error(
-          "Push rejected — the remote has new commits. Run a pull first."
-        );
+        this.ui.error("Push rejected — the remote has new commits. Run a pull first.");
         return;
       }
 

@@ -1,7 +1,7 @@
 import simpleGit from "simple-git";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import type { IGitClient, BranchSummary, CommitSummary, StatusSummary, Remote, PullResult, DiffStat } from "../core/ports/git-client.port";
+import type { IGitClient, BranchSummary, CommitSummary, StatusSummary, Remote, PullResult, DiffStat, StashEntry } from "../core/ports/git-client.port";
 
 export class GitClient implements IGitClient {
   private readonly git: ReturnType<typeof simpleGit>;
@@ -47,11 +47,17 @@ export class GitClient implements IGitClient {
   }
 
   async getRepoContext(): Promise<RepoContext> {
-    const status = await this.git.status();
+    const [status, diff] = await Promise.all([
+      this.git.status(),
+      this.git.diffSummary(["HEAD"]).catch(() => ({ insertions: 0, deletions: 0 })),
+    ]);
     return {
       branch: status.current ?? "",
       modifiedCount: status.files.length,
       commitsAhead: status.ahead,
+      commitsBehind: status.behind,
+      insertions: diff.insertions,
+      deletions: diff.deletions,
     };
   }
 
@@ -72,6 +78,14 @@ export class GitClient implements IGitClient {
 
   async checkoutNewBranch(name: string): Promise<void> {
     await this.git.checkoutLocalBranch(name);
+  }
+
+  async checkoutBranch(name: string): Promise<void> {
+    await this.git.checkout(name);
+  }
+
+  async stash(): Promise<void> {
+    await this.git.stash(["push"]);
   }
 
   async deleteLocalBranch(name: string): Promise<void> {
@@ -118,8 +132,12 @@ export class GitClient implements IGitClient {
   async getStatus(): Promise<StatusSummary> {
     const status = await this.git.status();
     return {
-      files: status.files.map((f) => ({ path: f.path })),
+      files: status.files.map((f) => ({
+        path: f.path,
+        status: f.working_dir !== " " ? f.working_dir : f.index,
+      })),
       isClean: () => status.isClean(),
+      commitsAhead: status.ahead,
     };
   }
 
@@ -127,9 +145,17 @@ export class GitClient implements IGitClient {
     await this.git.add(".");
   }
 
+  async addFiles(paths: string[]): Promise<void> {
+    await this.git.add(paths);
+  }
+
   async getDiffStat(): Promise<DiffStat> {
     const diff = await this.git.diffSummary(["--cached"]);
     return { insertions: diff.insertions, deletions: diff.deletions };
+  }
+
+  async getStagedDiff(): Promise<string> {
+    return this.git.diff(["--cached"]);
   }
 
   async commit(message: string): Promise<void> {
@@ -143,5 +169,100 @@ export class GitClient implements IGitClient {
     } else {
       await this.git.push();
     }
+  }
+
+  async readGitignore(): Promise<string[]> {
+    const file = Bun.file(join(this.cwd, ".gitignore"));
+    if (!(await file.exists())) return [];
+    const text = await file.text();
+    return text.split("\n");
+  }
+
+  async writeGitignore(lines: string[]): Promise<void> {
+    await Bun.write(join(this.cwd, ".gitignore"), lines.join("\n") + "\n");
+  }
+
+  async getTrackedFiles(): Promise<string[]> {
+    const result = await this.git.raw(["ls-files"]);
+    return result.trim().split("\n").filter(Boolean);
+  }
+
+  async untrackFiles(paths: string[]): Promise<void> {
+    if (paths.length === 0) return;
+    await this.git.raw(["rm", "--cached", ...paths]);
+  }
+
+  async getLastCommit(): Promise<CommitSummary> {
+    const log = await this.git.log(["-1"]);
+    const entry = log.latest;
+    if (!entry) throw new Error("does not have any commits yet");
+    return { hash: entry.hash.slice(0, 7), message: entry.message };
+  }
+
+  async resetSoft(n: number): Promise<void> {
+    await this.git.reset(["--soft", `HEAD~${n}`]);
+  }
+
+  async resetMixed(n: number): Promise<void> {
+    await this.git.reset([`HEAD~${n}`]);
+  }
+
+  async filterRepoAvailable(): Promise<boolean> {
+    try {
+      await Bun.$`git filter-repo --version`.quiet();
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  async purgeFromHistory(paths: string[]): Promise<void> {
+    const pathArgs = paths.flatMap((p) => ["--path", p]);
+    await Bun.$`git filter-repo ${pathArgs} --invert-paths --force`.cwd(this.cwd);
+  }
+
+  async getStashes(): Promise<StashEntry[]> {
+    const raw = await this.git.raw(["stash", "list", "--format=%gd|%s|%cr"]);
+    if (!raw.trim()) return [];
+    return raw
+      .trim()
+      .split("\n")
+      .map((line) => {
+        const [ref, ...rest] = line.split("|");
+        const date = rest.pop() ?? "";
+        const message = rest.join("|");
+        const index = parseInt(ref.replace("stash@{", "").replace("}", ""), 10);
+        return { index, message, date };
+      });
+  }
+
+  async stashWithMessage(message: string): Promise<void> {
+    const args = message.trim() ? ["push", "-m", message] : ["push"];
+    await this.git.stash(args);
+  }
+
+  async stashApply(index: number): Promise<void> {
+    await this.git.stash(["apply", `stash@{${index}}`]);
+  }
+
+  async stashPop(index: number): Promise<void> {
+    await this.git.stash(["pop", `stash@{${index}}`]);
+  }
+
+  async stashDrop(index: number): Promise<void> {
+    await this.git.stash(["drop", `stash@{${index}}`]);
+  }
+
+  async discardLocalChanges(): Promise<void> {
+    await this.git.raw(["restore", "."]);
+    await this.git.clean("fd");
+  }
+
+  async fetchRemote(): Promise<void> {
+    await this.git.fetch();
+  }
+
+  async resetHardToRemote(branch: string): Promise<void> {
+    await this.git.reset(["--hard", `origin/${branch}`]);
   }
 }

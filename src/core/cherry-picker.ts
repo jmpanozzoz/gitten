@@ -1,5 +1,6 @@
 import type { IGitClient } from "./ports/git-client.port";
 import type { IUI } from "./ports/ui.port";
+import { GoBackSignal } from "../ui/go-back";
 import { stdinResolution } from "../utils/stdin-resolution";
 
 const COMMIT_LOG_LIMIT = 15;
@@ -22,10 +23,8 @@ export class CherryPicker {
 
     const sourceBranch = await this.ui.askSelect(
       "Pick commits from which branch?",
-      [...branches.map((b) => ({ value: b, label: b })), { value: "back", label: "← Back" }]
+      branches.map((b) => ({ value: b, label: b }))
     );
-
-    if (sourceBranch === "back") return;
 
     const commits = await this.git.getLog(sourceBranch, COMMIT_LOG_LIMIT);
 
@@ -44,7 +43,8 @@ export class CherryPicker {
         this.git.cherryPick(hash)
       );
       this.ui.success("Commit applied successfully.");
-    } catch {
+    } catch (e) {
+      if (e instanceof GoBackSignal) throw e;
       await this.handleConflict();
     }
   }

@@ -1,33 +1,34 @@
 import type { IGitClient } from "./ports/git-client.port";
 import type { IUI, BranchType } from "./ports/ui.port";
 
-type BranchTypeOrBack = BranchType | "back";
+export type AIBranchSuggester = (type: BranchType, description: string) => Promise<string | null>;
 
 export class BranchCreator {
   constructor(
     private readonly git: IGitClient,
-    private readonly ui: IUI
+    private readonly ui: IUI,
+    private readonly aiSuggester?: AIBranchSuggester
   ) {}
 
   async run(): Promise<void> {
-    const type = await this.ui.askSelect<BranchTypeOrBack>("Branch type:", [
+    const type = await this.ui.askSelect<BranchType>("Branch type:", [
       { value: "feat", label: "feat — new feature" },
       { value: "fix", label: "fix — bug fix" },
       { value: "hotfix", label: "hotfix — urgent production fix" },
       { value: "chore", label: "chore — maintenance task" },
       { value: "docs", label: "docs — documentation only" },
-      { value: "back", label: "← Back" },
     ]);
 
-    if (type === "back") return;
-
     const description = await this.promptDescription();
-    const branchName = this.buildBranchName(type as BranchType, description);
+    let branchName = await this.resolveBranchName(type, description);
 
     const exists = await this.git.branchExists(branchName);
     if (exists) {
-      this.ui.error(`Branch "${branchName}" already exists locally.`);
-      return;
+      if (!this.aiSuggester) {
+        this.ui.error(`Branch "${branchName}" already exists locally.`);
+        return;
+      }
+      branchName = await this.resolveCollision(branchName);
     }
 
     await this.ui.spin(`Creating branch ${branchName}...`, () =>
@@ -45,6 +46,35 @@ export class BranchCreator {
       .replace(/\s+/g, "-")
       .replace(/-+/g, "-");
     return `${type}/${slug}`;
+  }
+
+  private async resolveCollision(conflicting: string): Promise<string> {
+    this.ui.warn(`Branch "${conflicting}" already exists — enter a different name.`);
+    while (true) {
+      const input = await this.ui.askText("Branch name:", conflicting);
+      if (!await this.git.branchExists(input)) return input;
+      this.ui.warn(`Branch "${input}" also already exists.`);
+    }
+  }
+
+  private async resolveBranchName(type: BranchType, description: string): Promise<string> {
+    const deterministic = this.buildBranchName(type, description);
+    if (!this.aiSuggester) return deterministic;
+
+    const suggest = await this.ui.askConfirm("✨ Suggest a branch name with AI?");
+    if (!suggest) return deterministic;
+
+    const slug = await this.ui.spin("Generating suggestion...", () =>
+      this.aiSuggester!(type, description)
+    );
+
+    if (!slug) {
+      this.ui.warn("AI did not return a suggestion — using generated name.");
+      return deterministic;
+    }
+
+    const sanitized = this.buildBranchName(type, slug.replace(/^[^/]+\//, ""));
+    return this.ui.askText("Branch name:", sanitized);
   }
 
   private async promptDescription(): Promise<string> {
