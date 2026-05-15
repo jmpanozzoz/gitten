@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.0](https://github.com/jmpanozzoz/gitten/compare/v0.7.0...v0.8.0) (2026-05-15)
+
+
+### Features
+
+* Implement core features and CI/CD for Git management tool ([#79](https://github.com/jmpanozzoz/gitten/issues/79)) ([36c2944](https://github.com/jmpanozzoz/gitten/commit/36c2944bcd7e8184abbaed7711b43b6bf1dce8a7))
+
 ## [0.7.0](https://github.com/jmpanozzoz/gitten/compare/v0.6.0...v0.7.0) (2026-05-15)
 
 
