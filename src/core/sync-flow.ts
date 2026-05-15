@@ -17,6 +17,10 @@ export class SyncFlow {
     const status = await this.git.getStatus();
 
     if (status.isClean()) {
+      if (status.commitsAhead === 0) {
+        this.ui.info("Already up to date — nothing to commit or push.");
+        return;
+      }
       const proceed = await this.ui.askConfirm("Nothing to commit. Push current branch?");
       if (!proceed) return;
     } else {
