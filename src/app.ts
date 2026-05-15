@@ -6,12 +6,13 @@ import { CherryPicker } from "./core/cherry-picker";
 import { SyncFlow } from "./core/sync-flow";
 import { RemoteManager } from "./core/remote-manager";
 import { PullFlow } from "./core/pull-flow";
+import { GitignoreManager } from "./core/gitignore-manager";
 import { checkForUpdate } from "./utils/update-checker";
 import type { IGitClient } from "./core/ports/git-client.port";
 import type { IUI } from "./core/ports/ui.port";
 import { version } from "../package.json";
 
-type MenuOption = "branch" | "clean" | "cherry" | "pull" | "sync" | "remotes" | "exit";
+type MenuOption = "branch" | "clean" | "cherry" | "pull" | "sync" | "remotes" | "gitignore" | "exit";
 
 export async function app(
   git: IGitClient = new GitClient(),
@@ -55,6 +56,7 @@ export async function app(
     pull: () => new PullFlow(git, ui).run(),
     sync: () => new SyncFlow(git, ui).run(),
     remotes: () => new RemoteManager(git, ui).run(),
+    gitignore: () => new GitignoreManager(git, ui).run(),
   };
 
   while (true) {
@@ -72,6 +74,7 @@ export async function app(
       { value: "pull", label: "🔽 Pull Latest Changes" },
       { value: "sync", label: "🚀 Sync (Stage, Commit & Push)" },
       { value: "remotes", label: "🔗 Manage Remotes" },
+      { value: "gitignore", label: "🙈 Manage .gitignore" },
       { value: "exit", label: "🚪 Exit" },
     ]);
 
