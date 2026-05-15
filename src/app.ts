@@ -7,12 +7,13 @@ import { SyncFlow } from "./core/sync-flow";
 import { RemoteManager } from "./core/remote-manager";
 import { PullFlow } from "./core/pull-flow";
 import { GitignoreManager } from "./core/gitignore-manager";
+import { UndoCommit } from "./core/undo-commit";
 import { checkForUpdate } from "./utils/update-checker";
 import type { IGitClient } from "./core/ports/git-client.port";
 import type { IUI } from "./core/ports/ui.port";
 import { version } from "../package.json";
 
-type MenuOption = "branch" | "clean" | "cherry" | "pull" | "sync" | "remotes" | "gitignore" | "exit";
+type MenuOption = "branch" | "clean" | "cherry" | "pull" | "sync" | "remotes" | "gitignore" | "undo" | "exit";
 
 export async function app(
   git: IGitClient = new GitClient(),
@@ -57,6 +58,7 @@ export async function app(
     sync: () => new SyncFlow(git, ui).run(),
     remotes: () => new RemoteManager(git, ui).run(),
     gitignore: () => new GitignoreManager(git, ui).run(),
+    undo: () => new UndoCommit(git, ui).run(),
   };
 
   while (true) {
@@ -75,6 +77,7 @@ export async function app(
       { value: "sync", label: "🚀 Sync (Stage, Commit & Push)" },
       { value: "remotes", label: "🔗 Manage Remotes" },
       { value: "gitignore", label: "🙈 Manage .gitignore" },
+      { value: "undo", label: "↩  Undo Last Commit" },
       { value: "exit", label: "🚪 Exit" },
     ]);
 
