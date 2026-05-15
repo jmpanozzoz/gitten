@@ -11,6 +11,7 @@ import { UndoCommit } from "./core/undo-commit";
 import { HistoryPurge } from "./core/history-purge";
 import { Settings } from "./core/settings";
 import { BranchSwitcher } from "./core/branch-switcher";
+import { StashManager } from "./core/stash-manager";
 import { checkForUpdate } from "./utils/update-checker";
 import { getActiveAIConfig } from "./config/config";
 import { suggestCommitMessage } from "./core/ai-suggester";
@@ -18,7 +19,7 @@ import type { IGitClient } from "./core/ports/git-client.port";
 import type { IUI } from "./core/ports/ui.port";
 import { version } from "../package.json";
 
-type MenuOption = "branch" | "switch" | "clean" | "cherry" | "pull" | "sync" | "remotes" | "gitignore" | "undo" | "purge" | "settings" | "exit";
+type MenuOption = "branch" | "switch" | "clean" | "cherry" | "pull" | "sync" | "stash" | "remotes" | "gitignore" | "undo" | "purge" | "settings" | "exit";
 
 export async function app(
   git: IGitClient = new GitClient(),
@@ -70,6 +71,7 @@ export async function app(
     cherry: () => new CherryPicker(git, ui).run(),
     pull: () => new PullFlow(git, ui).run(),
     sync: () => buildSyncFlow(),
+    stash: () => new StashManager(git, ui).run(),
     remotes: () => new RemoteManager(git, ui).run(),
     gitignore: () => new GitignoreManager(git, ui).run(),
     undo: () => new UndoCommit(git, ui).run(),
@@ -92,6 +94,7 @@ export async function app(
       { value: "cherry", label: "🍒 Quick Cherry Pick" },
       { value: "pull", label: "🔽 Pull Latest Changes" },
       { value: "sync", label: "🚀 Sync (Stage, Commit & Push)" },
+      { value: "stash", label: "📦 Stash Manager" },
       { value: "remotes", label: "🔗 Manage Remotes" },
       { value: "gitignore", label: "🙈 Manage .gitignore" },
       { value: "undo", label: "↩  Undo Last Commit" },

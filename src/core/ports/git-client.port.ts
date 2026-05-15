@@ -68,4 +68,15 @@ export interface IGitClient {
   resetMixed(): Promise<void>;
   filterRepoAvailable(): Promise<boolean>;
   purgeFromHistory(paths: string[]): Promise<void>;
+  getStashes(): Promise<StashEntry[]>;
+  stashWithMessage(message: string): Promise<void>;
+  stashApply(index: number): Promise<void>;
+  stashPop(index: number): Promise<void>;
+  stashDrop(index: number): Promise<void>;
+}
+
+export interface StashEntry {
+  index: number;
+  message: string;
+  date: string;
 }
