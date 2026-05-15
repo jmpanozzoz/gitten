@@ -20,12 +20,15 @@ export class BranchCreator {
     ]);
 
     const description = await this.promptDescription();
-    const branchName = await this.resolveBranchName(type, description);
+    let branchName = await this.resolveBranchName(type, description);
 
     const exists = await this.git.branchExists(branchName);
     if (exists) {
-      this.ui.error(`Branch "${branchName}" already exists locally.`);
-      return;
+      if (!this.aiSuggester) {
+        this.ui.error(`Branch "${branchName}" already exists locally.`);
+        return;
+      }
+      branchName = await this.resolveCollision(branchName);
     }
 
     await this.ui.spin(`Creating branch ${branchName}...`, () =>
@@ -43,6 +46,15 @@ export class BranchCreator {
       .replace(/\s+/g, "-")
       .replace(/-+/g, "-");
     return `${type}/${slug}`;
+  }
+
+  private async resolveCollision(conflicting: string): Promise<string> {
+    this.ui.warn(`Branch "${conflicting}" already exists — enter a different name.`);
+    while (true) {
+      const input = await this.ui.askText("Branch name:", conflicting);
+      if (!await this.git.branchExists(input)) return input;
+      this.ui.warn(`Branch "${input}" also already exists.`);
+    }
   }
 
   private async resolveBranchName(type: BranchType, description: string): Promise<string> {
