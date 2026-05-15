@@ -95,12 +95,13 @@ export async function app(
 
   while (true) {
     const ctx = await ui.spin("Loading context...", () => git.getRepoContext(), "");
-    const statusParts: string[] = [];
-    if (ctx.modifiedCount > 0) statusParts.push(`${ctx.modifiedCount} modified`);
-    if (ctx.commitsAhead > 0) statusParts.push(`${ctx.commitsAhead} ahead`);
-    if (ctx.commitsBehind > 0) statusParts.push(`${ctx.commitsBehind} behind`);
-    const statusSuffix = statusParts.length > 0 ? ` · ${statusParts.join(" · ")}` : "";
-    ui.info(`Context: ${repoName} | branch: ${ctx.branch}${statusSuffix}`);
+    const parts: string[] = [`${repoName} · ${ctx.branch}`];
+    if (ctx.commitsAhead > 0) parts.push(`${ctx.commitsAhead} ahead`);
+    if (ctx.commitsBehind > 0) parts.push(`${ctx.commitsBehind} behind`);
+    if (ctx.modifiedCount > 0) {
+      parts.push(`${theme.additions(ctx.insertions)} ${theme.deletions(ctx.deletions)} · ${ctx.modifiedCount} files`);
+    }
+    ui.context(parts.join(" · "));
 
     let choice: MenuOption;
     try {

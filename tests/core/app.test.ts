@@ -1,9 +1,20 @@
-import { test, expect, mock, spyOn, afterEach } from "bun:test";
+import { test, expect, mock, spyOn, beforeEach, afterEach } from "bun:test";
 import { app } from "../../src/app";
 import { createGitMock } from "../mocks/git-client.mock";
 import { createUIMock } from "../mocks/ui.mock";
 
 const EXIT_MENU = { askSelect: mock(() => Promise.resolve("exit")) };
+
+beforeEach(() => {
+  mock.module("../../src/config/config", () => ({
+    readConfig: mock(() => Promise.resolve({})),
+    writeConfig: mock(() => Promise.resolve()),
+    getActiveAIConfig: mock(() => Promise.resolve(null)),
+  }));
+  mock.module("../../src/utils/update-checker", () => ({
+    checkForUpdate: mock(() => Promise.resolve(null)),
+  }));
+});
 
 afterEach(() => {
   mock.restore();
@@ -125,12 +136,6 @@ test("dispatches to settings handler from more submenu", async () => {
       .mockResolvedValueOnce("exit"),
   });
 
-  mock.module("../../src/config/config", () => ({
-    readConfig: mock(() => Promise.resolve({})),
-    writeConfig: mock(() => Promise.resolve()),
-    getActiveAIConfig: mock(() => Promise.resolve(null)),
-  }));
-
   await app(createGitMock(), ui);
 
   expect(ui.askSelect).toHaveBeenCalledTimes(4);
@@ -166,7 +171,7 @@ test("shows diff stats in context header when files are modified", async () => {
       })
     ),
   });
-  const ui = createUIMock({ ...{ askSelect: mock(() => Promise.resolve("exit")) } });
+  const ui = createUIMock({ askSelect: mock(() => Promise.resolve("exit")) });
 
   await app(git, ui);
 
@@ -177,23 +182,12 @@ test("shows diff stats in context header when files are modified", async () => {
 });
 
 test("omits diff stats in context header when working tree is clean", async () => {
-  const git = createGitMock({
-    getRepoContext: mock(() =>
-      Promise.resolve({
-        branch: "main",
-        modifiedCount: 0,
-        commitsAhead: 0,
-        commitsBehind: 0,
-        insertions: 0,
-        deletions: 0,
-      })
-    ),
-  });
-  const ui = createUIMock({ ...{ askSelect: mock(() => Promise.resolve("exit")) } });
+  const ui = createUIMock({ askSelect: mock(() => Promise.resolve("exit")) });
 
-  await app(git, ui);
+  await app(createGitMock(), ui);
 
   const contextCall = (ui.context as ReturnType<typeof mock>).mock.calls[0]?.[0] as string;
-  expect(contextCall).not.toContain("+");
-  expect(contextCall).not.toContain("−");
+  expect(contextCall).toBeDefined();
+  expect(contextCall).not.toMatch(/\+\d/);
+  expect(contextCall).not.toMatch(/−\d/);
 });
