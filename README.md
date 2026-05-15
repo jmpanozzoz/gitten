@@ -167,6 +167,7 @@ The install script is idempotent — running it again fetches the latest release
 
 | | What it does |
 |---|---|
+| ✏️ **Amend Last Commit** | Edit the last commit message, add forgotten staged files, or both. |
 | ↩ **Undo Commit** | Search and select how far back to reset. Soft or mixed mode. |
 | ⚡ **Reset** | Discard all local changes or reset to remote HEAD. |
 | 🔗 **Remotes** | Add, change URL, or remove remotes. Handles `git init` for new repos. |
@@ -195,6 +196,7 @@ src/
 │   ├── pull-flow.ts
 │   ├── sync-flow.ts
 │   ├── stash-manager.ts
+│   ├── amend-flow.ts
 │   ├── undo-commit.ts
 │   ├── reset-manager.ts
 │   ├── remote-manager.ts
