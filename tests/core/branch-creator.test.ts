@@ -147,3 +147,44 @@ test("sanitizes AI suggestion before using it as branch name", async () => {
   const placeholder = (ui.askText as ReturnType<typeof mock>).mock.calls[1]?.[1] as string;
   expect(placeholder).toBe("feat/oauth-login");
 });
+
+// ─── AI suggestion collision ──────────────────────────────────────────────────
+
+test("warns and lets user retry when AI-suggested name already exists", async () => {
+  const aiSuggester: AIBranchSuggester = mock(() => Promise.resolve("existing-feature"));
+  const git = createGitMock({
+    branchExists: mock()
+      .mockResolvedValueOnce(true)   // AI suggestion exists
+      .mockResolvedValueOnce(false), // user's edited name is free
+  });
+  const ui = createUIMock({
+    askSelect: mock(() => Promise.resolve("feat" as never)),
+    askText: mock()
+      .mockResolvedValueOnce("my feature")
+      .mockResolvedValueOnce("feat/existing-feature") // AI placeholder shown
+      .mockResolvedValueOnce("feat/my-renamed-feature"), // user edits it
+    askConfirm: mock(() => Promise.resolve(true)),
+  });
+
+  await new BranchCreator(git, ui, aiSuggester).run();
+
+  expect(ui.warn).toHaveBeenCalled();
+  expect(git.checkoutNewBranch).toHaveBeenCalledWith("feat/my-renamed-feature");
+});
+
+test("aborts without retry when no AI and branch already exists", async () => {
+  const git = createGitMock({
+    branchExists: mock(() => Promise.resolve(true)),
+  });
+  const ui = createUIMock({
+    askSelect: mock(() => Promise.resolve("feat" as never)),
+    askText: mock(() => Promise.resolve("existing branch")),
+  });
+
+  await new BranchCreator(git, ui).run();
+
+  expect(ui.error).toHaveBeenCalled();
+  expect(git.checkoutNewBranch).not.toHaveBeenCalled();
+  // askText called only once (for description — no retry prompt)
+  expect(ui.askText).toHaveBeenCalledTimes(1);
+});

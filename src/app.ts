@@ -16,7 +16,7 @@ import { StashManager } from "./core/stash-manager";
 import { ResetManager } from "./core/reset-manager";
 import { checkForUpdate } from "./utils/update-checker";
 import { getActiveAIConfig } from "./config/config";
-import { suggestCommitMessage, suggestGitignorePatterns } from "./core/ai-suggester";
+import { suggestBranchName, suggestCommitMessage, suggestGitignorePatterns } from "./core/ai-suggester";
 import { theme } from "./ui/theme";
 import type { IGitClient } from "./core/ports/git-client.port";
 import type { IUI } from "./core/ports/ui.port";
@@ -86,7 +86,13 @@ export async function app(
   };
 
   const mainHandlers: Record<Exclude<MainOption, "exit" | "more">, () => Promise<void>> = {
-    branch: () => new BranchCreator(git, ui).run(),
+    branch: async () => {
+      const aiConfig = await getActiveAIConfig();
+      const aiSuggester = aiConfig
+        ? (type: Parameters<typeof suggestBranchName>[0], desc: string) => suggestBranchName(type, desc, aiConfig)
+        : undefined;
+      return new BranchCreator(git, ui, aiSuggester).run();
+    },
     switch: () => new BranchSwitcher(git, ui).run(),
     clean: () => new BranchCleaner(git, ui).run(),
     cherry: () => new CherryPicker(git, ui).run(),
