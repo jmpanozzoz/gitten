@@ -183,3 +183,45 @@ test("aborts when no commits exist since last tag", async () => {
   expect(git.createAnnotatedTag).not.toHaveBeenCalled();
   expect(ui.info).toHaveBeenCalledWith(expect.stringContaining("No new commits"));
 });
+
+// ─── validation and error handling ────────────────────────────────────────────
+
+test("shows error and aborts when user enters invalid semver tag name", async () => {
+  const git = createGitMock({
+    getLastTag: mock(() => Promise.resolve("v1.0.0")),
+    getLogSince: mock(() => Promise.resolve(FEAT_COMMITS)),
+    createAnnotatedTag: mock(() => Promise.resolve()),
+  });
+  const ui = createUIMock({
+    askText: mock()
+      .mockResolvedValueOnce("not-a-version")
+      .mockResolvedValueOnce("release"),
+    askConfirm: mock(() => Promise.resolve(false)),
+  });
+
+  await new TagWizard(git, ui).run();
+
+  expect(git.createAnnotatedTag).not.toHaveBeenCalled();
+  expect(ui.error).toHaveBeenCalledWith(expect.stringContaining("not-a-version"));
+});
+
+test("shows error and keeps local tag when pushTag fails", async () => {
+  const git = createGitMock({
+    getLastTag: mock(() => Promise.resolve("v1.0.0")),
+    getLogSince: mock(() => Promise.resolve(FEAT_COMMITS)),
+    createAnnotatedTag: mock(() => Promise.resolve()),
+    pushTag: mock(() => Promise.reject(new Error("Connection refused"))),
+  });
+  const ui = createUIMock({
+    askText: mock()
+      .mockResolvedValueOnce("v1.1.0")
+      .mockResolvedValueOnce("release v1.1.0"),
+    askConfirm: mock(() => Promise.resolve(true)),
+  });
+
+  await new TagWizard(git, ui).run();
+
+  expect(git.createAnnotatedTag).toHaveBeenCalledTimes(1);
+  expect(ui.error).toHaveBeenCalledWith(expect.stringContaining("Push failed"));
+  expect(ui.info).toHaveBeenCalledWith(expect.stringContaining("git push origin v1.1.0"));
+});

@@ -54,6 +54,11 @@ export class TagWizard {
     const version = await this.ui.askText("Tag name:", "v1.0.0", suggested);
     const finalVersion = version.trim() || suggested;
 
+    if (!/^v?\d+\.\d+\.\d+/.test(finalVersion)) {
+      this.ui.error(`"${finalVersion}" is not a valid semver tag (expected format: v1.2.3).`);
+      return;
+    }
+
     const message = await this.ui.askText(
       "Annotation message:",
       `Release ${finalVersion}`,
@@ -61,17 +66,26 @@ export class TagWizard {
     );
     const finalMessage = message.trim() || `Release ${finalVersion}`;
 
-    await this.ui.spin(
-      `Creating tag ${finalVersion}...`,
-      () => this.git.createAnnotatedTag(finalVersion, finalMessage)
-    );
+    try {
+      await this.ui.spin(
+        `Creating tag ${finalVersion}...`,
+        () => this.git.createAnnotatedTag(finalVersion, finalMessage)
+      );
+    } catch (err) {
+      this.ui.error(`Failed to create tag: ${err instanceof Error ? err.message : String(err)}`);
+      return;
+    }
     this.ui.success(`Tag ${finalVersion} created.`);
 
     const shouldPush = await this.ui.askConfirm("Push tag to remote?");
     if (shouldPush) {
-      await this.ui.spin(`Pushing ${finalVersion}...`, () => this.git.pushTag(finalVersion));
-      this.ui.success(`Tag ${finalVersion} pushed.`);
+      try {
+        await this.ui.spin(`Pushing ${finalVersion}...`, () => this.git.pushTag(finalVersion));
+        this.ui.success(`Tag ${finalVersion} pushed.`);
+      } catch (err) {
+        this.ui.error(`Push failed: ${err instanceof Error ? err.message : String(err)}`);
+        this.ui.info(`Tag was created locally. Push manually with: git push origin ${finalVersion}`);
+      }
     }
-
   }
 }

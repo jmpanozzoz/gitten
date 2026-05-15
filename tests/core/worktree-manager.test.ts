@@ -116,3 +116,46 @@ test("warns when no non-main worktrees exist for removal", async () => {
   expect(ui.warn).toHaveBeenCalled();
   expect(git.removeWorktree).not.toHaveBeenCalled();
 });
+
+// ─── error handling ───────────────────────────────────────────────────────────
+
+test("shows error and returns when addWorktree fails", async () => {
+  const git = createGitMock({
+    getWorktrees: mock(() => Promise.resolve([{ path: "/repo", branch: "main", isMain: true, isLocked: false }])),
+    getBranches: mock(() => Promise.resolve({ all: ["main", "feat/other"], current: "main" })),
+    addWorktree: mock(() => Promise.reject(new Error("destination path already exists"))),
+  });
+  const ui = createUIMock({
+    askSelect: mock()
+      .mockResolvedValueOnce("add")
+      .mockResolvedValueOnce("existing"),
+    askText: mock(() => Promise.resolve("../repo-other")),
+    askSearchSelect: mock(() => Promise.resolve("feat/other")),
+  });
+
+  await new WorktreeManager(git, ui).run();
+
+  expect(ui.error).toHaveBeenCalledWith(expect.stringContaining("destination path already exists"));
+  expect(ui.success).not.toHaveBeenCalled();
+});
+
+test("shows error and returns when removeWorktree fails", async () => {
+  const WORKTREES_WITH_EXTRA = [
+    { path: "/repo", branch: "main", isMain: true, isLocked: false },
+    { path: "/repo-feat", branch: "feat/login", isMain: false, isLocked: false },
+  ];
+  const git = createGitMock({
+    getWorktrees: mock(() => Promise.resolve(WORKTREES_WITH_EXTRA)),
+    removeWorktree: mock(() => Promise.reject(new Error("worktree is locked"))),
+  });
+  const ui = createUIMock({
+    askSelect: mock(() => Promise.resolve("remove")),
+    askSearchSelect: mock(() => Promise.resolve("/repo-feat")),
+    askConfirm: mock(() => Promise.resolve(true)),
+  });
+
+  await new WorktreeManager(git, ui).run();
+
+  expect(ui.error).toHaveBeenCalledWith(expect.stringContaining("worktree is locked"));
+  expect(ui.success).not.toHaveBeenCalled();
+});

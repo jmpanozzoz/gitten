@@ -138,3 +138,43 @@ test("aborts early when no commits are available", async () => {
   expect(git.bisectStart).not.toHaveBeenCalled();
   expect(ui.warn).toHaveBeenCalled();
 });
+
+// ─── error handling ───────────────────────────────────────────────────────────
+
+test("resets bisect and shows error when bisectBad fails during loop", async () => {
+  const git = createGitMock({
+    getLog: mock(() => Promise.resolve(COMMITS)),
+    bisectStart: mock(() => Promise.resolve()),
+    bisectBad: mock()
+      .mockResolvedValueOnce(NOT_DONE)
+      .mockRejectedValueOnce(new Error("git bisect failed")),
+    bisectGood: mock(() => Promise.resolve(NOT_DONE)),
+    bisectReset: mock(() => Promise.resolve()),
+    getLastCommit: mock(() => Promise.resolve({ hash: "abc1234", message: "feat: add login" })),
+  });
+  const ui = createUIMock({
+    askSearchSelect: mock(() => Promise.resolve("def5678")),
+    askSelect: mock(() => Promise.resolve("bad")),
+  });
+
+  await new BisectWizard(git, ui).run();
+
+  expect(ui.error).toHaveBeenCalledWith(expect.stringContaining("Bisect failed"));
+  expect(git.bisectReset).toHaveBeenCalled();
+});
+
+test("resets bisect and shows error when start fails", async () => {
+  const git = createGitMock({
+    getLog: mock(() => Promise.resolve(COMMITS)),
+    bisectStart: mock(() => Promise.reject(new Error("already bisecting"))),
+    bisectReset: mock(() => Promise.resolve()),
+  });
+  const ui = createUIMock({
+    askSearchSelect: mock(() => Promise.resolve("def5678")),
+  });
+
+  await new BisectWizard(git, ui).run();
+
+  expect(ui.error).toHaveBeenCalledWith(expect.stringContaining("Failed to start bisect"));
+  expect(git.bisectReset).toHaveBeenCalled();
+});
