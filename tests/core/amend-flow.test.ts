@@ -148,3 +148,18 @@ test("shows success message after amending", async () => {
 
   expect(ui.success).toHaveBeenCalled();
 });
+
+// ─── empty repo guard ─────────────────────────────────────────────────────────
+
+test("shows error and returns when repo has no commits", async () => {
+  const git = createGitMock({
+    getLastCommit: mock(() => Promise.reject(new Error("does not have any commits yet"))),
+  });
+  const ui = createUIMock();
+
+  await new AmendFlow(git, ui).run();
+
+  expect(ui.error).toHaveBeenCalledWith("No commits found — nothing to amend.");
+  expect(git.amendCommit).not.toHaveBeenCalled();
+  expect(git.amendNoEdit).not.toHaveBeenCalled();
+});

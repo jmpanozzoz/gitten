@@ -48,14 +48,24 @@ export class WorktreeManager {
         "Select branch:",
         all.map((b) => ({ value: b, label: b }))
       );
-      await this.ui.spin(`Adding worktree at ${path}...`, () =>
-        this.git.addWorktree(path, branch as string, false)
-      );
+      try {
+        await this.ui.spin(`Adding worktree at ${path}...`, () =>
+          this.git.addWorktree(path, branch as string, false)
+        );
+      } catch (err) {
+        this.ui.error(`Failed to add worktree: ${err instanceof Error ? err.message : String(err)}`);
+        return;
+      }
     } else {
       const branch = await this.ui.askText("New branch name:");
-      await this.ui.spin(`Adding worktree with new branch ${branch}...`, () =>
-        this.git.addWorktree(path, branch, true)
-      );
+      try {
+        await this.ui.spin(`Adding worktree with new branch ${branch}...`, () =>
+          this.git.addWorktree(path, branch, true)
+        );
+      } catch (err) {
+        this.ui.error(`Failed to add worktree: ${err instanceof Error ? err.message : String(err)}`);
+        return;
+      }
     }
 
     this.ui.success(`Worktree added at ${path}.`);
@@ -78,9 +88,14 @@ export class WorktreeManager {
     const confirm = await this.ui.askConfirm(`Remove worktree at ${path}?`);
     if (!confirm) return;
 
-    await this.ui.spin(`Removing worktree at ${path}...`, () =>
-      this.git.removeWorktree(path as string)
-    );
+    try {
+      await this.ui.spin(`Removing worktree at ${path}...`, () =>
+        this.git.removeWorktree(path as string)
+      );
+    } catch (err) {
+      this.ui.error(`Failed to remove worktree: ${err instanceof Error ? err.message : String(err)}`);
+      return;
+    }
     this.ui.success(`Worktree at ${path} removed.`);
   }
 }
