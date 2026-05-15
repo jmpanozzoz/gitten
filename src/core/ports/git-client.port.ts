@@ -41,6 +41,8 @@ export interface IGitClient {
   getBranchLastActivity(branch: string): Promise<string>;
   branchExists(name: string): Promise<boolean>;
   checkoutNewBranch(name: string): Promise<void>;
+  checkoutBranch(name: string): Promise<void>;
+  stash(): Promise<void>;
   deleteLocalBranch(name: string): Promise<void>;
   deleteRemoteBranch(name: string): Promise<void>;
   getLog(branch: string, limit: number): Promise<CommitSummary[]>;

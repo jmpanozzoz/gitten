@@ -74,6 +74,14 @@ export class GitClient implements IGitClient {
     await this.git.checkoutLocalBranch(name);
   }
 
+  async checkoutBranch(name: string): Promise<void> {
+    await this.git.checkout(name);
+  }
+
+  async stash(): Promise<void> {
+    await this.git.stash(["push"]);
+  }
+
   async deleteLocalBranch(name: string): Promise<void> {
     await this.git.deleteLocalBranch(name);
   }
