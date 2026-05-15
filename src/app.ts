@@ -14,7 +14,7 @@ import { BranchSwitcher } from "./core/branch-switcher";
 import { StashManager } from "./core/stash-manager";
 import { checkForUpdate } from "./utils/update-checker";
 import { getActiveAIConfig } from "./config/config";
-import { suggestCommitMessage } from "./core/ai-suggester";
+import { suggestCommitMessage, suggestGitignorePatterns } from "./core/ai-suggester";
 import type { IGitClient } from "./core/ports/git-client.port";
 import type { IUI } from "./core/ports/ui.port";
 import { version } from "../package.json";
@@ -64,6 +64,14 @@ export async function app(
     return new SyncFlow(git, ui, aiSuggester).run();
   };
 
+  const buildGitignoreManager = async () => {
+    const aiConfig = await getActiveAIConfig();
+    const aiSuggester = aiConfig
+      ? (files: string[], existing: string[]) => suggestGitignorePatterns(files, existing, aiConfig)
+      : undefined;
+    return new GitignoreManager(git, ui, aiSuggester).run();
+  };
+
   const handlers: Record<Exclude<MenuOption, "exit">, () => Promise<void>> = {
     branch: () => new BranchCreator(git, ui).run(),
     switch: () => new BranchSwitcher(git, ui).run(),
@@ -73,7 +81,7 @@ export async function app(
     sync: () => buildSyncFlow(),
     stash: () => new StashManager(git, ui).run(),
     remotes: () => new RemoteManager(git, ui).run(),
-    gitignore: () => new GitignoreManager(git, ui).run(),
+    gitignore: () => buildGitignoreManager(),
     undo: () => new UndoCommit(git, ui).run(),
     purge: () => new HistoryPurge(git, ui).run(),
     settings: () => new Settings(ui).run(),
@@ -84,6 +92,7 @@ export async function app(
     const statusParts: string[] = [];
     if (ctx.modifiedCount > 0) statusParts.push(`${ctx.modifiedCount} modified`);
     if (ctx.commitsAhead > 0) statusParts.push(`${ctx.commitsAhead} ahead`);
+    if (ctx.commitsBehind > 0) statusParts.push(`${ctx.commitsBehind} behind`);
     const statusSuffix = statusParts.length > 0 ? ` · ${statusParts.join(" · ")}` : "";
     ui.info(`Context: ${repoName} | branch: ${ctx.branch}${statusSuffix}`);
 
