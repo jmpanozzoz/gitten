@@ -10,7 +10,7 @@ export interface IUI {
   askText(message: string, placeholder?: string): Promise<string>;
   askConfirm(message: string): Promise<boolean>;
 
-  spin<T>(message: string, task: () => Promise<T>): Promise<T>;
+  spin<T>(message: string, task: () => Promise<T>, stopMessage?: string): Promise<T>;
 
   success(message: string): void;
   warn(message: string): void;

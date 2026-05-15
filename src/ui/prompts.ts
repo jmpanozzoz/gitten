@@ -53,12 +53,12 @@ export class UI implements IUI {
     return result as boolean;
   }
 
-  async spin<T>(message: string, task: () => Promise<T>): Promise<T> {
+  async spin<T>(message: string, task: () => Promise<T>, stopMessage?: string): Promise<T> {
     const spinner = clack.spinner();
     spinner.start(message);
     try {
       const result = await task();
-      spinner.stop(theme.success("Done."));
+      spinner.stop(stopMessage !== undefined ? stopMessage : theme.success("Done."));
       return result;
     } catch (err) {
       spinner.stop(theme.error("Failed."));
