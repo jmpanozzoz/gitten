@@ -144,4 +144,25 @@ export class GitClient implements IGitClient {
       await this.git.push();
     }
   }
+
+  async readGitignore(): Promise<string[]> {
+    const file = Bun.file(join(this.cwd, ".gitignore"));
+    if (!(await file.exists())) return [];
+    const text = await file.text();
+    return text.split("\n");
+  }
+
+  async writeGitignore(lines: string[]): Promise<void> {
+    await Bun.write(join(this.cwd, ".gitignore"), lines.join("\n") + "\n");
+  }
+
+  async getTrackedFiles(): Promise<string[]> {
+    const result = await this.git.raw(["ls-files"]);
+    return result.trim().split("\n").filter(Boolean);
+  }
+
+  async untrackFiles(paths: string[]): Promise<void> {
+    if (paths.length === 0) return;
+    await this.git.raw(["rm", "--cached", ...paths]);
+  }
 }

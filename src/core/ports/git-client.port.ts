@@ -55,4 +55,8 @@ export interface IGitClient {
   getDiffStat(): Promise<DiffStat>;
   commit(message: string): Promise<void>;
   push(setUpstream?: boolean): Promise<void>;
+  readGitignore(): Promise<string[]>;
+  writeGitignore(lines: string[]): Promise<void>;
+  getTrackedFiles(): Promise<string[]>;
+  untrackFiles(paths: string[]): Promise<void>;
 }
