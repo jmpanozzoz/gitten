@@ -13,6 +13,7 @@ import { HistoryPurge } from "./core/history-purge";
 import { Settings } from "./core/settings";
 import { BranchSwitcher } from "./core/branch-switcher";
 import { StashManager } from "./core/stash-manager";
+import { ResetManager } from "./core/reset-manager";
 import { checkForUpdate } from "./utils/update-checker";
 import { getActiveAIConfig } from "./config/config";
 import { suggestCommitMessage, suggestGitignorePatterns } from "./core/ai-suggester";
@@ -22,7 +23,7 @@ import type { IUI } from "./core/ports/ui.port";
 import { version } from "../package.json";
 
 type MainOption = "branch" | "switch" | "clean" | "cherry" | "pull" | "sync" | "stash" | "more" | "exit";
-type MoreOption = "remotes" | "gitignore" | "undo" | "purge" | "settings";
+type MoreOption = "remotes" | "gitignore" | "undo" | "purge" | "settings" | "reset";
 
 export async function app(
   git: IGitClient = new GitClient(),
@@ -81,6 +82,7 @@ export async function app(
     undo: () => new UndoCommit(git, ui).run(),
     purge: () => new HistoryPurge(git, ui).run(),
     settings: () => new Settings(ui).run(),
+    reset: () => new ResetManager(git, ui).run(),
   };
 
   const mainHandlers: Record<Exclude<MainOption, "exit" | "more">, () => Promise<void>> = {
@@ -127,6 +129,7 @@ export async function app(
       if (choice === "more") {
         const more = await ui.askSelect<MoreOption>("More options:", [
           { value: "undo", label: "↩  Undo Commit" },
+          { value: "reset", label: "⚡ Reset" },
           { value: "remotes", label: "🔗 Remotes" },
           { value: "gitignore", label: "🙈 .gitignore" },
           { value: "purge", label: "🔥 Purge History" },
