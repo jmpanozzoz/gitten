@@ -76,6 +76,10 @@ export interface IGitClient {
   getLastCommit(): Promise<CommitSummary>;
   amendCommit(message: string): Promise<void>;
   amendNoEdit(): Promise<void>;
+  getLastTag(): Promise<string | null>;
+  getLogSince(ref: string): Promise<CommitSummary[]>;
+  createAnnotatedTag(name: string, message: string): Promise<void>;
+  pushTag(name: string): Promise<void>;
   resetSoft(n: number): Promise<void>;
   resetMixed(n: number): Promise<void>;
   filterRepoAvailable(): Promise<boolean>;
