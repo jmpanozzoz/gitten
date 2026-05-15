@@ -56,8 +56,8 @@ export class UI implements IUI {
     return searchMultiSelect(message, options);
   }
 
-  async askText(message: string, placeholder?: string): Promise<string> {
-    const result = await clack.text({ message, placeholder });
+  async askText(message: string, placeholder?: string, initialValue?: string): Promise<string> {
+    const result = await clack.text({ message, placeholder, initialValue });
     if (clack.isCancel(result)) throw new GoBackSignal();
     return result as string;
   }

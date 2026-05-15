@@ -40,10 +40,11 @@ export class Settings {
 
     const baseUrl = await this.ui.askText(
       "Base URL:",
-      existing?.baseUrl ?? "https://api.openai.com/v1"
+      "https://api.openai.com/v1",
+      existing?.baseUrl
     );
-    const apiKey = await this.ui.askText("API key:", existing?.apiKey ?? "sk-...");
-    const model = await this.ui.askText("Model:", existing?.model ?? "gpt-4o-mini");
+    const apiKey = await this.ui.askText("API key:", "sk-...", existing?.apiKey);
+    const model = await this.ui.askText("Model:", "gpt-4o-mini", existing?.model);
 
     const enable = await this.ui.askConfirm("Enable AI suggestions?");
 

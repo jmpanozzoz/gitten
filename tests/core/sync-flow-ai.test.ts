@@ -23,7 +23,7 @@ function makeSyncFlow(aiSuggester?: (diff: string) => Promise<string | null>, gi
   return { flow: new SyncFlow(git, ui, aiSuggester), git, ui };
 }
 
-test("uses AI suggestion as placeholder when user accepts", async () => {
+test("uses AI suggestion as initialValue when user accepts", async () => {
   const aiSuggester = mock(() => Promise.resolve("feat: ai suggestion"));
   const { flow, git, ui } = makeSyncFlow(aiSuggester);
   (ui.askConfirm as ReturnType<typeof mock>).mockResolvedValueOnce(true);
@@ -32,11 +32,11 @@ test("uses AI suggestion as placeholder when user accepts", async () => {
 
   expect(aiSuggester).toHaveBeenCalledTimes(1);
   expect(git.getStagedDiff).toHaveBeenCalledTimes(1);
-  const placeholder = (ui.askText as ReturnType<typeof mock>).mock.calls[0][1];
-  expect(placeholder).toBe("feat: ai suggestion");
+  const initialValue = (ui.askText as ReturnType<typeof mock>).mock.calls[0][2];
+  expect(initialValue).toBe("feat: ai suggestion");
 });
 
-test("skips AI and uses default placeholder when user declines AI prompt", async () => {
+test("skips AI and uses default initialValue when user declines AI prompt", async () => {
   const aiSuggester = mock(() => Promise.resolve("feat: ai suggestion"));
   const { flow, ui } = makeSyncFlow(aiSuggester);
   (ui.askConfirm as ReturnType<typeof mock>).mockResolvedValueOnce(false);
@@ -44,11 +44,11 @@ test("skips AI and uses default placeholder when user declines AI prompt", async
   await flow.run();
 
   expect(aiSuggester).not.toHaveBeenCalled();
-  const placeholder = (ui.askText as ReturnType<typeof mock>).mock.calls[0][1];
-  expect(placeholder).toBe("chore: update");
+  const initialValue = (ui.askText as ReturnType<typeof mock>).mock.calls[0][2];
+  expect(initialValue).toBe("chore: update");
 });
 
-test("falls back to default placeholder and warns when AI returns null", async () => {
+test("falls back to default initialValue and warns when AI returns null", async () => {
   const aiSuggester = mock(() => Promise.resolve(null));
   const { flow, ui } = makeSyncFlow(aiSuggester);
   (ui.askConfirm as ReturnType<typeof mock>).mockResolvedValueOnce(true);
@@ -56,17 +56,17 @@ test("falls back to default placeholder and warns when AI returns null", async (
   await flow.run();
 
   expect(ui.warn).toHaveBeenCalled();
-  const placeholder = (ui.askText as ReturnType<typeof mock>).mock.calls[0][1];
-  expect(placeholder).toBe("chore: update");
+  const initialValue = (ui.askText as ReturnType<typeof mock>).mock.calls[0][2];
+  expect(initialValue).toBe("chore: update");
 });
 
-test("uses default placeholder and never prompts for AI when no aiSuggester provided", async () => {
+test("uses default initialValue and never prompts for AI when no aiSuggester provided", async () => {
   const aiSuggester = mock(() => Promise.resolve("feat: should not appear"));
   const { flow, ui } = makeSyncFlow(undefined);
 
   await flow.run();
 
   expect(aiSuggester).not.toHaveBeenCalled();
-  const placeholder = (ui.askText as ReturnType<typeof mock>).mock.calls[0][1];
-  expect(placeholder).toBe("chore: update");
+  const initialValue = (ui.askText as ReturnType<typeof mock>).mock.calls[0][2];
+  expect(initialValue).toBe("chore: update");
 });

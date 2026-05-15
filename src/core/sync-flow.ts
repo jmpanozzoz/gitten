@@ -49,7 +49,7 @@ export class SyncFlow {
     this.ui.info(`+${stat.insertions} −${stat.deletions} lines staged`);
 
     const placeholder = await this.resolveCommitPlaceholder();
-    const message = await this.ui.askText("Commit message:", placeholder);
+    const message = await this.ui.askText("Commit message:", undefined, placeholder);
     const finalMessage = message.trim() || DEFAULT_COMMIT_MESSAGE;
 
     await this.ui.spin("Committing...", () => this.git.commit(finalMessage));
