@@ -1,5 +1,5 @@
 import { mock } from "bun:test";
-import type { IGitClient, BranchSummary, CommitSummary, StatusSummary, Remote, PullResult, DiffStat, StashEntry } from "../../src/core/ports/git-client.port";
+import type { IGitClient, BranchSummary, CommitSummary, StatusSummary, Remote, PullResult, DiffStat, StashEntry, WorktreeEntry } from "../../src/core/ports/git-client.port";
 
 export function createGitMock(overrides: Partial<IGitClient> = {}): IGitClient {
   return {
@@ -43,6 +43,9 @@ export function createGitMock(overrides: Partial<IGitClient> = {}): IGitClient {
     getTrackedFiles: mock(() => Promise.resolve([] as string[])),
     untrackFiles: mock(() => Promise.resolve()),
     getLastCommit: mock(() => Promise.resolve({ hash: "abc1234", message: "chore: update" })),
+    getWorktrees: mock(() => Promise.resolve([] as WorktreeEntry[])),
+    addWorktree: mock(() => Promise.resolve()),
+    removeWorktree: mock(() => Promise.resolve()),
     resetSoft: mock(() => Promise.resolve()),
     resetMixed: mock(() => Promise.resolve()),
     filterRepoAvailable: mock(() => Promise.resolve(true)),
