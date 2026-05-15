@@ -74,6 +74,8 @@ export interface IGitClient {
   getTrackedFiles(): Promise<string[]>;
   untrackFiles(paths: string[]): Promise<void>;
   getLastCommit(): Promise<CommitSummary>;
+  amendCommit(message: string): Promise<void>;
+  amendNoEdit(): Promise<void>;
   bisectStart(): Promise<void>;
   bisectBad(ref?: string): Promise<BisectResult>;
   bisectGood(ref?: string): Promise<BisectResult>;
