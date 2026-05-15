@@ -74,6 +74,8 @@ export interface IGitClient {
   getTrackedFiles(): Promise<string[]>;
   untrackFiles(paths: string[]): Promise<void>;
   getLastCommit(): Promise<CommitSummary>;
+  amendCommit(message: string): Promise<void>;
+  amendNoEdit(): Promise<void>;
   resetSoft(n: number): Promise<void>;
   resetMixed(n: number): Promise<void>;
   filterRepoAvailable(): Promise<boolean>;
