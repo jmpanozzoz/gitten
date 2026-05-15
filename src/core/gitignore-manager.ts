@@ -1,7 +1,7 @@
 import type { IGitClient } from "./ports/git-client.port";
 import type { IUI } from "./ports/ui.port";
 
-type GitignoreAction = "add" | "template" | "ai" | "view" | "back";
+type GitignoreAction = "add" | "template" | "ai" | "view";
 
 type TemplateName = "node" | "python" | "macos" | "go" | "rust" | "java" | "dotenv";
 
@@ -84,10 +84,8 @@ export class GitignoreManager {
       { value: "template", label: "📋 Apply template" },
       ...aiOption,
       { value: "view", label: "👁  View current entries" },
-      { value: "back", label: "←  Back" },
     ]);
 
-    if (action === "back") return;
     if (action === "add") return this.addPattern();
     if (action === "template") return this.applyTemplate();
     if (action === "ai") return this.suggestWithAI();
@@ -176,10 +174,8 @@ export class GitignoreManager {
       return;
     }
 
-    this.ui.info(`AI suggests ${newOnly.length} new pattern(s):\n${newOnly.map((p) => `  ${p}`).join("\n")}`);
-
     const selected = await this.ui.askMultiSelect(
-      "Select patterns to add:",
+      `AI suggests ${newOnly.length} new pattern(s) — select to add:`,
       newOnly.map((p) => ({ value: p, label: p }))
     );
 

@@ -1,5 +1,6 @@
 import { test, expect, mock } from "bun:test";
 import { StashManager } from "../../src/core/stash-manager";
+import { GoBackSignal } from "../../src/ui/go-back";
 import { createGitMock } from "../mocks/git-client.mock";
 import { createUIMock } from "../mocks/ui.mock";
 
@@ -8,7 +9,7 @@ const STASHES = [
   { index: 1, message: "WIP on main: def5678 chore: update deps", date: "yesterday" },
 ];
 
-function selectAction(action: "apply" | "drop" | "push" | "back") {
+function selectAction(action: "apply" | "drop" | "push") {
   return { askSelect: mock(() => Promise.resolve(action)) };
 }
 
@@ -158,13 +159,14 @@ test("aborts stash push when working tree is clean", async () => {
   expect(ui.info).toHaveBeenCalled();
 });
 
-// ─── back ─────────────────────────────────────────────────────────────────────
+// ─── esc / go-back ────────────────────────────────────────────────────────────
 
-test("returns immediately when user selects back", async () => {
+test("propagates GoBackSignal when user presses ESC on action menu", async () => {
   const git = createGitMock();
-  const ui = createUIMock({ ...selectAction("back") });
+  const ui = createUIMock({
+    askSelect: mock(() => Promise.reject(new GoBackSignal())),
+  });
 
-  await new StashManager(git, ui).run();
-
+  await expect(new StashManager(git, ui).run()).rejects.toBeInstanceOf(GoBackSignal);
   expect(git.getStashes).not.toHaveBeenCalled();
 });

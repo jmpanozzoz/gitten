@@ -60,7 +60,7 @@ export class SyncFlow {
     if (!suggest) return DEFAULT_COMMIT_MESSAGE;
 
     const diff = await this.git.getStagedDiff();
-    const suggestion = await this.ui.spin("Thinking...", () => this.aiSuggester!(diff));
+    const suggestion = await this.ui.spin("Generating suggestion...", () => this.aiSuggester!(diff));
 
     if (!suggestion) {
       this.ui.warn("AI did not return a suggestion — type your message.");

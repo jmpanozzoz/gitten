@@ -1,5 +1,6 @@
 import { test, expect, mock } from "bun:test";
 import { Settings } from "../../src/core/settings";
+import { GoBackSignal } from "../../src/ui/go-back";
 import { createUIMock } from "../mocks/ui.mock";
 
 const MOCK_READ = mock(() => Promise.resolve({}));
@@ -15,9 +16,7 @@ mock.module("../../src/config/config", () => ({
 
 test("saves full config when user fills in all fields", async () => {
   const ui = createUIMock({
-    askSelect: mock()
-      .mockResolvedValueOnce("configure")
-      .mockResolvedValueOnce("back"),
+    askSelect: mock(() => Promise.resolve("configure")),
     askText: mock()
       .mockResolvedValueOnce("https://api.openai.com/v1")
       .mockResolvedValueOnce("sk-test-key")
@@ -45,9 +44,7 @@ test("disables AI when user chooses disable", async () => {
   });
 
   const ui = createUIMock({
-    askSelect: mock()
-      .mockResolvedValueOnce("disable")
-      .mockResolvedValueOnce("back"),
+    askSelect: mock(() => Promise.resolve("disable")),
   });
 
   await new Settings(ui).run();
@@ -57,13 +54,12 @@ test("disables AI when user chooses disable", async () => {
   );
 });
 
-test("does nothing when user selects back immediately", async () => {
+test("propagates GoBackSignal when user presses ESC", async () => {
   MOCK_WRITE.mockClear();
   const ui = createUIMock({
-    askSelect: mock(() => Promise.resolve("back")),
+    askSelect: mock(() => Promise.reject(new GoBackSignal())),
   });
 
-  await new Settings(ui).run();
-
+  await expect(new Settings(ui).run()).rejects.toBeInstanceOf(GoBackSignal);
   expect(MOCK_WRITE).not.toHaveBeenCalled();
 });

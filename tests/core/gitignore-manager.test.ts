@@ -1,4 +1,5 @@
 import { test, expect, mock } from "bun:test";
+import { GoBackSignal } from "../../src/ui/go-back";
 import { GitignoreManager } from "../../src/core/gitignore-manager";
 import { createGitMock } from "../mocks/git-client.mock";
 import { createUIMock } from "../mocks/ui.mock";
@@ -9,7 +10,7 @@ const EMPTY_GITIGNORE: string[] = [];
 const EXISTING_GITIGNORE = ["node_modules/", "dist/", ".DS_Store"];
 const NO_TRACKED = { getTrackedFiles: mock(() => Promise.resolve([])) };
 
-function selectAction(action: "add" | "template" | "view" | "back") {
+function selectAction(action: "add" | "template" | "view") {
   return { askSelect: mock(() => Promise.resolve(action)) };
 }
 
@@ -175,4 +176,16 @@ test("viewCurrent: warns when gitignore is empty or missing", async () => {
   await new GitignoreManager(git, ui).run();
 
   expect(ui.warn).toHaveBeenCalled();
+});
+
+// ─── esc / go-back ────────────────────────────────────────────────────────────
+
+test("propagates GoBackSignal when user presses ESC on action menu", async () => {
+  const git = createGitMock();
+  const ui = createUIMock({
+    askSelect: mock(() => Promise.reject(new GoBackSignal())),
+  });
+
+  await expect(new GitignoreManager(git, ui).run()).rejects.toBeInstanceOf(GoBackSignal);
+  expect(git.readGitignore).not.toHaveBeenCalled();
 });

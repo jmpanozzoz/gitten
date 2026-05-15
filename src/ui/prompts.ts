@@ -1,5 +1,6 @@
 import * as clack from "@clack/prompts";
 import { theme } from "./theme";
+import { GoBackSignal } from "./go-back";
 import type { IUI } from "../core/ports/ui.port";
 
 export class UI implements IUI {
@@ -23,10 +24,7 @@ export class UI implements IUI {
       message,
       options: options as unknown as Parameters<typeof clack.select>[0]["options"],
     });
-    if (clack.isCancel(result)) {
-      clack.cancel("Operation cancelled.");
-      process.exit(0);
-    }
+    if (clack.isCancel(result)) throw new GoBackSignal();
     return result as T;
   }
 
@@ -39,28 +37,19 @@ export class UI implements IUI {
       options: options as unknown as Parameters<typeof clack.multiselect<T>>[0]["options"],
       required: false,
     });
-    if (clack.isCancel(result)) {
-      clack.cancel("Operation cancelled.");
-      process.exit(0);
-    }
+    if (clack.isCancel(result)) throw new GoBackSignal();
     return result as T[];
   }
 
   async askText(message: string, placeholder?: string): Promise<string> {
     const result = await clack.text({ message, placeholder });
-    if (clack.isCancel(result)) {
-      clack.cancel("Operation cancelled.");
-      process.exit(0);
-    }
+    if (clack.isCancel(result)) throw new GoBackSignal();
     return result as string;
   }
 
   async askConfirm(message: string): Promise<boolean> {
     const result = await clack.confirm({ message });
-    if (clack.isCancel(result)) {
-      clack.cancel("Operation cancelled.");
-      process.exit(0);
-    }
+    if (clack.isCancel(result)) throw new GoBackSignal();
     return result as boolean;
   }
 
