@@ -251,14 +251,17 @@ test("shows error and aborts when push is rejected due to remote changes", async
   expect(git.push).toHaveBeenCalledTimes(1);
 });
 
-test("rethrows unexpected push errors", async () => {
+test("shows clean error message and local commit hint when push fails unexpectedly", async () => {
   const git = createGitMock({
     getStatus: mock(() => Promise.resolve(CLEAN_STATUS_AHEAD)),
     push: mock(() => Promise.reject(new Error("permission denied (publickey)"))),
   });
   const ui = createUIMock({ ...CONFIRM_YES });
 
-  expect(new SyncFlow(git, ui).run()).rejects.toThrow("permission denied");
+  await new SyncFlow(git, ui).run();
+
+  expect(ui.error).toHaveBeenCalledWith(expect.stringContaining("permission denied"));
+  expect(ui.info).toHaveBeenCalledWith(expect.stringContaining("git push"));
 });
 
 // ─── already up to date ───────────────────────────────────────────────────────
