@@ -52,6 +52,7 @@ export class GitClient implements IGitClient {
       branch: status.current ?? "",
       modifiedCount: status.files.length,
       commitsAhead: status.ahead,
+      commitsBehind: status.behind,
     };
   }
 

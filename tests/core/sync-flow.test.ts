@@ -10,12 +10,13 @@ const FILES = [
 const DIRTY_STATUS = { files: FILES, isClean: () => false };
 const CLEAN_STATUS = { files: [], isClean: () => true };
 const CONFIRM_YES = { askConfirm: mock(() => Promise.resolve(true)) };
+const CONFIRM_NO = { askConfirm: mock(() => Promise.resolve(false)) };
 const SELECT_ALL = { askMultiSelect: mock(() => Promise.resolve(["src/app.ts", ".env"])) };
 const SELECT_NONE = { askMultiSelect: mock(() => Promise.resolve([])) };
 
 // ─── dirty working tree ───────────────────────────────────────────────────────
 
-test("stages, commits and pushes selected files", async () => {
+test("stages, commits and pushes selected files when user confirms push", async () => {
   const git = createGitMock({
     getStatus: mock(() => Promise.resolve(DIRTY_STATUS)),
     addFiles: mock(() => Promise.resolve()),
@@ -24,15 +25,34 @@ test("stages, commits and pushes selected files", async () => {
   });
   const ui = createUIMock({
     ...SELECT_ALL,
+    ...CONFIRM_YES,
     askText: mock(() => Promise.resolve("feat: my commit")),
   });
 
   await new SyncFlow(git, ui).run();
 
-  expect(git.addFiles).toHaveBeenCalledTimes(1);
   expect(git.addFiles).toHaveBeenCalledWith(["src/app.ts", ".env"]);
   expect(git.commit).toHaveBeenCalledWith("feat: my commit");
   expect(git.push).toHaveBeenCalledTimes(1);
+});
+
+test("commits without pushing when user declines push", async () => {
+  const git = createGitMock({
+    getStatus: mock(() => Promise.resolve(DIRTY_STATUS)),
+    addFiles: mock(() => Promise.resolve()),
+    commit: mock(() => Promise.resolve()),
+    push: mock(() => Promise.resolve()),
+  });
+  const ui = createUIMock({
+    ...SELECT_ALL,
+    ...CONFIRM_NO,
+    askText: mock(() => Promise.resolve("feat: local only")),
+  });
+
+  await new SyncFlow(git, ui).run();
+
+  expect(git.commit).toHaveBeenCalledTimes(1);
+  expect(git.push).not.toHaveBeenCalled();
 });
 
 test("stages only the files the user selects", async () => {
@@ -44,6 +64,7 @@ test("stages only the files the user selects", async () => {
   });
   const ui = createUIMock({
     askMultiSelect: mock(() => Promise.resolve(["src/app.ts"])),
+    askConfirm: mock(() => Promise.resolve(true)),
     askText: mock(() => Promise.resolve("fix: partial stage")),
   });
 
@@ -98,6 +119,7 @@ test("uses default commit message when input is empty", async () => {
   });
   const ui = createUIMock({
     ...SELECT_ALL,
+    ...CONFIRM_YES,
     askText: mock(() => Promise.resolve("")),
   });
 
@@ -116,6 +138,7 @@ test("shows diff stat summary after staging", async () => {
   });
   const ui = createUIMock({
     ...SELECT_ALL,
+    ...CONFIRM_YES,
     askText: mock(() => Promise.resolve("feat: stats")),
   });
 

@@ -1,3 +1,10 @@
+export interface RepoContext {
+  branch: string;
+  modifiedCount: number;
+  commitsAhead: number;
+  commitsBehind: number;
+}
+
 export interface BranchSummary {
   all: string[];
   current: string;

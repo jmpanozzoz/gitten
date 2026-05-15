@@ -60,12 +60,13 @@ test("falls back to default placeholder and warns when AI returns null", async (
   expect(placeholder).toBe("chore: update");
 });
 
-test("uses default placeholder and never calls AI when no aiSuggester provided", async () => {
+test("uses default placeholder and never prompts for AI when no aiSuggester provided", async () => {
+  const aiSuggester = mock(() => Promise.resolve("feat: should not appear"));
   const { flow, ui } = makeSyncFlow(undefined);
 
   await flow.run();
 
-  expect(ui.askConfirm).not.toHaveBeenCalled();
+  expect(aiSuggester).not.toHaveBeenCalled();
   const placeholder = (ui.askText as ReturnType<typeof mock>).mock.calls[0][1];
   expect(placeholder).toBe("chore: update");
 });

@@ -1,9 +1,14 @@
 import type { IGitClient } from "./ports/git-client.port";
 import type { IUI } from "./ports/ui.port";
 
-type GitignoreAction = "add" | "template" | "view" | "back";
+type GitignoreAction = "add" | "template" | "ai" | "view" | "back";
 
 type TemplateName = "node" | "python" | "macos" | "go" | "rust" | "java" | "dotenv";
+
+export type GitignoreAISuggester = (
+  trackedFiles: string[],
+  existingPatterns: string[]
+) => Promise<string[]>;
 
 const TEMPLATES: Record<TemplateName, string[]> = {
   node: [
@@ -65,20 +70,27 @@ const TEMPLATES: Record<TemplateName, string[]> = {
 export class GitignoreManager {
   constructor(
     private readonly git: IGitClient,
-    private readonly ui: IUI
+    private readonly ui: IUI,
+    private readonly aiSuggester?: GitignoreAISuggester
   ) {}
 
   async run(): Promise<void> {
+    const aiOption = this.aiSuggester
+      ? [{ value: "ai" as const, label: "✨ Suggest patterns with AI" }]
+      : [];
+
     const action = await this.ui.askSelect<GitignoreAction>("Manage .gitignore:", [
       { value: "add", label: "➕ Add pattern" },
       { value: "template", label: "📋 Apply template" },
+      ...aiOption,
       { value: "view", label: "👁  View current entries" },
-      { value: "back", label: "← Back" },
+      { value: "back", label: "←  Back" },
     ]);
 
     if (action === "back") return;
     if (action === "add") return this.addPattern();
     if (action === "template") return this.applyTemplate();
+    if (action === "ai") return this.suggestWithAI();
     if (action === "view") return this.viewCurrent();
   }
 
@@ -136,7 +148,45 @@ export class GitignoreManager {
     }
 
     await this.git.writeGitignore([...existing, ...toAdd]);
-    this.ui.success(`Added ${toAdd.length} new entr${toAdd.length === 1 ? "y" : "ies"} from ${templateName} template.`);
+    this.ui.success(
+      `Added ${toAdd.length} new entr${toAdd.length === 1 ? "y" : "ies"} from ${templateName} template.`
+    );
+  }
+
+  private async suggestWithAI(): Promise<void> {
+    const [tracked, existing] = await Promise.all([
+      this.git.getTrackedFiles(),
+      this.git.readGitignore(),
+    ]);
+
+    const suggestions = await this.ui.spin("Asking AI for suggestions...", () =>
+      this.aiSuggester!(tracked, existing)
+    );
+
+    if (suggestions.length === 0) {
+      this.ui.info("AI found no additional patterns to suggest.");
+      return;
+    }
+
+    const existingSet = new Set(existing);
+    const newOnly = suggestions.filter((s) => !existingSet.has(s));
+
+    if (newOnly.length === 0) {
+      this.ui.info("All AI suggestions are already in .gitignore.");
+      return;
+    }
+
+    this.ui.info(`AI suggests ${newOnly.length} new pattern(s):\n${newOnly.map((p) => `  ${p}`).join("\n")}`);
+
+    const selected = await this.ui.askMultiSelect(
+      "Select patterns to add:",
+      newOnly.map((p) => ({ value: p, label: p }))
+    );
+
+    if (selected.length === 0) return;
+
+    await this.git.writeGitignore([...existing, ...selected]);
+    this.ui.success(`Added ${selected.length} pattern(s) to .gitignore.`);
   }
 
   private async viewCurrent(): Promise<void> {
@@ -148,6 +198,8 @@ export class GitignoreManager {
       return;
     }
 
-    this.ui.info(`.gitignore — ${entries.length} entr${entries.length === 1 ? "y" : "ies"}:\n${entries.map((e) => `  ${e}`).join("\n")}`);
+    this.ui.info(
+      `.gitignore — ${entries.length} entr${entries.length === 1 ? "y" : "ies"}:\n${entries.map((e) => `  ${e}`).join("\n")}`
+    );
   }
 }

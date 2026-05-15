@@ -22,7 +22,8 @@ export class SyncFlow {
     } else {
       const staged = await this.selectFiles(status.files);
       if (staged.length === 0) return;
-      await this.stageAndCommit(staged);
+      const shouldPush = await this.stageAndCommit(staged);
+      if (!shouldPush) return;
     }
 
     await this.safePush();
@@ -37,7 +38,7 @@ export class SyncFlow {
     );
   }
 
-  private async stageAndCommit(paths: string[]): Promise<void> {
+  private async stageAndCommit(paths: string[]): Promise<boolean> {
     await this.ui.spin("Staging...", () => this.git.addFiles(paths));
 
     const stat = await this.git.getDiffStat();
@@ -48,6 +49,8 @@ export class SyncFlow {
     const finalMessage = message.trim() || DEFAULT_COMMIT_MESSAGE;
 
     await this.ui.spin("Committing...", () => this.git.commit(finalMessage));
+
+    return this.ui.askConfirm("Push now?");
   }
 
   private async resolveCommitPlaceholder(): Promise<string> {
