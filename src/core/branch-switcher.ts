@@ -25,7 +25,7 @@ export class BranchSwitcher {
       )
     );
 
-    const target = await this.ui.askSelect("Switch to branch:", labelled);
+    const target = await this.ui.askSearchSelect("Switch to branch:", labelled);
 
     const status = await this.git.getStatus();
     if (!status.isClean()) {

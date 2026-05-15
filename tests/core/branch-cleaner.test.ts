@@ -33,7 +33,7 @@ test("deletes selected local branches", async () => {
     deleteLocalBranch: mock(() => Promise.resolve()),
   });
   const ui = createUIMock({
-    askMultiSelect: mock(() => Promise.resolve(["feat/old", "fix/typo"] as never)),
+    askSearchMultiSelect: mock(() => Promise.resolve(["feat/old", "fix/typo"] as never)),
     askConfirm: mock(() => Promise.resolve(false)),
   });
 
@@ -53,7 +53,7 @@ test("also deletes remote branches when confirmed", async () => {
     deleteRemoteBranch: mock(() => Promise.resolve()),
   });
   const ui = createUIMock({
-    askMultiSelect: mock(() => Promise.resolve(["feat/old"] as never)),
+    askSearchMultiSelect: mock(() => Promise.resolve(["feat/old"] as never)),
     askConfirm: mock(() => Promise.resolve(true)),
   });
 
@@ -72,7 +72,7 @@ test("continues deleting remaining branches after a single failure", async () =>
       .mockResolvedValueOnce(undefined),
   });
   const ui = createUIMock({
-    askMultiSelect: mock(() => Promise.resolve(["feat/a", "feat/b"] as never)),
+    askSearchMultiSelect: mock(() => Promise.resolve(["feat/a", "feat/b"] as never)),
     askConfirm: mock(() => Promise.resolve(false)),
   });
 
@@ -91,7 +91,7 @@ test("shows last activity date in branch label", async () => {
     deleteLocalBranch: mock(() => Promise.resolve()),
   });
   const ui = createUIMock({
-    askMultiSelect: mock((_, options) => {
+    askSearchMultiSelect: mock((_, options) => {
       expect(options[0].label).toContain("3 months ago");
       return Promise.resolve([] as never);
     }),

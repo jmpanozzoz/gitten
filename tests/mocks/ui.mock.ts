@@ -8,6 +8,8 @@ export function createUIMock(overrides: Partial<IUI> = {}): IUI {
     cancel: mock(() => {}),
     askSelect: mock(() => Promise.resolve("" as never)),
     askMultiSelect: mock(() => Promise.resolve([])),
+    askSearchSelect: mock(() => Promise.resolve("" as never)),
+    askSearchMultiSelect: mock(() => Promise.resolve([])),
     askText: mock(() => Promise.resolve("")),
     askConfirm: mock(() => Promise.resolve(false)),
     spin: mock((_msg: string, task: () => Promise<unknown>) => task()) as IUI["spin"],

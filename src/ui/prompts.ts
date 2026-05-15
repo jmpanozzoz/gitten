@@ -1,6 +1,7 @@
 import * as clack from "@clack/prompts";
 import { theme } from "./theme";
 import { GoBackSignal } from "./go-back";
+import { searchSelect, searchMultiSelect } from "./search-select";
 import type { IUI } from "../core/ports/ui.port";
 
 export class UI implements IUI {
@@ -39,6 +40,20 @@ export class UI implements IUI {
     });
     if (clack.isCancel(result)) throw new GoBackSignal();
     return result as T[];
+  }
+
+  async askSearchSelect<T>(
+    message: string,
+    options: { value: T; label: string }[]
+  ): Promise<T> {
+    return searchSelect(message, options);
+  }
+
+  async askSearchMultiSelect<T>(
+    message: string,
+    options: { value: T; label: string }[]
+  ): Promise<T[]> {
+    return searchMultiSelect(message, options);
   }
 
   async askText(message: string, placeholder?: string): Promise<string> {

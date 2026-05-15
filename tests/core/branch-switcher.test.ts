@@ -18,7 +18,7 @@ test("shows info and returns when no other branches exist", async () => {
   await new BranchSwitcher(git, ui).run();
 
   expect(ui.info).toHaveBeenCalled();
-  expect(ui.askSelect).not.toHaveBeenCalled();
+  expect(ui.askSearchSelect).not.toHaveBeenCalled();
 });
 
 // ─── clean working tree ───────────────────────────────────────────────────────
@@ -30,7 +30,7 @@ test("checks out selected branch directly when working tree is clean", async () 
     checkoutBranch: mock(() => Promise.resolve()),
   });
   const ui = createUIMock({
-    askSelect: mock(() => Promise.resolve("main")),
+    askSearchSelect: mock(() => Promise.resolve("main" as never)),
   });
 
   await new BranchSwitcher(git, ui).run();
@@ -46,12 +46,12 @@ test("excludes current branch from the list", async () => {
     checkoutBranch: mock(() => Promise.resolve()),
   });
   const ui = createUIMock({
-    askSelect: mock(() => Promise.resolve("main")),
+    askSearchSelect: mock(() => Promise.resolve("main" as never)),
   });
 
   await new BranchSwitcher(git, ui).run();
 
-  const options = (ui.askSelect as ReturnType<typeof mock>).mock.calls[0][1] as {
+  const options = (ui.askSearchSelect as ReturnType<typeof mock>).mock.calls[0][1] as {
     value: string;
   }[];
   expect(options.some((o) => o.value === "feat/login")).toBe(false);
@@ -67,12 +67,12 @@ test("shows last activity date alongside each branch name", async () => {
     checkoutBranch: mock(() => Promise.resolve()),
   });
   const ui = createUIMock({
-    askSelect: mock(() => Promise.resolve("main")),
+    askSearchSelect: mock(() => Promise.resolve("main" as never)),
   });
 
   await new BranchSwitcher(git, ui).run();
 
-  const options = (ui.askSelect as ReturnType<typeof mock>).mock.calls[0][1] as {
+  const options = (ui.askSearchSelect as ReturnType<typeof mock>).mock.calls[0][1] as {
     label: string;
   }[];
   expect(options.every((o) => o.label.includes("3 hours ago"))).toBe(true);
@@ -88,7 +88,7 @@ test("stashes changes and switches when user confirms on dirty tree", async () =
     checkoutBranch: mock(() => Promise.resolve()),
   });
   const ui = createUIMock({
-    askSelect: mock(() => Promise.resolve("main")),
+    askSearchSelect: mock(() => Promise.resolve("main" as never)),
     askConfirm: mock(() => Promise.resolve(true)),
   });
 
@@ -106,7 +106,7 @@ test("aborts without switching when user declines stash on dirty tree", async ()
     checkoutBranch: mock(() => Promise.resolve()),
   });
   const ui = createUIMock({
-    askSelect: mock(() => Promise.resolve("main")),
+    askSearchSelect: mock(() => Promise.resolve("main" as never)),
     askConfirm: mock(() => Promise.resolve(false)),
   });
 
@@ -124,7 +124,7 @@ test("shows stash hint after switching from dirty tree", async () => {
     checkoutBranch: mock(() => Promise.resolve()),
   });
   const ui = createUIMock({
-    askSelect: mock(() => Promise.resolve("main")),
+    askSearchSelect: mock(() => Promise.resolve("main" as never)),
     askConfirm: mock(() => Promise.resolve(true)),
   });
 
