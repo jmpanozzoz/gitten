@@ -199,6 +199,14 @@ export class GitClient implements IGitClient {
     return { hash: entry.hash.slice(0, 7), message: entry.message };
   }
 
+  async amendCommit(message: string): Promise<void> {
+    await this.git.raw(["commit", "--amend", "-m", message]);
+  }
+
+  async amendNoEdit(): Promise<void> {
+    await this.git.raw(["commit", "--amend", "--no-edit"]);
+  }
+
   async getLastTag(): Promise<string | null> {
     try {
       const result = await this.git.raw(["describe", "--tags", "--abbrev=0"]);
