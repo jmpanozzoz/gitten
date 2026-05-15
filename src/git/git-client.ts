@@ -146,7 +146,7 @@ export class GitClient implements IGitClient {
   }
 
   async addFiles(paths: string[]): Promise<void> {
-    await this.git.add(paths);
+    await this.git.add(["-A", "--", ...paths]);
   }
 
   async getDiffStat(): Promise<DiffStat> {

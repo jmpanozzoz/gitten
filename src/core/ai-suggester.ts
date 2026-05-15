@@ -52,15 +52,21 @@ export async function suggestGitignorePatterns(
   config: AIConfig
 ): Promise<string[]> {
   const prompt = `Tracked files:\n${trackedFiles.slice(0, 100).join("\n")}\n\nCurrent .gitignore:\n${existingPatterns.join("\n")}`;
-  const result = await callAI(GITIGNORE_SYSTEM_PROMPT, prompt, config);
-  if (!result) return [];
-  return result.split("\n").map((l) => l.trim()).filter(Boolean);
+  try {
+    const result = await callAI(GITIGNORE_SYSTEM_PROMPT, prompt, config);
+    if (!result) return [];
+    return result.split("\n").map((l) => l.trim()).filter(Boolean);
+  } catch {
+    return [];
+  }
 }
 
 async function callAI(systemPrompt: string, userMessage: string, config: AIConfig): Promise<string | null> {
+  const url = `${config.baseUrl.replace(/\/$/, "")}/chat/completions`;
+
+  let response: Response;
   try {
-    const url = `${config.baseUrl.replace(/\/$/, "")}/chat/completions`;
-    const response = await fetch(url, {
+    response = await fetch(url, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -76,11 +82,27 @@ async function callAI(systemPrompt: string, userMessage: string, config: AIConfi
         temperature: 0.3,
       }),
     });
-
-    if (!response.ok) return null;
-    const data = (await response.json()) as { choices?: { message?: { content?: string } }[] };
-    return data.choices?.[0]?.message?.content?.trim() ?? null;
-  } catch {
-    return null;
+  } catch (err) {
+    throw new Error(`Network error: ${err instanceof Error ? err.message : String(err)}`);
   }
+
+  if (!response.ok) {
+    let detail = `HTTP ${response.status}`;
+    try {
+      const body = (await response.json()) as { error?: { message?: string } };
+      if (body.error?.message) detail = body.error.message;
+    } catch {}
+    throw new Error(detail);
+  }
+
+  const data = (await response.json()) as {
+    choices?: { message?: { content?: string } }[];
+    error?: { message?: string; code?: number };
+  };
+
+  if (data.error) {
+    throw new Error(data.error.message ?? `API error ${data.error.code ?? "unknown"}`);
+  }
+
+  return data.choices?.[0]?.message?.content?.trim() || null;
 }
