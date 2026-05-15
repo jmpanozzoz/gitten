@@ -89,7 +89,7 @@ export async function app(
   };
 
   while (true) {
-    const ctx = await ui.spin("Loading context...", () => git.getRepoContext());
+    const ctx = await ui.spin("Loading context...", () => git.getRepoContext(), "");
     const statusParts: string[] = [];
     if (ctx.modifiedCount > 0) statusParts.push(`${ctx.modifiedCount} modified`);
     if (ctx.commitsAhead > 0) statusParts.push(`${ctx.commitsAhead} ahead`);
