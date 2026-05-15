@@ -59,4 +59,7 @@ export interface IGitClient {
   writeGitignore(lines: string[]): Promise<void>;
   getTrackedFiles(): Promise<string[]>;
   untrackFiles(paths: string[]): Promise<void>;
+  getLastCommit(): Promise<CommitSummary>;
+  resetSoft(): Promise<void>;
+  resetMixed(): Promise<void>;
 }

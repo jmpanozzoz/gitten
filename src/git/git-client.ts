@@ -165,4 +165,19 @@ export class GitClient implements IGitClient {
     if (paths.length === 0) return;
     await this.git.raw(["rm", "--cached", ...paths]);
   }
+
+  async getLastCommit(): Promise<CommitSummary> {
+    const log = await this.git.log(["-1"]);
+    const entry = log.latest;
+    if (!entry) throw new Error("does not have any commits yet");
+    return { hash: entry.hash.slice(0, 7), message: entry.message };
+  }
+
+  async resetSoft(): Promise<void> {
+    await this.git.reset(["--soft", "HEAD~1"]);
+  }
+
+  async resetMixed(): Promise<void> {
+    await this.git.reset(["HEAD~1"]);
+  }
 }
