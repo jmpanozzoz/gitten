@@ -1,7 +1,7 @@
 import simpleGit from "simple-git";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import type { IGitClient, BranchSummary, CommitSummary, StatusSummary, Remote, PullResult, DiffStat, StashEntry } from "../core/ports/git-client.port";
+import type { IGitClient, BranchSummary, CommitSummary, StatusSummary, Remote, PullResult, DiffStat, StashEntry, BisectResult } from "../core/ports/git-client.port";
 
 export class GitClient implements IGitClient {
   private readonly git: ReturnType<typeof simpleGit>;
@@ -197,6 +197,34 @@ export class GitClient implements IGitClient {
     const entry = log.latest;
     if (!entry) throw new Error("does not have any commits yet");
     return { hash: entry.hash.slice(0, 7), message: entry.message };
+  }
+
+  async bisectStart(): Promise<void> {
+    await this.git.raw(["bisect", "start"]);
+  }
+
+  async bisectBad(ref?: string): Promise<BisectResult> {
+    const args = ref ? ["bisect", "bad", ref] : ["bisect", "bad"];
+    const output = await this.git.raw(args);
+    return this.parseBisectOutput(output);
+  }
+
+  async bisectGood(ref?: string): Promise<BisectResult> {
+    const args = ref ? ["bisect", "good", ref] : ["bisect", "good"];
+    const output = await this.git.raw(args);
+    return this.parseBisectOutput(output);
+  }
+
+  async bisectReset(): Promise<void> {
+    await this.git.raw(["bisect", "reset"]);
+  }
+
+  private parseBisectOutput(output: string): BisectResult {
+    const match = output.match(/^([0-9a-f]{40}) is the first bad commit/m);
+    if (match) {
+      return { done: true, badCommit: { hash: match[1].slice(0, 7), message: "" } };
+    }
+    return { done: false };
   }
 
   async resetSoft(n: number): Promise<void> {
