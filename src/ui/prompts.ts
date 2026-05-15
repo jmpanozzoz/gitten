@@ -78,6 +78,10 @@ export class UI implements IUI {
     clack.log.error(theme.error(message));
   }
 
+  context(message: string): void {
+    clack.log.message(message);
+  }
+
   info(message: string): void {
     clack.log.info(theme.info(message));
   }

@@ -16,11 +16,13 @@ import { StashManager } from "./core/stash-manager";
 import { checkForUpdate } from "./utils/update-checker";
 import { getActiveAIConfig } from "./config/config";
 import { suggestCommitMessage, suggestGitignorePatterns } from "./core/ai-suggester";
+import { theme } from "./ui/theme";
 import type { IGitClient } from "./core/ports/git-client.port";
 import type { IUI } from "./core/ports/ui.port";
 import { version } from "../package.json";
 
-type MenuOption = "branch" | "switch" | "clean" | "cherry" | "pull" | "sync" | "stash" | "remotes" | "gitignore" | "undo" | "purge" | "settings" | "exit";
+type MainOption = "branch" | "switch" | "clean" | "cherry" | "pull" | "sync" | "stash" | "more" | "exit";
+type MoreOption = "remotes" | "gitignore" | "undo" | "purge" | "settings";
 
 export async function app(
   git: IGitClient = new GitClient(),
@@ -73,14 +75,7 @@ export async function app(
     return new GitignoreManager(git, ui, aiSuggester).run();
   };
 
-  const handlers: Record<Exclude<MenuOption, "exit">, () => Promise<void>> = {
-    branch: () => new BranchCreator(git, ui).run(),
-    switch: () => new BranchSwitcher(git, ui).run(),
-    clean: () => new BranchCleaner(git, ui).run(),
-    cherry: () => new CherryPicker(git, ui).run(),
-    pull: () => new PullFlow(git, ui).run(),
-    sync: () => buildSyncFlow(),
-    stash: () => new StashManager(git, ui).run(),
+  const moreHandlers: Record<MoreOption, () => Promise<void>> = {
     remotes: () => new RemoteManager(git, ui).run(),
     gitignore: () => buildGitignoreManager(),
     undo: () => new UndoCommit(git, ui).run(),
@@ -88,30 +83,38 @@ export async function app(
     settings: () => new Settings(ui).run(),
   };
 
+  const mainHandlers: Record<Exclude<MainOption, "exit" | "more">, () => Promise<void>> = {
+    branch: () => new BranchCreator(git, ui).run(),
+    switch: () => new BranchSwitcher(git, ui).run(),
+    clean: () => new BranchCleaner(git, ui).run(),
+    cherry: () => new CherryPicker(git, ui).run(),
+    pull: () => new PullFlow(git, ui).run(),
+    sync: () => buildSyncFlow(),
+    stash: () => new StashManager(git, ui).run(),
+  };
+
   while (true) {
     const ctx = await ui.spin("Loading context...", () => git.getRepoContext());
-    const statusParts: string[] = [];
-    if (ctx.modifiedCount > 0) statusParts.push(`${ctx.modifiedCount} modified`);
-    if (ctx.commitsAhead > 0) statusParts.push(`${ctx.commitsAhead} ahead`);
-    if (ctx.commitsBehind > 0) statusParts.push(`${ctx.commitsBehind} behind`);
-    const statusSuffix = statusParts.length > 0 ? ` · ${statusParts.join(" · ")}` : "";
-    ui.info(`Context: ${repoName} | branch: ${ctx.branch}${statusSuffix}`);
 
-    let choice: MenuOption;
+    const parts: string[] = [`${repoName} · ${ctx.branch}`];
+    if (ctx.commitsAhead > 0) parts.push(`${ctx.commitsAhead} ahead`);
+    if (ctx.commitsBehind > 0) parts.push(`${ctx.commitsBehind} behind`);
+    if (ctx.modifiedCount > 0) {
+      parts.push(`${theme.additions(ctx.insertions)} ${theme.deletions(ctx.deletions)} · ${ctx.modifiedCount} files`);
+    }
+    ui.context(parts.join(" · "));
+
+    let choice: MainOption;
     try {
-      choice = await ui.askSelect<MenuOption>("What do you want to do?", [
+      choice = await ui.askSelect<MainOption>("What do you want to do?", [
+        { value: "sync", label: "🚀 Sync" },
+        { value: "pull", label: "🔽 Pull" },
         { value: "branch", label: "🌿 New Branch" },
         { value: "switch", label: "🔀 Switch Branch" },
-        { value: "clean", label: "🧹 Clean Branches" },
-        { value: "cherry", label: "🍒 Cherry Pick" },
-        { value: "pull", label: "🔽 Pull" },
-        { value: "sync", label: "🚀 Sync" },
         { value: "stash", label: "📦 Stash" },
-        { value: "remotes", label: "🔗 Remotes" },
-        { value: "gitignore", label: "🙈 .gitignore" },
-        { value: "undo", label: "↩  Undo Commit" },
-        { value: "purge", label: "🔥 Purge History" },
-        { value: "settings", label: "⚙️  Settings" },
+        { value: "cherry", label: "🍒 Cherry Pick" },
+        { value: "clean", label: "🧹 Clean Branches" },
+        { value: "more", label: "⋯  More" },
         { value: "exit", label: "🚪 Exit" },
       ]);
     } catch (e) {
@@ -122,7 +125,18 @@ export async function app(
     if (choice === "exit") break;
 
     try {
-      await handlers[choice as Exclude<MenuOption, "exit">]();
+      if (choice === "more") {
+        const more = await ui.askSelect<MoreOption>("More options:", [
+          { value: "undo", label: "↩  Undo Commit" },
+          { value: "remotes", label: "🔗 Remotes" },
+          { value: "gitignore", label: "🙈 .gitignore" },
+          { value: "purge", label: "🔥 Purge History" },
+          { value: "settings", label: "⚙️  Settings" },
+        ]);
+        await moreHandlers[more]();
+      } else {
+        await mainHandlers[choice as Exclude<MainOption, "exit" | "more">]();
+      }
     } catch (e) {
       if (e instanceof GoBackSignal) continue;
       throw e;

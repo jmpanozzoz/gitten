@@ -15,6 +15,7 @@ export function createUIMock(overrides: Partial<IUI> = {}): IUI {
     warn: mock(() => {}),
     error: mock(() => {}),
     info: mock(() => {}),
+    context: mock(() => {}),
     ...overrides,
   };
 }
