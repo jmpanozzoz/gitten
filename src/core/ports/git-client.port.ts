@@ -76,10 +76,10 @@ export interface IGitClient {
   getLastCommit(): Promise<CommitSummary>;
   amendCommit(message: string): Promise<void>;
   amendNoEdit(): Promise<void>;
-  getLastTag(): Promise<string | null>;
-  getLogSince(ref: string): Promise<CommitSummary[]>;
-  createAnnotatedTag(name: string, message: string): Promise<void>;
-  pushTag(name: string): Promise<void>;
+  bisectStart(): Promise<void>;
+  bisectBad(ref?: string): Promise<BisectResult>;
+  bisectGood(ref?: string): Promise<BisectResult>;
+  bisectReset(): Promise<void>;
   resetSoft(n: number): Promise<void>;
   resetMixed(n: number): Promise<void>;
   filterRepoAvailable(): Promise<boolean>;
@@ -92,6 +92,11 @@ export interface IGitClient {
   discardLocalChanges(): Promise<void>;
   fetchRemote(): Promise<void>;
   resetHardToRemote(branch: string): Promise<void>;
+}
+
+export interface BisectResult {
+  done: boolean;
+  badCommit?: CommitSummary;
 }
 
 export interface StashEntry {
