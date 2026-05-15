@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.9.2](https://github.com/jmpanozzoz/gitten/compare/v0.9.1...v0.9.2) (2026-05-15)
+
+
+### Bug Fixes
+
+* branch deleted fixed ([#96](https://github.com/jmpanozzoz/gitten/issues/96)) ([64dd341](https://github.com/jmpanozzoz/gitten/commit/64dd3413c52c9ff283854e276f167d13ba12d88d))
+
 ## [0.9.1](https://github.com/jmpanozzoz/gitten/compare/v0.9.0...v0.9.1) (2026-05-15)
 
 
