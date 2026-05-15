@@ -9,7 +9,7 @@ export interface IUI {
   askMultiSelect<T extends string>(message: string, options: { value: T; label: string }[]): Promise<T[]>;
   askSearchSelect<T>(message: string, options: { value: T; label: string }[]): Promise<T>;
   askSearchMultiSelect<T>(message: string, options: { value: T; label: string }[]): Promise<T[]>;
-  askText(message: string, placeholder?: string): Promise<string>;
+  askText(message: string, placeholder?: string, initialValue?: string): Promise<string>;
   askConfirm(message: string): Promise<boolean>;
 
   spin<T>(message: string, task: () => Promise<T>, stopMessage?: string): Promise<T>;

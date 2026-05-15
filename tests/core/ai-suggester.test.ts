@@ -45,20 +45,16 @@ test("calls correct endpoint with model and messages", async () => {
   expect(body.messages[1].role).toBe("user");
 });
 
-test("returns null when API responds with non-ok status", async () => {
+test("throws when API responds with non-ok status", async () => {
   mockFetch("", false);
 
-  const result = await suggestCommitMessage("diff", CONFIG);
-
-  expect(result).toBeNull();
+  await expect(suggestCommitMessage("diff", CONFIG)).rejects.toThrow();
 });
 
-test("returns null when fetch throws (network error)", async () => {
+test("throws when fetch fails (network error)", async () => {
   spyOn(globalThis, "fetch").mockRejectedValueOnce(new Error("network error"));
 
-  const result = await suggestCommitMessage("diff", CONFIG);
-
-  expect(result).toBeNull();
+  await expect(suggestCommitMessage("diff", CONFIG)).rejects.toThrow("Network error");
 });
 
 test("truncates diff longer than 6000 chars before sending", async () => {

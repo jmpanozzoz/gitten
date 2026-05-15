@@ -1,7 +1,7 @@
 import type { IUI } from "./ports/ui.port";
 import { readConfig, writeConfig } from "../config/config";
 
-type SettingsAction = "configure" | "disable";
+type SettingsAction = "configure" | "enable" | "disable";
 
 export class Settings {
   constructor(private readonly ui: IUI) {}
@@ -9,18 +9,29 @@ export class Settings {
   async run(): Promise<void> {
     const config = await readConfig();
     const ai = config.ai;
-    const statusLabel = ai?.enabled
-      ? `AI enabled — ${ai.model} @ ${ai.baseUrl}`
-      : "AI disabled";
+    const isEnabled = ai?.enabled ?? false;
+    const hasConfig = !!(ai?.baseUrl && ai?.apiKey && ai?.model);
 
+    const statusLabel = isEnabled
+      ? `AI enabled — ${ai!.model} @ ${ai!.baseUrl}`
+      : "AI disabled";
     this.ui.info(`Current: ${statusLabel}`);
 
-    const action = await this.ui.askSelect<SettingsAction>("AI Assistant settings:", [
+    const toggleOption = hasConfig
+      ? isEnabled
+        ? { value: "disable" as SettingsAction, label: "○  Disable AI" }
+        : { value: "enable"  as SettingsAction, label: "✓  Enable AI" }
+      : null;
+
+    const options: { value: SettingsAction; label: string }[] = [
       { value: "configure", label: "✨ Configure AI (base URL, API key, model)" },
-      { value: "disable", label: "○  Disable AI" },
-    ]);
+      ...(toggleOption ? [toggleOption] : []),
+    ];
+
+    const action = await this.ui.askSelect<SettingsAction>("AI Assistant settings:", options);
 
     if (action === "disable") return this.disable(config);
+    if (action === "enable")  return this.enable(config);
     if (action === "configure") return this.configure(config);
   }
 
@@ -29,10 +40,11 @@ export class Settings {
 
     const baseUrl = await this.ui.askText(
       "Base URL:",
-      existing?.baseUrl ?? "https://api.openai.com/v1"
+      "https://api.openai.com/v1",
+      existing?.baseUrl
     );
-    const apiKey = await this.ui.askText("API key:", existing?.apiKey ?? "sk-...");
-    const model = await this.ui.askText("Model:", existing?.model ?? "gpt-4o-mini");
+    const apiKey = await this.ui.askText("API key:", "sk-...", existing?.apiKey);
+    const model = await this.ui.askText("Model:", "gpt-4o-mini", existing?.model);
 
     const enable = await this.ui.askConfirm("Enable AI suggestions?");
 
@@ -42,6 +54,11 @@ export class Settings {
     });
 
     this.ui.success(enable ? `AI enabled — using ${model}` : "AI configured but disabled.");
+  }
+
+  private async enable(config: Awaited<ReturnType<typeof readConfig>>): Promise<void> {
+    await writeConfig({ ...config, ai: { ...config.ai, enabled: true } });
+    this.ui.success("AI enabled.");
   }
 
   private async disable(config: Awaited<ReturnType<typeof readConfig>>): Promise<void> {
