@@ -29,7 +29,7 @@ export class BranchCleaner {
       )
     );
 
-    const selected = await this.ui.askMultiSelect("Select branches to delete:", labelled);
+    const selected = await this.ui.askSearchMultiSelect("Select branches to delete:", labelled);
 
     if (selected.length === 0) return;
 

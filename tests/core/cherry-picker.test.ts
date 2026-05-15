@@ -28,7 +28,7 @@ test("shows info when selected branch has no commits", async () => {
     getLog: mock(() => Promise.resolve([])),
   });
   const ui = createUIMock({
-    askSelect: mock(() => Promise.resolve("feat/other" as never)),
+    askSearchSelect: mock(() => Promise.resolve("feat/other" as never)),
   });
 
   await new CherryPicker(git, ui).run();
@@ -46,14 +46,14 @@ test("excludes current branch from source branch list", async () => {
     cherryPick: mock(() => Promise.resolve()),
   });
 
-  const askSelect = mock()
+  const askSearchSelect = mock()
     .mockResolvedValueOnce("main")
     .mockResolvedValueOnce("abc1234");
-  const ui = createUIMock({ askSelect });
+  const ui = createUIMock({ askSearchSelect });
 
   await new CherryPicker(git, ui).run();
 
-  const firstCallOptions = (askSelect.mock.calls[0] as unknown[])[1] as { value: string }[];
+  const firstCallOptions = (askSearchSelect.mock.calls[0] as unknown[])[1] as { value: string }[];
   expect(firstCallOptions.map((o) => o.value)).not.toContain("feat/a");
   expect(firstCallOptions.map((o) => o.value)).toContain("main");
   expect(firstCallOptions.map((o) => o.value)).toContain("feat/b");
@@ -67,10 +67,10 @@ test("calls cherryPick with the selected commit hash", async () => {
     getLog: mock(() => Promise.resolve(COMMITS)),
     cherryPick: mock(() => Promise.resolve()),
   });
-  const askSelect = mock()
+  const askSearchSelect = mock()
     .mockResolvedValueOnce("feat/other")
     .mockResolvedValueOnce("def5678");
-  const ui = createUIMock({ askSelect });
+  const ui = createUIMock({ askSearchSelect });
 
   await new CherryPicker(git, ui).run();
 
@@ -87,10 +87,10 @@ test("on conflict + ENTER: calls cherryPickContinue", async () => {
     cherryPick: mock(() => Promise.reject(new Error("conflict"))),
     cherryPickContinue: mock(() => Promise.resolve()),
   });
-  const askSelect = mock()
+  const askSearchSelect = mock()
     .mockResolvedValueOnce("feat/other")
     .mockResolvedValueOnce("abc1234");
-  const ui = createUIMock({ askSelect });
+  const ui = createUIMock({ askSearchSelect });
   const waitForResolution = mock(() => Promise.resolve(true));
 
   await new CherryPicker(git, ui, waitForResolution).run();
@@ -108,10 +108,10 @@ test("on conflict + ESC: calls cherryPickAbort", async () => {
     cherryPick: mock(() => Promise.reject(new Error("conflict"))),
     cherryPickAbort: mock(() => Promise.resolve()),
   });
-  const askSelect = mock()
+  const askSearchSelect = mock()
     .mockResolvedValueOnce("feat/other")
     .mockResolvedValueOnce("abc1234");
-  const ui = createUIMock({ askSelect });
+  const ui = createUIMock({ askSearchSelect });
   const waitForResolution = mock(() => Promise.resolve(false));
 
   await new CherryPicker(git, ui, waitForResolution).run();
