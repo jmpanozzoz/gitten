@@ -7,8 +7,9 @@ const FILES = [
   { path: "src/app.ts", status: "M" },
   { path: ".env", status: "?" },
 ];
-const DIRTY_STATUS = { files: FILES, isClean: () => false };
-const CLEAN_STATUS = { files: [], isClean: () => true };
+const DIRTY_STATUS = { files: FILES, isClean: () => false, commitsAhead: 0 };
+const CLEAN_STATUS = { files: [], isClean: () => true, commitsAhead: 0 };
+const CLEAN_STATUS_AHEAD = { files: [], isClean: () => true, commitsAhead: 3 };
 const CONFIRM_YES = { askConfirm: mock(() => Promise.resolve(true)) };
 const CONFIRM_NO = { askConfirm: mock(() => Promise.resolve(false)) };
 const SELECT_ALL = { askMultiSelect: mock(() => Promise.resolve(["src/app.ts", ".env"])) };
@@ -151,7 +152,7 @@ test("shows diff stat summary after staging", async () => {
 
 // ─── clean working tree ───────────────────────────────────────────────────────
 
-test("skips staging and commit when working tree is clean", async () => {
+test("skips staging and commit when working tree is clean but has commits ahead", async () => {
   const git = createGitMock({
     getStatus: mock(() => Promise.resolve(CLEAN_STATUS_AHEAD)),
     push: mock(() => Promise.resolve()),
@@ -165,9 +166,9 @@ test("skips staging and commit when working tree is clean", async () => {
   expect(git.push).toHaveBeenCalledTimes(1);
 });
 
-test("returns early without pushing when user declines on clean tree", async () => {
+test("returns early without pushing when user declines on clean tree with commits ahead", async () => {
   const git = createGitMock({
-    getStatus: mock(() => Promise.resolve(CLEAN_STATUS)),
+    getStatus: mock(() => Promise.resolve(CLEAN_STATUS_AHEAD)),
   });
   const ui = createUIMock({
     askConfirm: mock(() => Promise.resolve(false)),
