@@ -64,10 +64,19 @@ export class SyncFlow {
     if (!suggest) return DEFAULT_COMMIT_MESSAGE;
 
     const diff = await this.git.getStagedDiff();
-    const suggestion = await this.ui.spin("Generating suggestion...", () => this.aiSuggester!(diff));
+
+    let suggestion: string | null = null;
+    try {
+      suggestion = await this.ui.spin("Generating suggestion...", () => this.aiSuggester!(diff), "");
+    } catch (err) {
+      if (err instanceof Error && err.message === "go-back") throw err;
+      const msg = err instanceof Error ? err.message : "unknown error";
+      this.ui.warn(`AI failed: ${msg}`);
+      return DEFAULT_COMMIT_MESSAGE;
+    }
 
     if (!suggestion) {
-      this.ui.warn("AI did not return a suggestion — type your message.");
+      this.ui.warn("AI returned an empty response — type your message.");
       return DEFAULT_COMMIT_MESSAGE;
     }
 
