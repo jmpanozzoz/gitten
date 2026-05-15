@@ -1,5 +1,5 @@
 import { mock } from "bun:test";
-import type { IGitClient, BranchSummary, CommitSummary, StatusSummary, Remote, PullResult, DiffStat, StashEntry, WorktreeEntry } from "../../src/core/ports/git-client.port";
+import type { IGitClient, BranchSummary, CommitSummary, StatusSummary, Remote, PullResult, DiffStat, StashEntry, WorktreeEntry, BisectResult } from "../../src/core/ports/git-client.port";
 
 export function createGitMock(overrides: Partial<IGitClient> = {}): IGitClient {
   return {
@@ -45,6 +45,15 @@ export function createGitMock(overrides: Partial<IGitClient> = {}): IGitClient {
     getLastCommit: mock(() => Promise.resolve({ hash: "abc1234", message: "chore: update" })),
     amendCommit: mock(() => Promise.resolve()),
     amendNoEdit: mock(() => Promise.resolve()),
+    getPackageVersion: mock(() => Promise.resolve(null as string | null)),
+    getLastTag: mock(() => Promise.resolve(null as string | null)),
+    getLogSince: mock(() => Promise.resolve([] as CommitSummary[])),
+    createAnnotatedTag: mock(() => Promise.resolve()),
+    pushTag: mock(() => Promise.resolve()),
+    bisectStart: mock(() => Promise.resolve()),
+    bisectBad: mock(() => Promise.resolve({ done: false } satisfies BisectResult)),
+    bisectGood: mock(() => Promise.resolve({ done: false } satisfies BisectResult)),
+    bisectReset: mock(() => Promise.resolve()),
     getWorktrees: mock(() => Promise.resolve([] as WorktreeEntry[])),
     addWorktree: mock(() => Promise.resolve()),
     removeWorktree: mock(() => Promise.resolve()),

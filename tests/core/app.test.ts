@@ -141,6 +141,76 @@ test("dispatches to settings handler from more submenu", async () => {
   expect(ui.askSelect).toHaveBeenCalledTimes(4);
 });
 
+test("dispatches to amend handler from more submenu", async () => {
+  const git = createGitMock({
+    getLastCommit: mock(() => Promise.resolve({ hash: "abc1234", message: "chore: update" })),
+    getStatus: mock(() => Promise.resolve({ files: [], isClean: () => true, commitsAhead: 0 })),
+  });
+  const ui = createUIMock({
+    askSelect: mock()
+      .mockResolvedValueOnce("more")
+      .mockResolvedValueOnce("amend")
+      .mockResolvedValueOnce("message")
+      .mockResolvedValueOnce("exit"),
+    askText: mock(() => Promise.resolve("fix: amended")),
+  });
+
+  await app(git, ui);
+
+  expect(git.getLastCommit).toHaveBeenCalled();
+});
+
+test("dispatches to tag handler from more submenu", async () => {
+  const git = createGitMock({
+    getLastTag: mock(() => Promise.resolve("v1.0.0")),
+    getLogSince: mock(() => Promise.resolve([])),
+  });
+  const ui = createUIMock({
+    askSelect: mock()
+      .mockResolvedValueOnce("more")
+      .mockResolvedValueOnce("tag")
+      .mockResolvedValueOnce("exit"),
+  });
+
+  await app(git, ui);
+
+  expect(git.getLastTag).toHaveBeenCalled();
+});
+
+test("dispatches to bisect handler from more submenu", async () => {
+  const git = createGitMock({
+    getCurrentBranch: mock(() => Promise.resolve("main")),
+    getLog: mock(() => Promise.resolve([])),
+  });
+  const ui = createUIMock({
+    askSelect: mock()
+      .mockResolvedValueOnce("more")
+      .mockResolvedValueOnce("bisect")
+      .mockResolvedValueOnce("exit"),
+  });
+
+  await app(git, ui);
+
+  expect(git.getLog).toHaveBeenCalled();
+});
+
+test("dispatches to worktree handler from more submenu", async () => {
+  const git = createGitMock({
+    getWorktrees: mock(() => Promise.resolve([])),
+  });
+  const ui = createUIMock({
+    askSelect: mock()
+      .mockResolvedValueOnce("more")
+      .mockResolvedValueOnce("worktree")
+      .mockResolvedValueOnce("list")
+      .mockResolvedValueOnce("exit"),
+  });
+
+  await app(git, ui);
+
+  expect(git.getWorktrees).toHaveBeenCalled();
+});
+
 test("returns to main menu when ESC pressed in more submenu", async () => {
   const { GoBackSignal } = await import("../../src/ui/go-back");
   const ui = createUIMock({

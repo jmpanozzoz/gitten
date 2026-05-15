@@ -10,7 +10,13 @@ export class AmendFlow {
   ) {}
 
   async run(): Promise<void> {
-    const last = await this.git.getLastCommit();
+    let last: { hash: string; message: string };
+    try {
+      last = await this.git.getLastCommit();
+    } catch {
+      this.ui.error("No commits found — nothing to amend.");
+      return;
+    }
     this.ui.info(`Last commit: ${last.hash} — ${last.message}`);
 
     const choice = await this.ui.askSelect<AmendOption>("What do you want to amend?", [

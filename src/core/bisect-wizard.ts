@@ -24,18 +24,31 @@ export class BisectWizard {
       commits.map((c) => ({ value: c.hash, label: `${c.hash}  ${c.message}` }))
     );
 
-    await this.ui.spin("Starting bisect...", async () => {
-      await this.git.bisectStart();
-      await this.git.bisectBad(undefined);
-      await this.git.bisectGood(goodHash);
-    });
+    try {
+      await this.ui.spin("Starting bisect...", async () => {
+        await this.git.bisectStart();
+        await this.git.bisectBad(undefined);
+        await this.git.bisectGood(goodHash);
+      });
+    } catch (err) {
+      this.ui.error(`Failed to start bisect: ${err instanceof Error ? err.message : String(err)}`);
+      await this.git.bisectReset().catch(() => {});
+      return;
+    }
 
     await this.bisectLoop();
   }
 
   private async bisectLoop(): Promise<void> {
     while (true) {
-      const current = await this.git.getLastCommit();
+      let current: { hash: string; message: string };
+      try {
+        current = await this.git.getLastCommit();
+      } catch (err) {
+        this.ui.error(`Lost track of current commit: ${err instanceof Error ? err.message : String(err)}`);
+        await this.git.bisectReset().catch(() => {});
+        return;
+      }
       this.ui.info(`Testing: ${current.hash} — ${current.message}`);
 
       const verdict = await this.ui.askSelect<VerdictOption>(
@@ -57,7 +70,14 @@ export class BisectWizard {
         ? () => this.git.bisectBad()
         : () => this.git.bisectGood();
 
-      const result: BisectResult = await this.ui.spin("Marking commit...", fn);
+      let result: BisectResult;
+      try {
+        result = await this.ui.spin("Marking commit...", fn);
+      } catch (err) {
+        this.ui.error(`Bisect failed: ${err instanceof Error ? err.message : String(err)}`);
+        await this.git.bisectReset().catch(() => {});
+        return;
+      }
 
       if (result.done && result.badCommit) {
         this.ui.success(

@@ -9,7 +9,7 @@
  ╚═════╝ ╚═╝   ╚═╝      ╚═╝   ╚══════╝╚═╝  ╚═══╝
 ```
 
-**Your opinionated Git assistant for the terminal.**
+**Git, the way it should feel.**
 
 [![Latest Release](https://img.shields.io/github/v/release/jmpanozzoz/gitten?label=version&color=brightgreen)](https://github.com/jmpanozzoz/gitten/releases/latest)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -179,6 +179,159 @@ The install script is idempotent — running it again fetches the latest release
 | ⚙️ **Settings** | Configure the AI provider (Anthropic / OpenAI) for smart suggestions. |
 
 **What gitten deliberately does NOT do:** interactive rebase, hunk-level staging, GitHub API integration, config files. Sharp focus, zero configuration.
+
+---
+
+## Quick Guide
+
+Five minutes to know everything. Open `gitten` and follow these flows:
+
+---
+
+### Starting a new piece of work
+
+```
+gitten → 🌿 New Branch
+```
+
+Pick a type (`feat`, `fix`, `hotfix`, `chore`, `docs`), type a short description.
+gitten names the branch for you: `feat/user-authentication`.
+
+**Why:** consistent names mean consistent history. `feat/`, `fix/` prefixes let release automation infer version bumps automatically.
+
+---
+
+### Saving and sharing your work
+
+```
+gitten → 🚀 Sync
+```
+
+Select the files you want to include, review the diff preview, type a commit message (or let AI suggest one), confirm push.
+If the branch has no upstream yet, gitten sets it automatically.
+
+**Best practice:** commit messages in [Conventional Commits](https://www.conventionalcommits.org/) format (`feat: add login`, `fix: correct redirect`). gitten uses them to calculate the next version number.
+
+---
+
+### Getting the latest changes
+
+```
+gitten → 🔽 Pull
+```
+
+Pulls and tells you exactly what changed ("4 files changed" or "already up to date").
+
+**When to do it:** before starting new work and before pushing if you've been working for a while.
+
+---
+
+### Moving between branches
+
+```
+gitten → 🔀 Switch Branch
+```
+
+Type to filter. All local branches shown with last activity date. If you have uncommitted changes, gitten asks whether to stash them first.
+
+---
+
+### Picking a single commit from another branch
+
+```
+gitten → 🍒 Cherry Pick
+```
+
+Choose the source branch, pick one commit from the last 15. If there's a conflict, gitten pauses and waits: ENTER to continue, ESC to abort.
+
+**When to use it:** a fix was made on `main` and you need it on your feature branch without merging everything.
+
+---
+
+### Cleaning up old branches
+
+```
+gitten → 🧹 Clean Branches
+```
+
+Multi-select with search filter. `main`, `master`, `dev`, `develop`, and the current branch never appear. Optionally delete from origin too.
+
+**Best practice:** clean up after every PR merge. One branch per feature.
+
+---
+
+### Fixing the last commit
+
+```
+gitten → ⋯ More → ✏️ Amend Last Commit
+```
+
+Three modes: message only, add staged files, or both. Use it when you forgot a file or have a typo in the commit message.
+
+**Important:** only amend commits that haven't been pushed yet, or that you're OK force-pushing (own branch only).
+
+---
+
+### Creating a release
+
+```
+gitten → ⋯ More → 🏷️ Tag / Release
+```
+
+gitten reads your commits since the last tag, infers the version bump (patch/minor/major from `fix:`/`feat:`/`feat!:`), pre-fills the suggested version, creates the annotated tag, and optionally pushes it.
+
+**This is how releases work in this project:** the tag push triggers CI which builds and publishes the binaries automatically.
+
+---
+
+### Finding when a bug was introduced
+
+```
+gitten → ⋯ More → 🔎 Find Bug Commit (Bisect)
+```
+
+Select the last commit you know was working. gitten does a binary search: it checks out commits and asks "does this have the bug?" until it finds the exact commit that introduced it. Resets HEAD automatically when done.
+
+**When to use it:** you know a bug exists now but not when it appeared. Faster than manual `git log` archaeology.
+
+---
+
+### Working on multiple things in parallel
+
+```
+gitten → ⋯ More → 🗂️ Worktrees
+```
+
+Add a worktree: choose a directory path and a branch. That branch opens in a separate directory — you can run both codebases simultaneously without stashing anything.
+
+**When to use it:** you're in the middle of a feature and an urgent hotfix arrives. Add a worktree for `hotfix/payment-crash`, fix it there, push, and come back to your feature without touching your current work.
+
+---
+
+### Undoing a commit
+
+```
+gitten → ⋯ More → ↩ Undo Commit
+```
+
+Pick how far back to go. Soft reset (keeps changes staged) or mixed reset (keeps changes in working tree).
+
+**Soft vs mixed:** use soft when you want to recommit with a different message or split into multiple commits. Use mixed when you want to review and re-stage everything from scratch.
+
+---
+
+### AI features (requires Settings configuration)
+
+All AI features are **optional and clearly prompted** — gitten never calls AI without asking first.
+
+| Prompt | What it does |
+|---|---|
+| "Generate commit message with AI?" | Analyzes the staged diff and suggests a conventional commit message |
+| "Review staged diff with AI?" | Flags potential bugs, hardcoded values, security issues before you commit |
+| In Branch Creator | Suggests a branch name slug from your description |
+| In .gitignore Manager | Suggests patterns based on your tracked files |
+
+Configure under: `gitten → ⋯ More → ⚙️ Settings`
 
 ---
 
