@@ -1,7 +1,7 @@
 import type { IGitClient } from "./ports/git-client.port";
 import type { IUI } from "./ports/ui.port";
 
-type StashAction = "apply" | "drop" | "push" | "back";
+type StashAction = "apply" | "drop" | "push";
 type ApplyMode = "pop" | "apply";
 
 export class StashManager {
@@ -15,10 +15,8 @@ export class StashManager {
       { value: "apply", label: "📦 Apply a stash" },
       { value: "drop", label: "🗑️  Drop stash(es)" },
       { value: "push", label: "💾 Stash current changes" },
-      { value: "back", label: "←  Back" },
     ]);
 
-    if (action === "back") return;
     if (action === "apply") return this.applyStash();
     if (action === "drop") return this.dropStashes();
     if (action === "push") return this.pushStash();

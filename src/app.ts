@@ -1,5 +1,6 @@
 import { GitClient } from "./git/git-client";
 import { UI } from "./ui/prompts";
+import { GoBackSignal } from "./ui/go-back";
 import { BranchCreator } from "./core/branch-creator";
 import { BranchCleaner } from "./core/branch-cleaner";
 import { CherryPicker } from "./core/cherry-picker";
@@ -96,25 +97,36 @@ export async function app(
     const statusSuffix = statusParts.length > 0 ? ` · ${statusParts.join(" · ")}` : "";
     ui.info(`Context: ${repoName} | branch: ${ctx.branch}${statusSuffix}`);
 
-    const choice = await ui.askSelect<MenuOption>("What do you want to do?", [
-      { value: "branch", label: "🌿 New Standardized Branch" },
-      { value: "switch", label: "🔀 Switch Branch" },
-      { value: "clean", label: "🧹 Clean Old Branches" },
-      { value: "cherry", label: "🍒 Quick Cherry Pick" },
-      { value: "pull", label: "🔽 Pull Latest Changes" },
-      { value: "sync", label: "🚀 Sync (Stage, Commit & Push)" },
-      { value: "stash", label: "📦 Stash Manager" },
-      { value: "remotes", label: "🔗 Manage Remotes" },
-      { value: "gitignore", label: "🙈 Manage .gitignore" },
-      { value: "undo", label: "↩  Undo Last Commit" },
-      { value: "purge", label: "🔥 Purge File from History" },
-      { value: "settings", label: "⚙️  AI Settings" },
-      { value: "exit", label: "🚪 Exit" },
-    ]);
+    let choice: MenuOption;
+    try {
+      choice = await ui.askSelect<MenuOption>("What do you want to do?", [
+        { value: "branch", label: "🌿 New Branch" },
+        { value: "switch", label: "🔀 Switch Branch" },
+        { value: "clean", label: "🧹 Clean Branches" },
+        { value: "cherry", label: "🍒 Cherry Pick" },
+        { value: "pull", label: "🔽 Pull" },
+        { value: "sync", label: "🚀 Sync" },
+        { value: "stash", label: "📦 Stash" },
+        { value: "remotes", label: "🔗 Remotes" },
+        { value: "gitignore", label: "🙈 .gitignore" },
+        { value: "undo", label: "↩  Undo Commit" },
+        { value: "purge", label: "🔥 Purge History" },
+        { value: "settings", label: "⚙️  Settings" },
+        { value: "exit", label: "🚪 Exit" },
+      ]);
+    } catch (e) {
+      if (e instanceof GoBackSignal) break;
+      throw e;
+    }
 
     if (choice === "exit") break;
 
-    await handlers[choice as Exclude<MenuOption, "exit">]();
+    try {
+      await handlers[choice as Exclude<MenuOption, "exit">]();
+    } catch (e) {
+      if (e instanceof GoBackSignal) continue;
+      throw e;
+    }
   }
 
   ui.outro("See you later! 👋");

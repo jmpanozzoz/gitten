@@ -1,7 +1,7 @@
 import type { IUI } from "./ports/ui.port";
 import { readConfig, writeConfig } from "../config/config";
 
-type SettingsAction = "configure" | "disable" | "back";
+type SettingsAction = "configure" | "disable";
 
 export class Settings {
   constructor(private readonly ui: IUI) {}
@@ -18,10 +18,8 @@ export class Settings {
     const action = await this.ui.askSelect<SettingsAction>("AI Assistant settings:", [
       { value: "configure", label: "✨ Configure AI (base URL, API key, model)" },
       { value: "disable", label: "○  Disable AI" },
-      { value: "back", label: "←  Back" },
     ]);
 
-    if (action === "back") return;
     if (action === "disable") return this.disable(config);
     if (action === "configure") return this.configure(config);
   }
