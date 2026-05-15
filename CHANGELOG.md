@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.9.1](https://github.com/jmpanozzoz/gitten/compare/v0.9.0...v0.9.1) (2026-05-15)
+
+
+### Bug Fixes
+
+* Implement core features, CI/CD, and testing for Git management tool ([#91](https://github.com/jmpanozzoz/gitten/issues/91)) ([8ba5eaa](https://github.com/jmpanozzoz/gitten/commit/8ba5eaa99013d1f9093dc5b38d9c33d5fcf08539))
+
 ## [0.9.0](https://github.com/jmpanozzoz/gitten/compare/v0.8.0...v0.9.0) (2026-05-15)
 
 
