@@ -45,6 +45,7 @@ export function createGitMock(overrides: Partial<IGitClient> = {}): IGitClient {
     getLastCommit: mock(() => Promise.resolve({ hash: "abc1234", message: "chore: update" })),
     amendCommit: mock(() => Promise.resolve()),
     amendNoEdit: mock(() => Promise.resolve()),
+    getPackageVersion: mock(() => Promise.resolve(null as string | null)),
     getLastTag: mock(() => Promise.resolve(null as string | null)),
     getLogSince: mock(() => Promise.resolve([] as CommitSummary[])),
     createAnnotatedTag: mock(() => Promise.resolve()),

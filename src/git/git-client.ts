@@ -207,6 +207,17 @@ export class GitClient implements IGitClient {
     await this.git.raw(["commit", "--amend", "--no-edit"]);
   }
 
+  async getPackageVersion(): Promise<string | null> {
+    try {
+      const file = Bun.file(join(this.cwd, "package.json"));
+      if (!(await file.exists())) return null;
+      const pkg = await file.json() as { version?: string };
+      return pkg.version ?? null;
+    } catch {
+      return null;
+    }
+  }
+
   async getLastTag(): Promise<string | null> {
     try {
       const result = await this.git.raw(["describe", "--tags", "--abbrev=0"]);

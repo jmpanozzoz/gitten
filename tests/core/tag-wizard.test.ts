@@ -225,3 +225,87 @@ test("shows error and keeps local tag when pushTag fails", async () => {
   expect(ui.error).toHaveBeenCalledWith(expect.stringContaining("Push failed"));
   expect(ui.info).toHaveBeenCalledWith(expect.stringContaining("git push origin v1.1.0"));
 });
+
+// ─── package.json version as base ────────────────────────────────────────────
+
+describe("package.json version as base", () => {
+  test("uses package.json version as base when available", async () => {
+    const git = createGitMock({
+      getPackageVersion: mock(() => Promise.resolve("0.8.0")),
+      getLastTag: mock(() => Promise.resolve("v0.8.0")),
+      getLogSince: mock(() => Promise.resolve(FIX_ONLY_COMMITS)),
+      createAnnotatedTag: mock(() => Promise.resolve()),
+    });
+    const ui = createUIMock({
+      askText: mock()
+        .mockResolvedValueOnce("v0.8.1")
+        .mockResolvedValueOnce("release v0.8.1"),
+      askConfirm: mock(() => Promise.resolve(false)),
+    });
+
+    await new TagWizard(git, ui).run();
+
+    const [, , initialVersion] = (ui.askText as ReturnType<typeof mock>).mock.calls[0];
+    expect(initialVersion).toBe("v0.8.1");
+  });
+
+  test("prefers package.json over git tag when they differ", async () => {
+    const git = createGitMock({
+      getPackageVersion: mock(() => Promise.resolve("0.8.0")),
+      getLastTag: mock(() => Promise.resolve("v0.7.5")),
+      getLogSince: mock(() => Promise.resolve(FEAT_COMMITS)),
+      createAnnotatedTag: mock(() => Promise.resolve()),
+    });
+    const ui = createUIMock({
+      askText: mock()
+        .mockResolvedValueOnce("v0.9.0")
+        .mockResolvedValueOnce("release"),
+      askConfirm: mock(() => Promise.resolve(false)),
+    });
+
+    await new TagWizard(git, ui).run();
+
+    const [, , initialVersion] = (ui.askText as ReturnType<typeof mock>).mock.calls[0];
+    expect(initialVersion).toBe("v0.9.0");
+  });
+
+  test("falls back to last tag when package.json has no version", async () => {
+    const git = createGitMock({
+      getPackageVersion: mock(() => Promise.resolve(null)),
+      getLastTag: mock(() => Promise.resolve("v1.0.0")),
+      getLogSince: mock(() => Promise.resolve(FIX_ONLY_COMMITS)),
+      createAnnotatedTag: mock(() => Promise.resolve()),
+    });
+    const ui = createUIMock({
+      askText: mock()
+        .mockResolvedValueOnce("v1.0.1")
+        .mockResolvedValueOnce("release"),
+      askConfirm: mock(() => Promise.resolve(false)),
+    });
+
+    await new TagWizard(git, ui).run();
+
+    const [, , initialVersion] = (ui.askText as ReturnType<typeof mock>).mock.calls[0];
+    expect(initialVersion).toBe("v1.0.1");
+  });
+
+  test("shows package.json version in info summary", async () => {
+    const git = createGitMock({
+      getPackageVersion: mock(() => Promise.resolve("0.8.0")),
+      getLastTag: mock(() => Promise.resolve("v0.8.0")),
+      getLogSince: mock(() => Promise.resolve(FIX_ONLY_COMMITS)),
+      createAnnotatedTag: mock(() => Promise.resolve()),
+    });
+    const ui = createUIMock({
+      askText: mock()
+        .mockResolvedValueOnce("v0.8.1")
+        .mockResolvedValueOnce("release"),
+      askConfirm: mock(() => Promise.resolve(false)),
+    });
+
+    await new TagWizard(git, ui).run();
+
+    const infoCalls = (ui.info as ReturnType<typeof mock>).mock.calls.map((c) => c[0] as string);
+    expect(infoCalls.some((m) => m.includes("package.json") && m.includes("0.8.0"))).toBe(true);
+  });
+});
