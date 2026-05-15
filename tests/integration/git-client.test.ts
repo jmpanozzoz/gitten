@@ -1,5 +1,5 @@
 import { test, expect, beforeEach, afterEach } from "bun:test";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync, realpathSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import simpleGit from "simple-git";
@@ -263,4 +263,147 @@ test("hasIndexLock returns false when no lock file present", async () => {
 test("hasIndexLock returns true when lock file exists", async () => {
   writeFileSync(join(dir, ".git", "index.lock"), "");
   expect(await client.hasIndexLock()).toBe(true);
+});
+
+// ─── amend ────────────────────────────────────────────────────────────────────
+
+test("amendCommit changes the last commit message", async () => {
+  await client.amendCommit("fix: amended message");
+  const last = await client.getLastCommit();
+  expect(last.message).toBe("fix: amended message");
+});
+
+test("amendNoEdit adds staged files to last commit without changing the message", async () => {
+  writeFileSync(join(dir, "extra.txt"), "extra content");
+  await client.addAll();
+  await client.amendNoEdit();
+
+  const branch = await client.getCurrentBranch();
+  const log = await client.getLog(branch, 1);
+  expect(log[0].message).toBe("chore: initial commit");
+  expect((await client.getStatus()).isClean()).toBe(true);
+});
+
+// ─── tags ─────────────────────────────────────────────────────────────────────
+
+test("getLastTag returns null when no tags exist", async () => {
+  expect(await client.getLastTag()).toBeNull();
+});
+
+test("createAnnotatedTag creates a tag verifiable in git", async () => {
+  await client.createAnnotatedTag("v1.0.0", "Release v1.0.0");
+  const git = simpleGit(dir);
+  const tags = await git.tags();
+  expect(tags.all).toContain("v1.0.0");
+});
+
+test("getLastTag returns the most recent tag after creation", async () => {
+  await client.createAnnotatedTag("v1.0.0", "Release v1.0.0");
+  expect(await client.getLastTag()).toBe("v1.0.0");
+});
+
+test("getLogSince returns only commits after the given tag", async () => {
+  await client.createAnnotatedTag("v1.0.0", "initial release");
+
+  writeFileSync(join(dir, "new.txt"), "new content");
+  await client.addAll();
+  await client.commit("feat: add new file");
+
+  const commits = await client.getLogSince("v1.0.0");
+  expect(commits.length).toBe(1);
+  expect(commits[0].message).toBe("feat: add new file");
+});
+
+test("getLogSince returns empty array when no commits since tag", async () => {
+  await client.createAnnotatedTag("v1.0.0", "initial");
+  const commits = await client.getLogSince("v1.0.0");
+  expect(commits.length).toBe(0);
+});
+
+// ─── bisect ───────────────────────────────────────────────────────────────────
+
+test("bisectStart, bisectGood, and bisectReset complete without error", async () => {
+  writeFileSync(join(dir, "b.txt"), "b");
+  await client.addAll();
+  await client.commit("fix: second commit");
+
+  const branch = await client.getCurrentBranch();
+  const log = await client.getLog(branch, 10);
+  const goodHash = log[log.length - 1].hash;
+
+  await client.bisectStart();
+  await client.bisectBad(undefined);
+  const result = await client.bisectGood(goodHash);
+  expect(result).toHaveProperty("done");
+  await client.bisectReset();
+
+  const current = await client.getCurrentBranch();
+  expect(current).toBe(branch);
+});
+
+test("bisectReset restores HEAD to original branch", async () => {
+  const originalBranch = await client.getCurrentBranch();
+
+  writeFileSync(join(dir, "b.txt"), "b");
+  await client.addAll();
+  await client.commit("second");
+  writeFileSync(join(dir, "c.txt"), "c");
+  await client.addAll();
+  await client.commit("third");
+
+  const log = await client.getLog(originalBranch, 10);
+  const goodHash = log[log.length - 1].hash;
+
+  await client.bisectStart();
+  await client.bisectBad(undefined);
+  await client.bisectGood(goodHash);
+  await client.bisectReset();
+
+  expect(await client.getCurrentBranch()).toBe(originalBranch);
+});
+
+// ─── worktrees ────────────────────────────────────────────────────────────────
+
+test("getWorktrees returns at least the main worktree", async () => {
+  const worktrees = await client.getWorktrees();
+  expect(worktrees.length).toBeGreaterThanOrEqual(1);
+  expect(worktrees[0].isMain).toBe(true);
+  expect(worktrees[0].path).toBe(realpathSync(dir));
+});
+
+test("addWorktree creates a new worktree directory at the given path", async () => {
+  const wtDir = realpathSync(mkdtempSync(join(tmpdir(), "gitten-wt-")));
+  try {
+    const branch = await client.getCurrentBranch();
+    await client.checkoutNewBranch("feat/for-worktree");
+    await client.checkoutBranch(branch);
+
+    await client.addWorktree(wtDir, "feat/for-worktree", false);
+
+    const worktrees = await client.getWorktrees();
+    expect(worktrees.some((wt) => wt.path === wtDir)).toBe(true);
+
+    await client.removeWorktree(wtDir);
+  } finally {
+    rmSync(wtDir, { recursive: true, force: true });
+  }
+});
+
+test("removeWorktree removes the worktree from the list", async () => {
+  const wtDir = realpathSync(mkdtempSync(join(tmpdir(), "gitten-wt-remove-")));
+  try {
+    await client.checkoutNewBranch("feat/wt-remove");
+    const branch = await client.getCurrentBranch();
+    await client.checkoutBranch((await client.getBranches()).all.find(b => b !== branch) ?? branch);
+
+    await client.addWorktree(wtDir, "feat/wt-remove", false).catch(async () => {
+      await client.checkoutBranch(branch);
+    });
+    await client.removeWorktree(wtDir);
+
+    const worktrees = await client.getWorktrees();
+    expect(worktrees.every((wt) => wt.path !== wtDir)).toBe(true);
+  } finally {
+    rmSync(wtDir, { recursive: true, force: true });
+  }
 });

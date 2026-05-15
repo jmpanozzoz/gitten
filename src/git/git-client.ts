@@ -1,7 +1,7 @@
 import simpleGit from "simple-git";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import type { IGitClient, BranchSummary, CommitSummary, StatusSummary, Remote, PullResult, DiffStat, StashEntry, WorktreeEntry } from "../core/ports/git-client.port";
+import type { IGitClient, BranchSummary, CommitSummary, StatusSummary, Remote, PullResult, DiffStat, StashEntry, WorktreeEntry, BisectResult } from "../core/ports/git-client.port";
 
 export class GitClient implements IGitClient {
   private readonly git: ReturnType<typeof simpleGit>;
@@ -206,6 +206,60 @@ export class GitClient implements IGitClient {
   async amendNoEdit(): Promise<void> {
     await this.git.raw(["commit", "--amend", "--no-edit"]);
   }
+
+  async getLastTag(): Promise<string | null> {
+    try {
+      const result = await this.git.raw(["describe", "--tags", "--abbrev=0"]);
+      return result.trim() || null;
+    } catch {
+      return null;
+    }
+  }
+
+  async getLogSince(ref: string): Promise<CommitSummary[]> {
+    const log = await this.git.log([`${ref}..HEAD`]);
+    return log.all.map((entry) => ({
+      hash: entry.hash.slice(0, 7),
+      message: entry.message,
+    }));
+  }
+
+  async createAnnotatedTag(name: string, message: string): Promise<void> {
+    await this.git.raw(["tag", "-a", name, "-m", message]);
+  }
+
+  async pushTag(name: string): Promise<void> {
+    await this.git.raw(["push", "origin", name]);
+  }
+
+  async bisectStart(): Promise<void> {
+    await this.git.raw(["bisect", "start"]);
+  }
+
+  async bisectBad(ref?: string): Promise<BisectResult> {
+    const args = ref ? ["bisect", "bad", ref] : ["bisect", "bad"];
+    const output = await this.git.raw(args);
+    return this.parseBisectOutput(output);
+  }
+
+  async bisectGood(ref?: string): Promise<BisectResult> {
+    const args = ref ? ["bisect", "good", ref] : ["bisect", "good"];
+    const output = await this.git.raw(args);
+    return this.parseBisectOutput(output);
+  }
+
+  async bisectReset(): Promise<void> {
+    await this.git.raw(["bisect", "reset"]);
+  }
+
+  private parseBisectOutput(output: string): BisectResult {
+    const match = output.match(/^([0-9a-f]{40}) is the first bad commit/m);
+    if (match) {
+      return { done: true, badCommit: { hash: match[1].slice(0, 7), message: "" } };
+    }
+    return { done: false };
+  }
+
 
   async getWorktrees(): Promise<WorktreeEntry[]> {
     const raw = await this.git.raw(["worktree", "list", "--porcelain"]);
