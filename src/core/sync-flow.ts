@@ -51,6 +51,7 @@ export class SyncFlow {
     const stat = await this.git.getDiffStat();
     this.ui.info(`+${stat.insertions} −${stat.deletions} lines staged`);
 
+    await this.showDiffPreview();
     await this.runAiReview();
 
     const placeholder = await this.resolveCommitPlaceholder();
@@ -60,6 +61,27 @@ export class SyncFlow {
     await this.ui.spin("Committing...", () => this.git.commit(finalMessage));
 
     return this.ui.askConfirm("Push now?");
+  }
+
+  private async showDiffPreview(): Promise<void> {
+    const diff = await this.git.getStagedDiff();
+    if (!diff) return;
+
+    const MAX_LINES = 30;
+    const lines = diff.split("\n");
+    const preview = lines.slice(0, MAX_LINES);
+    const remaining = lines.length - MAX_LINES;
+
+    const colored = preview
+      .map((line) => {
+        if (line.startsWith("+") && !line.startsWith("+++")) return theme.diffAdd(line);
+        if (line.startsWith("-") && !line.startsWith("---")) return theme.diffRemove(line);
+        return theme.muted(line);
+      })
+      .join("\n");
+
+    this.ui.info(colored);
+    if (remaining > 0) this.ui.info(theme.muted(`...and ${remaining} more lines`));
   }
 
   private async runAiReview(): Promise<void> {
