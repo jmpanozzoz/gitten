@@ -1,6 +1,16 @@
 import type { AIConfig } from "../config/config";
+import type { BranchType } from "./ports/ui.port";
 
 const MAX_DIFF_CHARS = 6000;
+
+const BRANCH_SYSTEM_PROMPT = `You are a git branch name slug generator. Given a branch type and description, output a concise slug.
+
+Rules:
+- Output ONLY the slug — no type prefix, no explanation
+- Lowercase letters, numbers, and hyphens only
+- Maximum 40 characters
+- Be concise — remove filler words, abbreviate where obvious
+- Example: type=feat, description="add user authentication with google oauth" → "oauth-user-auth"`;
 
 const COMMIT_SYSTEM_PROMPT = `You are a git commit message generator. Given a staged diff, output a single conventional commit message.
 
@@ -19,6 +29,14 @@ Rules:
 - Only suggest patterns not already in the .gitignore
 - Focus on secrets, build artifacts, IDE files, OS files
 - Output ONLY the patterns — no explanation, no blank lines`;
+
+export async function suggestBranchName(
+  type: BranchType,
+  description: string,
+  config: AIConfig
+): Promise<string | null> {
+  return callAI(BRANCH_SYSTEM_PROMPT, `Type: ${type}\nDescription: ${description}`, config);
+}
 
 export async function suggestCommitMessage(
   diff: string,

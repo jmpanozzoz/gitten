@@ -3,6 +3,8 @@ export interface RepoContext {
   modifiedCount: number;
   commitsAhead: number;
   commitsBehind: number;
+  insertions: number;
+  deletions: number;
 }
 
 export interface BranchSummary {

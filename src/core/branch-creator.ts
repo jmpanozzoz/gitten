@@ -1,10 +1,13 @@
 import type { IGitClient } from "./ports/git-client.port";
 import type { IUI, BranchType } from "./ports/ui.port";
 
+export type AIBranchSuggester = (type: BranchType, description: string) => Promise<string | null>;
+
 export class BranchCreator {
   constructor(
     private readonly git: IGitClient,
-    private readonly ui: IUI
+    private readonly ui: IUI,
+    private readonly aiSuggester?: AIBranchSuggester
   ) {}
 
   async run(): Promise<void> {
@@ -17,7 +20,7 @@ export class BranchCreator {
     ]);
 
     const description = await this.promptDescription();
-    const branchName = this.buildBranchName(type, description);
+    const branchName = await this.resolveBranchName(type, description);
 
     const exists = await this.git.branchExists(branchName);
     if (exists) {
@@ -40,6 +43,26 @@ export class BranchCreator {
       .replace(/\s+/g, "-")
       .replace(/-+/g, "-");
     return `${type}/${slug}`;
+  }
+
+  private async resolveBranchName(type: BranchType, description: string): Promise<string> {
+    const deterministic = this.buildBranchName(type, description);
+    if (!this.aiSuggester) return deterministic;
+
+    const suggest = await this.ui.askConfirm("✨ Suggest a branch name with AI?");
+    if (!suggest) return deterministic;
+
+    const slug = await this.ui.spin("Generating suggestion...", () =>
+      this.aiSuggester!(type, description)
+    );
+
+    if (!slug) {
+      this.ui.warn("AI did not return a suggestion — using generated name.");
+      return deterministic;
+    }
+
+    const sanitized = this.buildBranchName(type, slug.replace(/^[^/]+\//, ""));
+    return this.ui.askText("Branch name:", sanitized);
   }
 
   private async promptDescription(): Promise<string> {

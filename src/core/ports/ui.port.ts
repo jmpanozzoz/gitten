@@ -16,4 +16,5 @@ export interface IUI {
   warn(message: string): void;
   error(message: string): void;
   info(message: string): void;
+  context(message: string): void;
 }

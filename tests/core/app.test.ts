@@ -94,3 +94,106 @@ test("dispatches 'branch' choice to BranchCreator", async () => {
 
   expect(git.checkoutNewBranch).toHaveBeenCalledWith("feat/my-feature");
 });
+
+// ─── more submenu ─────────────────────────────────────────────────────────────
+
+test("dispatches to remotes handler from more submenu", async () => {
+  const git = createGitMock({
+    getRemotes: mock(() => Promise.resolve([])),
+  });
+  const ui = createUIMock({
+    askSelect: mock()
+      .mockResolvedValueOnce("more")
+      .mockResolvedValueOnce("remotes")
+      .mockResolvedValueOnce("add")
+      .mockResolvedValueOnce("exit"),
+    askConfirm: mock(() => Promise.resolve(false)),
+    askText: mock(() => Promise.resolve("origin")),
+  });
+
+  await app(git, ui);
+
+  expect(git.getRemotes).toHaveBeenCalled();
+});
+
+test("dispatches to settings handler from more submenu", async () => {
+  const ui = createUIMock({
+    askSelect: mock()
+      .mockResolvedValueOnce("more")
+      .mockResolvedValueOnce("settings")
+      .mockResolvedValueOnce("disable")
+      .mockResolvedValueOnce("exit"),
+  });
+
+  mock.module("../../src/config/config", () => ({
+    readConfig: mock(() => Promise.resolve({})),
+    writeConfig: mock(() => Promise.resolve()),
+    getActiveAIConfig: mock(() => Promise.resolve(null)),
+  }));
+
+  await app(createGitMock(), ui);
+
+  expect(ui.askSelect).toHaveBeenCalledTimes(4);
+});
+
+test("returns to main menu when ESC pressed in more submenu", async () => {
+  const { GoBackSignal } = await import("../../src/ui/go-back");
+  const ui = createUIMock({
+    askSelect: mock()
+      .mockResolvedValueOnce("more")
+      .mockRejectedValueOnce(new GoBackSignal())
+      .mockResolvedValueOnce("exit"),
+  });
+
+  await app(createGitMock(), ui);
+
+  expect(ui.outro).toHaveBeenCalledTimes(1);
+  expect(ui.askSelect).toHaveBeenCalledTimes(3);
+});
+
+// ─── diff stats in header ─────────────────────────────────────────────────────
+
+test("shows diff stats in context header when files are modified", async () => {
+  const git = createGitMock({
+    getRepoContext: mock(() =>
+      Promise.resolve({
+        branch: "feat/test",
+        modifiedCount: 3,
+        commitsAhead: 0,
+        commitsBehind: 0,
+        insertions: 47,
+        deletions: 12,
+      })
+    ),
+  });
+  const ui = createUIMock({ ...{ askSelect: mock(() => Promise.resolve("exit")) } });
+
+  await app(git, ui);
+
+  const contextCall = (ui.context as ReturnType<typeof mock>).mock.calls[0]?.[0] as string;
+  expect(contextCall).toContain("+47");
+  expect(contextCall).toContain("−12");
+  expect(contextCall).toContain("3 files");
+});
+
+test("omits diff stats in context header when working tree is clean", async () => {
+  const git = createGitMock({
+    getRepoContext: mock(() =>
+      Promise.resolve({
+        branch: "main",
+        modifiedCount: 0,
+        commitsAhead: 0,
+        commitsBehind: 0,
+        insertions: 0,
+        deletions: 0,
+      })
+    ),
+  });
+  const ui = createUIMock({ ...{ askSelect: mock(() => Promise.resolve("exit")) } });
+
+  await app(git, ui);
+
+  const contextCall = (ui.context as ReturnType<typeof mock>).mock.calls[0]?.[0] as string;
+  expect(contextCall).not.toContain("+");
+  expect(contextCall).not.toContain("−");
+});
