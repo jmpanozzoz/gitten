@@ -167,6 +167,7 @@ The install script is idempotent — running it again fetches the latest release
 
 | | What it does |
 |---|---|
+| 🏷️ **Tag / Release** | Reads conventional commits since last tag, infers semver bump (major/minor/patch), creates annotated tag, optionally pushes. |
 | ↩ **Undo Commit** | Search and select how far back to reset. Soft or mixed mode. |
 | ⚡ **Reset** | Discard all local changes or reset to remote HEAD. |
 | 🔗 **Remotes** | Add, change URL, or remove remotes. Handles `git init` for new repos. |
@@ -200,6 +201,7 @@ src/
 │   ├── remote-manager.ts
 │   ├── gitignore-manager.ts
 │   ├── history-purge.ts
+│   ├── tag-wizard.ts
 │   ├── settings.ts
 │   ├── ai-suggester.ts
 │   └── ports/            # Interfaces for dependency injection
