@@ -198,12 +198,12 @@ export class GitClient implements IGitClient {
     return { hash: entry.hash.slice(0, 7), message: entry.message };
   }
 
-  async resetSoft(): Promise<void> {
-    await this.git.reset(["--soft", "HEAD~1"]);
+  async resetSoft(n: number): Promise<void> {
+    await this.git.reset(["--soft", `HEAD~${n}`]);
   }
 
-  async resetMixed(): Promise<void> {
-    await this.git.reset(["HEAD~1"]);
+  async resetMixed(n: number): Promise<void> {
+    await this.git.reset([`HEAD~${n}`]);
   }
 
   async filterRepoAvailable(): Promise<boolean> {

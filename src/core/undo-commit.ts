@@ -10,38 +10,40 @@ export class UndoCommit {
   ) {}
 
   async run(): Promise<void> {
-    let lastCommit;
-    try {
-      lastCommit = await this.git.getLastCommit();
-    } catch {
-      this.ui.error("No commits found in this repository.");
+    const branch = await this.git.getCurrentBranch();
+    const commits = await this.git.getLog(branch, 10);
+
+    if (commits.length === 0) {
+      this.ui.info("No commits to undo.");
       return;
     }
 
-    this.ui.info(`Last commit: ${lastCommit.hash} — ${lastCommit.message}`);
+    const hash = await this.ui.askSelect(
+      "Undo back to which commit? (everything above it will be undone)",
+      commits.map((c) => ({
+        value: c.hash,
+        label: `${c.hash} — ${c.message}`,
+      }))
+    );
 
-    const mode = await this.ui.askSelect<ResetMode>("How do you want to undo it?", [
-      {
-        value: "soft",
-        label: "↩  Soft — keep changes staged (ready to re-commit)",
-      },
-      {
-        value: "mixed",
-        label: "↺  Mixed — keep changes unstaged (back to working tree)",
-      },
+    const n = commits.findIndex((c) => c.hash === hash) + 1;
+
+    const mode = await this.ui.askSelect<ResetMode>("How do you want to undo?", [
+      { value: "soft", label: "↩  Soft — keep changes staged" },
+      { value: "mixed", label: "↺  Mixed — keep changes unstaged" },
     ]);
 
     const confirmed = await this.ui.askConfirm(
-      `Undo commit "${lastCommit.hash}" with ${mode} reset?`
+      `Undo ${n} commit(s) with ${mode} reset?`
     );
     if (!confirmed) return;
 
-    if (mode === "soft") {
-      await this.ui.spin("Undoing commit (soft)...", () => this.git.resetSoft());
-      this.ui.success("Commit undone. Changes are staged and ready to re-commit.");
-    } else {
-      await this.ui.spin("Undoing commit (mixed)...", () => this.git.resetMixed());
-      this.ui.success("Commit undone. Changes are back in your working tree.");
-    }
+    await this.ui.spin(`Undoing ${n} commit(s)...`, () =>
+      mode === "soft" ? this.git.resetSoft(n) : this.git.resetMixed(n)
+    );
+
+    this.ui.success(
+      `${n} commit(s) undone. Changes are ${mode === "soft" ? "staged" : "in your working tree"}.`
+    );
   }
 }
