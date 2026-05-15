@@ -137,6 +137,7 @@ export class GitClient implements IGitClient {
         status: f.working_dir !== " " ? f.working_dir : f.index,
       })),
       isClean: () => status.isClean(),
+      commitsAhead: status.ahead,
     };
   }
 

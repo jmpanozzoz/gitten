@@ -153,7 +153,7 @@ test("shows diff stat summary after staging", async () => {
 
 test("skips staging and commit when working tree is clean", async () => {
   const git = createGitMock({
-    getStatus: mock(() => Promise.resolve(CLEAN_STATUS)),
+    getStatus: mock(() => Promise.resolve(CLEAN_STATUS_AHEAD)),
     push: mock(() => Promise.resolve()),
   });
   const ui = createUIMock({ ...CONFIRM_YES });
@@ -182,7 +182,7 @@ test("returns early without pushing when user declines on clean tree", async () 
 
 test("retries with upstream flag when push has no upstream", async () => {
   const git = createGitMock({
-    getStatus: mock(() => Promise.resolve(CLEAN_STATUS)),
+    getStatus: mock(() => Promise.resolve(CLEAN_STATUS_AHEAD)),
     push: mock()
       .mockRejectedValueOnce(new Error("has no upstream"))
       .mockResolvedValueOnce(undefined),
@@ -197,7 +197,7 @@ test("retries with upstream flag when push has no upstream", async () => {
 
 test("shows error and aborts when push is rejected due to remote changes", async () => {
   const git = createGitMock({
-    getStatus: mock(() => Promise.resolve(CLEAN_STATUS)),
+    getStatus: mock(() => Promise.resolve(CLEAN_STATUS_AHEAD)),
     push: mock(() => Promise.reject(new Error("rejected — fetch first"))),
   });
   const ui = createUIMock({ ...CONFIRM_YES });
@@ -210,10 +210,38 @@ test("shows error and aborts when push is rejected due to remote changes", async
 
 test("rethrows unexpected push errors", async () => {
   const git = createGitMock({
-    getStatus: mock(() => Promise.resolve(CLEAN_STATUS)),
+    getStatus: mock(() => Promise.resolve(CLEAN_STATUS_AHEAD)),
     push: mock(() => Promise.reject(new Error("permission denied (publickey)"))),
   });
   const ui = createUIMock({ ...CONFIRM_YES });
 
   expect(new SyncFlow(git, ui).run()).rejects.toThrow("permission denied");
+});
+
+// ─── already up to date ───────────────────────────────────────────────────────
+
+test("shows info and returns when working tree is clean and branch is up to date", async () => {
+  const git = createGitMock({
+    getStatus: mock(() => Promise.resolve(CLEAN_STATUS)),
+  });
+  const ui = createUIMock();
+
+  await new SyncFlow(git, ui).run();
+
+  expect(ui.info).toHaveBeenCalledWith("Already up to date — nothing to commit or push.");
+  expect(ui.askConfirm).not.toHaveBeenCalled();
+  expect(git.push).not.toHaveBeenCalled();
+});
+
+test("asks to push when working tree is clean but branch has commits ahead", async () => {
+  const git = createGitMock({
+    getStatus: mock(() => Promise.resolve(CLEAN_STATUS_AHEAD)),
+    push: mock(() => Promise.resolve()),
+  });
+  const ui = createUIMock({ ...CONFIRM_YES });
+
+  await new SyncFlow(git, ui).run();
+
+  expect(ui.askConfirm).toHaveBeenCalledWith("Nothing to commit. Push current branch?");
+  expect(git.push).toHaveBeenCalledTimes(1);
 });
