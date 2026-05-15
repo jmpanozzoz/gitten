@@ -199,6 +199,14 @@ export class GitClient implements IGitClient {
     return { hash: entry.hash.slice(0, 7), message: entry.message };
   }
 
+  async amendCommit(message: string): Promise<void> {
+    await this.git.raw(["commit", "--amend", "-m", message]);
+  }
+
+  async amendNoEdit(): Promise<void> {
+    await this.git.raw(["commit", "--amend", "--no-edit"]);
+  }
+
   async resetSoft(n: number): Promise<void> {
     await this.git.reset(["--soft", `HEAD~${n}`]);
   }
