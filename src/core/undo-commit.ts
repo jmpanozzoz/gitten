@@ -18,7 +18,7 @@ export class UndoCommit {
       return;
     }
 
-    const hash = await this.ui.askSelect(
+    const hash = await this.ui.askSearchSelect(
       "Undo back to which commit? (everything above it will be undone)",
       commits.map((c) => ({
         value: c.hash,

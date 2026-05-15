@@ -30,10 +30,11 @@ jobs:
 
       - name: Build binaries
         run: |
-          bun build index.ts --compile --target=bun-darwin-arm64  --outfile dist/gitten-darwin-arm64
-          bun build index.ts --compile --target=bun-darwin-x64    --outfile dist/gitten-darwin-x64
-          bun build index.ts --compile --target=bun-linux-x64     --outfile dist/gitten-linux-x64
-          bun build index.ts --compile --target=bun-linux-arm64   --outfile dist/gitten-linux-arm64
+          bun build index.ts --compile --target=bun-darwin-arm64   --outfile dist/gitten-darwin-arm64
+          bun build index.ts --compile --target=bun-darwin-x64     --outfile dist/gitten-darwin-x64
+          bun build index.ts --compile --target=bun-linux-x64      --outfile dist/gitten-linux-x64
+          bun build index.ts --compile --target=bun-linux-arm64    --outfile dist/gitten-linux-arm64
+          bun build index.ts --compile --target=bun-windows-x64    --outfile dist/gitten-windows-x64.exe
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v3
@@ -43,4 +44,5 @@ jobs:
             dist/gitten-darwin-x64
             dist/gitten-linux-x64
             dist/gitten-linux-arm64
+            dist/gitten-windows-x64.exe
           generate_release_notes: true

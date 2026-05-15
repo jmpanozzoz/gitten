@@ -6,22 +6,16 @@ import { GoBackSignal } from "../../src/ui/go-back";
 
 const LAST_COMMIT = { hash: "abc1234", message: "feat: add login page" };
 
-// Helper: builds git+ui mocks for the new multi-commit flow.
-// By default selects the first commit (n=1) and the given mode.
+// askSearchSelect handles commit selection; askSelect handles mode selection.
 function buildMocks(mode: "soft" | "mixed", confirmed = true) {
-  let selectCallCount = 0;
   const git = createGitMock({
     getLog: mock(() => Promise.resolve([LAST_COMMIT])),
     resetSoft: mock(() => Promise.resolve()),
     resetMixed: mock(() => Promise.resolve()),
   });
   const ui = createUIMock({
-    askSelect: mock(() => {
-      selectCallCount++;
-      // First call = commit selection, second call = mode selection
-      if (selectCallCount === 1) return Promise.resolve(LAST_COMMIT.hash as never);
-      return Promise.resolve(mode as never);
-    }),
+    askSearchSelect: mock(() => Promise.resolve(LAST_COMMIT.hash as never)),
+    askSelect: mock(() => Promise.resolve(mode as never)),
     askConfirm: mock(() => Promise.resolve(confirmed)),
   });
   return { git, ui };
@@ -52,7 +46,7 @@ test("shows last commit info in the commit selection prompt", async () => {
 
   await new UndoCommit(git, ui).run();
 
-  expect(ui.askSelect).toHaveBeenCalledWith(
+  expect(ui.askSearchSelect).toHaveBeenCalledWith(
     expect.any(String),
     expect.arrayContaining([
       expect.objectContaining({ value: "abc1234", label: expect.stringContaining("abc1234") }),
@@ -82,7 +76,7 @@ test("shows info and aborts when repository has no commits", async () => {
   await new UndoCommit(git, ui).run();
 
   expect(ui.info).toHaveBeenCalled();
-  expect(ui.askSelect).not.toHaveBeenCalled();
+  expect(ui.askSearchSelect).not.toHaveBeenCalled();
 });
 
 test("soft reset does not call resetMixed", async () => {
@@ -116,18 +110,14 @@ function makeMultiMocks({
   mode = "soft" as "soft" | "mixed",
   confirmed = true,
 } = {}) {
-  let selectCallCount = 0;
   const git = createGitMock({
     getLog: mock(() => Promise.resolve(COMMITS)),
     resetSoft: mock(() => Promise.resolve()),
     resetMixed: mock(() => Promise.resolve()),
   });
   const ui = createUIMock({
-    askSelect: mock(() => {
-      selectCallCount++;
-      if (selectCallCount === 1) return Promise.resolve(selectedHash as never);
-      return Promise.resolve(mode as never);
-    }),
+    askSearchSelect: mock(() => Promise.resolve(selectedHash as never)),
+    askSelect: mock(() => Promise.resolve(mode as never)),
     askConfirm: mock(() => Promise.resolve(confirmed)),
   });
   return { git, ui };
@@ -139,7 +129,7 @@ test("shows last 10 commits and lets user select how many to undo", async () => 
   await new UndoCommit(git, ui).run();
 
   expect(git.getLog).toHaveBeenCalledTimes(1);
-  expect(ui.askSelect).toHaveBeenCalledWith(
+  expect(ui.askSearchSelect).toHaveBeenCalledWith(
     expect.any(String),
     expect.arrayContaining([
       expect.objectContaining({ value: COMMITS[0].hash }),
@@ -150,53 +140,30 @@ test("shows last 10 commits and lets user select how many to undo", async () => 
 });
 
 test("undoes N commits with soft reset when user selects a commit N steps back", async () => {
-  // COMMITS[2] is at index 2, so n = 3
-  const { git } = makeMultiMocks({ selectedHash: COMMITS[2].hash, mode: "soft" });
-  const ui = createUIMock({
-    askSelect: mock(() => {
-      let call = 0;
-      return (() => {
-        call++;
-        if (call === 1) return Promise.resolve(COMMITS[2].hash as never);
-        return Promise.resolve("soft" as never);
-      })();
-    }),
-    askConfirm: mock(() => Promise.resolve(true)),
-  });
-
-  // Simpler: build mocks manually
-  let selectCallCount = 0;
-  const git2 = createGitMock({
+  const git = createGitMock({
     getLog: mock(() => Promise.resolve(COMMITS)),
     resetSoft: mock(() => Promise.resolve()),
   });
-  const ui2 = createUIMock({
-    askSelect: mock(() => {
-      selectCallCount++;
-      if (selectCallCount === 1) return Promise.resolve(COMMITS[2].hash as never);
-      return Promise.resolve("soft" as never);
-    }),
+  const ui = createUIMock({
+    askSearchSelect: mock(() => Promise.resolve(COMMITS[2].hash as never)),
+    askSelect: mock(() => Promise.resolve("soft" as never)),
     askConfirm: mock(() => Promise.resolve(true)),
   });
 
-  await new UndoCommit(git2, ui2).run();
+  await new UndoCommit(git, ui).run();
 
-  expect(git2.resetSoft).toHaveBeenCalledTimes(1);
-  expect(git2.resetSoft).toHaveBeenCalledWith(3);
+  expect(git.resetSoft).toHaveBeenCalledTimes(1);
+  expect(git.resetSoft).toHaveBeenCalledWith(3);
 });
 
 test("undoes N commits with mixed reset when user selects a commit N steps back", async () => {
-  let selectCallCount = 0;
   const git = createGitMock({
     getLog: mock(() => Promise.resolve(COMMITS)),
     resetMixed: mock(() => Promise.resolve()),
   });
   const ui = createUIMock({
-    askSelect: mock(() => {
-      selectCallCount++;
-      if (selectCallCount === 1) return Promise.resolve(COMMITS[1].hash as never);
-      return Promise.resolve("mixed" as never);
-    }),
+    askSearchSelect: mock(() => Promise.resolve(COMMITS[1].hash as never)),
+    askSelect: mock(() => Promise.resolve("mixed" as never)),
     askConfirm: mock(() => Promise.resolve(true)),
   });
 
@@ -208,17 +175,13 @@ test("undoes N commits with mixed reset when user selects a commit N steps back"
 });
 
 test("confirms with correct commit count before resetting", async () => {
-  let selectCallCount = 0;
   const git = createGitMock({
     getLog: mock(() => Promise.resolve(COMMITS)),
     resetSoft: mock(() => Promise.resolve()),
   });
   const ui = createUIMock({
-    askSelect: mock(() => {
-      selectCallCount++;
-      if (selectCallCount === 1) return Promise.resolve(COMMITS[2].hash as never);
-      return Promise.resolve("soft" as never);
-    }),
+    askSearchSelect: mock(() => Promise.resolve(COMMITS[2].hash as never)),
+    askSelect: mock(() => Promise.resolve("soft" as never)),
     askConfirm: mock(() => Promise.resolve(true)),
   });
 
@@ -230,18 +193,14 @@ test("confirms with correct commit count before resetting", async () => {
 });
 
 test("aborts when user declines confirmation (multi-commit)", async () => {
-  let selectCallCount = 0;
   const git = createGitMock({
     getLog: mock(() => Promise.resolve(COMMITS)),
     resetSoft: mock(() => Promise.resolve()),
     resetMixed: mock(() => Promise.resolve()),
   });
   const ui = createUIMock({
-    askSelect: mock(() => {
-      selectCallCount++;
-      if (selectCallCount === 1) return Promise.resolve(COMMITS[0].hash as never);
-      return Promise.resolve("soft" as never);
-    }),
+    askSearchSelect: mock(() => Promise.resolve(COMMITS[0].hash as never)),
+    askSelect: mock(() => Promise.resolve("soft" as never)),
     askConfirm: mock(() => Promise.resolve(false)),
   });
 
@@ -256,7 +215,7 @@ test("propagates GoBackSignal when ESC pressed on commit selection", async () =>
     getLog: mock(() => Promise.resolve(COMMITS)),
   });
   const ui = createUIMock({
-    askSelect: mock(() => Promise.reject(new GoBackSignal())),
+    askSearchSelect: mock(() => Promise.reject(new GoBackSignal())),
   });
 
   await expect(new UndoCommit(git, ui).run()).rejects.toBeInstanceOf(GoBackSignal);
@@ -271,5 +230,5 @@ test("shows info when no commits are available", async () => {
   await new UndoCommit(git, ui).run();
 
   expect(ui.info).toHaveBeenCalled();
-  expect(ui.askSelect).not.toHaveBeenCalled();
+  expect(ui.askSearchSelect).not.toHaveBeenCalled();
 });

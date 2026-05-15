@@ -21,7 +21,7 @@ export class CherryPicker {
       return;
     }
 
-    const sourceBranch = await this.ui.askSelect(
+    const sourceBranch = await this.ui.askSearchSelect(
       "Pick commits from which branch?",
       branches.map((b) => ({ value: b, label: b }))
     );
@@ -33,7 +33,7 @@ export class CherryPicker {
       return;
     }
 
-    const hash = await this.ui.askSelect(
+    const hash = await this.ui.askSearchSelect(
       "Select a commit to cherry-pick:",
       commits.map((c) => ({ value: c.hash, label: `${c.hash} — ${c.message}` }))
     );
