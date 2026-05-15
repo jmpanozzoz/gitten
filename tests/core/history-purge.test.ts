@@ -31,7 +31,7 @@ test("aborts when working tree has uncommitted changes", async () => {
   const git = createGitMock({
     filterRepoAvailable: mock(() => Promise.resolve(true)),
     getStatus: mock(() =>
-      Promise.resolve({ files: [{ path: ".env" }], isClean: () => false })
+      Promise.resolve({ files: [{ path: ".env", status: "?" }], isClean: () => false })
     ),
   });
   const ui = createUIMock();

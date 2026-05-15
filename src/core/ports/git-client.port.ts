@@ -9,7 +9,7 @@ export interface CommitSummary {
 }
 
 export interface StatusSummary {
-  files: { path: string }[];
+  files: { path: string; status: string }[];
   isClean(): boolean;
 }
 
@@ -52,6 +52,7 @@ export interface IGitClient {
   mergeContinue(): Promise<void>;
   getStatus(): Promise<StatusSummary>;
   addAll(): Promise<void>;
+  addFiles(paths: string[]): Promise<void>;
   getDiffStat(): Promise<DiffStat>;
   commit(message: string): Promise<void>;
   push(setUpstream?: boolean): Promise<void>;

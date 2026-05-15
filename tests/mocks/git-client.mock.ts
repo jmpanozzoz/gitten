@@ -31,6 +31,7 @@ export function createGitMock(overrides: Partial<IGitClient> = {}): IGitClient {
       Promise.resolve({ files: [], isClean: () => true } satisfies StatusSummary)
     ),
     addAll: mock(() => Promise.resolve()),
+    addFiles: mock(() => Promise.resolve()),
     getDiffStat: mock(() => Promise.resolve({ insertions: 0, deletions: 0 } satisfies DiffStat)),
     commit: mock(() => Promise.resolve()),
     push: mock(() => Promise.resolve()),
