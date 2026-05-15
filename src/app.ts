@@ -16,7 +16,7 @@ import { StashManager } from "./core/stash-manager";
 import { ResetManager } from "./core/reset-manager";
 import { checkForUpdate } from "./utils/update-checker";
 import { getActiveAIConfig } from "./config/config";
-import { suggestBranchName, suggestCommitMessage, suggestGitignorePatterns } from "./core/ai-suggester";
+import { suggestBranchName, suggestCommitMessage, suggestGitignorePatterns, reviewStagedDiff } from "./core/ai-suggester";
 import { theme } from "./ui/theme";
 import type { IGitClient } from "./core/ports/git-client.port";
 import type { IUI } from "./core/ports/ui.port";
@@ -65,7 +65,10 @@ export async function app(
     const aiSuggester = aiConfig
       ? (diff: string) => suggestCommitMessage(diff, aiConfig)
       : undefined;
-    return new SyncFlow(git, ui, aiSuggester).run();
+    const aiReviewer = aiConfig
+      ? (diff: string) => reviewStagedDiff(diff, aiConfig)
+      : undefined;
+    return new SyncFlow(git, ui, aiSuggester, aiReviewer).run();
   };
 
   const buildGitignoreManager = async () => {
