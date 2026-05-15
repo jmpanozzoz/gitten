@@ -48,6 +48,7 @@ export interface IGitClient {
   getCurrentBranch(): Promise<string>;
   getRepoContext(): Promise<RepoContext>;
   getBranches(): Promise<BranchSummary>;
+  getRemoteBranches(): Promise<string[]>;
   getBranchLastActivity(branch: string): Promise<string>;
   branchExists(name: string): Promise<boolean>;
   checkoutNewBranch(name: string): Promise<void>;

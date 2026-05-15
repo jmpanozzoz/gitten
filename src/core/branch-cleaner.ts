@@ -10,30 +10,43 @@ export class BranchCleaner {
   ) {}
 
   async run(): Promise<void> {
-    const { all, current } = await this.git.getBranches();
-    const candidates = all.filter(
+    const { all: local, current } = await this.git.getBranches();
+    const remote = await this.git.getRemoteBranches();
+
+    const localSet = new Set(local);
+    const localCandidates = local.filter(
       (b) => !PROTECTED_BRANCHES.has(b) && b !== current
     );
+    const remoteOnlyCandidates = remote.filter(
+      (b) => !PROTECTED_BRANCHES.has(b) && !localSet.has(b) && b !== current
+    );
 
-    if (candidates.length === 0) {
+    if (localCandidates.length === 0 && remoteOnlyCandidates.length === 0) {
       this.ui.info("No branches available to delete.");
       return;
     }
 
-    const labelled = await this.ui.spin("Loading branch info...", () =>
-      Promise.all(
-        candidates.map(async (b) => ({
+    const labelled = await this.ui.spin("Loading branch info...", async () => {
+      const localLabels = await Promise.all(
+        localCandidates.map(async (b) => ({
           value: b,
           label: `${b}  (${await this.git.getBranchLastActivity(b)})`,
         }))
-      )
-    );
+      );
+      const remoteLabels = remoteOnlyCandidates.map((b) => ({
+        value: `remote:${b}`,
+        label: `${b}  [remote only]`,
+      }));
+      return [...localLabels, ...remoteLabels];
+    });
 
     const selected = await this.ui.askSearchMultiSelect("Select branches to delete:", labelled);
-
     if (selected.length === 0) return;
 
-    const deleteRemote = await this.ui.askConfirm("Also delete from origin?");
+    const hasLocalSelected = selected.some((s) => !s.startsWith("remote:"));
+    const deleteRemote = hasLocalSelected
+      ? await this.ui.askConfirm("Also delete from origin?")
+      : true;
 
     let localDeleted = 0;
     let remoteDeleted = 0;
@@ -46,7 +59,7 @@ export class BranchCleaner {
         this.ui.warn(`Could not delete local branch "${branch}" — skipping.`);
       }
 
-      if (deleteRemote) {
+      if (isRemoteOnly || deleteRemote) {
         try {
           await this.git.deleteRemoteBranch(branch);
           remoteDeleted++;
@@ -56,8 +69,10 @@ export class BranchCleaner {
       }
     }
 
-    const remotePart = deleteRemote ? ` + ${remoteDeleted} remote` : "";
-    this.ui.success(`${localDeleted} local${remotePart} branch(es) deleted.`);
+    const parts: string[] = [];
+    if (localDeleted > 0) parts.push(`${localDeleted} local`);
+    if (remoteDeleted > 0) parts.push(`${remoteDeleted} remote`);
+    this.ui.success(`${parts.join(" + ")} branch(es) deleted.`);
   }
 
   filterCandidates(all: string[], current: string): string[] {
