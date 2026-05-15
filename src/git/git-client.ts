@@ -139,6 +139,10 @@ export class GitClient implements IGitClient {
     return { insertions: diff.insertions, deletions: diff.deletions };
   }
 
+  async getStagedDiff(): Promise<string> {
+    return this.git.diff(["--cached"]);
+  }
+
   async commit(message: string): Promise<void> {
     await this.git.commit(message);
   }

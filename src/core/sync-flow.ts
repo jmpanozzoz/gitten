@@ -4,10 +4,13 @@ import type { IUI } from "./ports/ui.port";
 const DEFAULT_COMMIT_MESSAGE = "chore: update";
 const NO_UPSTREAM_ERROR = "no upstream";
 
+export type AISuggester = (diff: string) => Promise<string | null>;
+
 export class SyncFlow {
   constructor(
     private readonly git: IGitClient,
-    private readonly ui: IUI
+    private readonly ui: IUI,
+    private readonly aiSuggester?: AISuggester
   ) {}
 
   async run(): Promise<void> {
@@ -40,10 +43,28 @@ export class SyncFlow {
     const stat = await this.git.getDiffStat();
     this.ui.info(`+${stat.insertions} −${stat.deletions} lines staged`);
 
-    const message = await this.ui.askText("Commit message:", DEFAULT_COMMIT_MESSAGE);
+    const placeholder = await this.resolveCommitPlaceholder();
+    const message = await this.ui.askText("Commit message:", placeholder);
     const finalMessage = message.trim() || DEFAULT_COMMIT_MESSAGE;
 
     await this.ui.spin("Committing...", () => this.git.commit(finalMessage));
+  }
+
+  private async resolveCommitPlaceholder(): Promise<string> {
+    if (!this.aiSuggester) return DEFAULT_COMMIT_MESSAGE;
+
+    const suggest = await this.ui.askConfirm("✨ Generate commit message with AI?");
+    if (!suggest) return DEFAULT_COMMIT_MESSAGE;
+
+    const diff = await this.git.getStagedDiff();
+    const suggestion = await this.ui.spin("Thinking...", () => this.aiSuggester!(diff));
+
+    if (!suggestion) {
+      this.ui.warn("AI did not return a suggestion — type your message.");
+      return DEFAULT_COMMIT_MESSAGE;
+    }
+
+    return suggestion;
   }
 
   private async safePush(): Promise<void> {

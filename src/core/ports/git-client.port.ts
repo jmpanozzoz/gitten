@@ -54,6 +54,7 @@ export interface IGitClient {
   addAll(): Promise<void>;
   addFiles(paths: string[]): Promise<void>;
   getDiffStat(): Promise<DiffStat>;
+  getStagedDiff(): Promise<string>;
   commit(message: string): Promise<void>;
   push(setUpstream?: boolean): Promise<void>;
   readGitignore(): Promise<string[]>;
