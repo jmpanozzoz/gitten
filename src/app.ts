@@ -14,7 +14,7 @@ import { Settings } from "./core/settings";
 import { BranchSwitcher } from "./core/branch-switcher";
 import { StashManager } from "./core/stash-manager";
 import { ResetManager } from "./core/reset-manager";
-import { BisectWizard } from "./core/bisect-wizard";
+import { WorktreeManager } from "./core/worktree-manager";
 import { checkForUpdate } from "./utils/update-checker";
 import { getActiveAIConfig } from "./config/config";
 import { suggestBranchName, suggestCommitMessage, suggestGitignorePatterns, reviewStagedDiff } from "./core/ai-suggester";
@@ -24,7 +24,7 @@ import type { IUI } from "./core/ports/ui.port";
 import { version } from "../package.json";
 
 type MainOption = "branch" | "switch" | "clean" | "cherry" | "pull" | "sync" | "stash" | "more" | "exit";
-type MoreOption = "remotes" | "gitignore" | "undo" | "purge" | "settings" | "reset" | "bisect";
+type MoreOption = "remotes" | "gitignore" | "undo" | "purge" | "settings" | "reset" | "worktree";
 
 export async function app(
   git: IGitClient = new GitClient(),
@@ -81,7 +81,7 @@ export async function app(
   };
 
   const moreHandlers: Record<MoreOption, () => Promise<void>> = {
-    bisect: () => new BisectWizard(git, ui).run(),
+    worktree: () => new WorktreeManager(git, ui).run(),
     remotes: () => new RemoteManager(git, ui).run(),
     gitignore: () => buildGitignoreManager(),
     undo: () => new UndoCommit(git, ui).run(),
@@ -139,7 +139,7 @@ export async function app(
     try {
       if (choice === "more") {
         const more = await ui.askSelect<MoreOption>("More options:", [
-          { value: "bisect", label: "🔎 Find Bug Commit (Bisect)" },
+          { value: "worktree", label: "🗂️  Worktrees" },
           { value: "undo", label: "↩  Undo Commit" },
           { value: "reset", label: "⚡ Reset" },
           { value: "remotes", label: "🔗 Remotes" },

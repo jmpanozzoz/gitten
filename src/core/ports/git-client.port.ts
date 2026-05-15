@@ -76,10 +76,9 @@ export interface IGitClient {
   getLastCommit(): Promise<CommitSummary>;
   amendCommit(message: string): Promise<void>;
   amendNoEdit(): Promise<void>;
-  bisectStart(): Promise<void>;
-  bisectBad(ref?: string): Promise<BisectResult>;
-  bisectGood(ref?: string): Promise<BisectResult>;
-  bisectReset(): Promise<void>;
+  getWorktrees(): Promise<WorktreeEntry[]>;
+  addWorktree(path: string, branch: string, newBranch: boolean): Promise<void>;
+  removeWorktree(path: string): Promise<void>;
   resetSoft(n: number): Promise<void>;
   resetMixed(n: number): Promise<void>;
   filterRepoAvailable(): Promise<boolean>;
@@ -94,9 +93,11 @@ export interface IGitClient {
   resetHardToRemote(branch: string): Promise<void>;
 }
 
-export interface BisectResult {
-  done: boolean;
-  badCommit?: CommitSummary;
+export interface WorktreeEntry {
+  path: string;
+  branch: string;
+  isMain: boolean;
+  isLocked: boolean;
 }
 
 export interface StashEntry {
