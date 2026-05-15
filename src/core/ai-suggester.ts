@@ -95,6 +95,14 @@ async function callAI(systemPrompt: string, userMessage: string, config: AIConfi
     throw new Error(detail);
   }
 
-  const data = (await response.json()) as { choices?: { message?: { content?: string } }[] };
-  return data.choices?.[0]?.message?.content?.trim() ?? null;
+  const data = (await response.json()) as {
+    choices?: { message?: { content?: string } }[];
+    error?: { message?: string; code?: number };
+  };
+
+  if (data.error) {
+    throw new Error(data.error.message ?? `API error ${data.error.code ?? "unknown"}`);
+  }
+
+  return data.choices?.[0]?.message?.content?.trim() || null;
 }

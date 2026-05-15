@@ -67,7 +67,7 @@ export class SyncFlow {
 
     let suggestion: string | null = null;
     try {
-      suggestion = await this.ui.spin("Generating suggestion...", () => this.aiSuggester!(diff), "");
+      suggestion = await this.ui.spin("Generating suggestion...", () => this.aiSuggester!(diff));
     } catch (err) {
       if (err instanceof Error && err.message === "go-back") throw err;
       const msg = err instanceof Error ? err.message : "unknown error";
