@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.4.1](https://github.com/jmpanozzoz/gitten/compare/v0.4.0...v0.4.1) (2026-05-15)
+
+
+### Bug Fixes
+
+* drop || fallback in release-please token to avoid invalid header ([#39](https://github.com/jmpanozzoz/gitten/issues/39)) ([a4f2d96](https://github.com/jmpanozzoz/gitten/commit/a4f2d9665259ac2391d2859ea6b992ce74c537a3))
+* use RELEASE_TOKEN PAT so release tags trigger release.yml workflow ([#37](https://github.com/jmpanozzoz/gitten/issues/37)) ([3f90327](https://github.com/jmpanozzoz/gitten/commit/3f9032749b4f4cf7cbed602bb05ae98079529659))
+
 ## [0.4.0](https://github.com/jmpanozzoz/gitten/compare/v0.3.1...v0.4.0) (2026-05-14)
 
 
