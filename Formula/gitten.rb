@@ -1,7 +1,7 @@
 class Gitten < Formula
   desc "Git facilitator CLI — covers the 20% of Git operations that solve 80% of daily friction"
   homepage "https://github.com/jmpanozzoz/gitten"
-  version "0.9.0"
+  version "0.9.1"
   license "MIT"
 
   on_macos do
