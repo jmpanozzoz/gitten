@@ -2,6 +2,7 @@ import * as clack from "@clack/prompts";
 import { theme } from "./theme";
 import { GoBackSignal } from "./go-back";
 import { searchSelect, searchMultiSelect } from "./search-select";
+import { getSpinnerMessages } from "./spinner-vocab";
 import type { IUI } from "../core/ports/ui.port";
 
 export class UI implements IUI {
@@ -70,12 +71,23 @@ export class UI implements IUI {
 
   async spin<T>(message: string, task: () => Promise<T>, stopMessage?: string): Promise<T> {
     const spinner = clack.spinner();
-    spinner.start(message);
+    const messages = getSpinnerMessages(message);
+
+    spinner.start(messages[0]);
+
+    let idx = 1;
+    const interval = setInterval(() => {
+      spinner.message(messages[idx % messages.length]);
+      idx++;
+    }, 2500);
+
     try {
       const result = await task();
+      clearInterval(interval);
       spinner.stop(stopMessage !== undefined ? stopMessage : theme.success("Done."));
       return result;
     } catch (err) {
+      clearInterval(interval);
       spinner.stop(theme.error("Failed."));
       throw err;
     }

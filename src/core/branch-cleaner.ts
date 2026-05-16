@@ -50,6 +50,7 @@ export class BranchCleaner {
 
     let localDeleted = 0;
     let remoteDeleted = 0;
+    const warnings: string[] = [];
 
     for (const entry of selected) {
       const isRemoteOnly = entry.startsWith("remote:");
@@ -57,22 +58,28 @@ export class BranchCleaner {
 
       if (!isRemoteOnly) {
         try {
-          await this.git.deleteLocalBranchForce(branch);
+          await this.ui.spin(`Removing local "${branch}"...`, () =>
+            this.git.deleteLocalBranchForce(branch)
+          );
           localDeleted++;
         } catch {
-          this.ui.warn(`Could not delete local branch "${branch}" — skipping.`);
+          warnings.push(`Could not delete local branch "${branch}" — skipping.`);
         }
       }
 
       if (isRemoteOnly || deleteRemote) {
         try {
-          await this.git.deleteRemoteBranch(branch);
+          await this.ui.spin(`Removing remote "${branch}"...`, () =>
+            this.git.deleteRemoteBranch(branch)
+          );
           remoteDeleted++;
         } catch {
-          this.ui.warn(`Could not delete remote branch "${branch}" — skipping.`);
+          warnings.push(`Could not delete remote branch "${branch}" — skipping.`);
         }
       }
     }
+
+    for (const w of warnings) this.ui.warn(w);
 
     const parts: string[] = [];
     if (localDeleted > 0) parts.push(`${localDeleted} local`);
