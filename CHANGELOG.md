@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.9.3](https://github.com/jmpanozzoz/gitten/compare/v0.9.2...v0.9.3) (2026-05-16)
+
+
+### Bug Fixes
+
+* messages & async ([#100](https://github.com/jmpanozzoz/gitten/issues/100)) ([06e17a2](https://github.com/jmpanozzoz/gitten/commit/06e17a2afdf7855408aff86322f2c41505e0cbbe))
+
 ## [0.9.2](https://github.com/jmpanozzoz/gitten/compare/v0.9.1...v0.9.2) (2026-05-15)
 
 
