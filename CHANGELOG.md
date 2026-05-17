@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.0.0](https://github.com/jmpanozzoz/gitten/compare/v0.9.3...v1.0.0) (2026-05-17)
+
+
+### ⚠ BREAKING CHANGES
+
+* v1.0.0 — ergonomic git UX, AI provider list, conflict resolution, robustness ([#107](https://github.com/jmpanozzoz/gitten/issues/107))
+
+### Features
+
+* v1.0.0 — ergonomic git UX, AI provider list, conflict resolution, robustness ([#107](https://github.com/jmpanozzoz/gitten/issues/107)) ([db92d65](https://github.com/jmpanozzoz/gitten/commit/db92d65a3c9b2e0eebeaa9d3b0f9afe8dc096593))
+
 ## [0.9.3](https://github.com/jmpanozzoz/gitten/compare/v0.9.2...v0.9.3) (2026-05-16)
 
 
