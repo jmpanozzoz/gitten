@@ -14,11 +14,9 @@ export class BranchCleaner {
     const remote = await this.git.getRemoteBranches();
 
     const localSet = new Set(local);
-    const localCandidates = local.filter(
-      (b) => !PROTECTED_BRANCHES.has(b) && b !== current
-    );
+    const localCandidates = local.filter((b) => b !== current);
     const remoteOnlyCandidates = remote.filter(
-      (b) => !PROTECTED_BRANCHES.has(b) && !localSet.has(b) && b !== current
+      (b) => !localSet.has(b) && b !== current
     );
 
     if (localCandidates.length === 0 && remoteOnlyCandidates.length === 0) {
@@ -42,6 +40,17 @@ export class BranchCleaner {
 
     const selected = await this.ui.askSearchMultiSelect("Select branches to delete:", labelled);
     if (selected.length === 0) return;
+
+    const selectedProtected = selected
+      .map((s) => (s.startsWith("remote:") ? s.slice(7) : s))
+      .filter((b) => PROTECTED_BRANCHES.has(b));
+
+    if (selectedProtected.length > 0) {
+      const confirmed = await this.ui.askConfirm(
+        `⚠️  You selected protected branch(es): ${selectedProtected.join(", ")}. Delete anyway?`
+      );
+      if (!confirmed) return;
+    }
 
     const hasLocalSelected = selected.some((s) => !s.startsWith("remote:"));
     const deleteRemote = hasLocalSelected
@@ -88,6 +97,6 @@ export class BranchCleaner {
   }
 
   filterCandidates(all: string[], current: string): string[] {
-    return all.filter((b) => !PROTECTED_BRANCHES.has(b) && b !== current);
+    return all.filter((b) => b !== current);
   }
 }

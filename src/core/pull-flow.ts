@@ -16,8 +16,17 @@ export class PullFlow {
       return;
     }
 
+    const strategy = await this.ui.askSelect<"merge" | "rebase">("Pull strategy:", [
+      { value: "merge", label: "Merge (default)" },
+      { value: "rebase", label: "Rebase — keeps history linear, avoids merge commits" },
+    ]);
+
+    const doPull = strategy === "rebase"
+      ? () => this.git.pullRebase()
+      : () => this.git.pull();
+
     try {
-      const result = await this.ui.spin("Pulling latest changes...", () => this.git.pull());
+      const result = await this.ui.spin("Pulling latest changes...", doPull);
       if (result.filesChanged === 0) {
         this.ui.info("Already up to date.");
       } else {

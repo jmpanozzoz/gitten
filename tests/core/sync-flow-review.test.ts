@@ -4,7 +4,7 @@ import { createGitMock } from "../mocks/git-client.mock";
 import { createUIMock } from "../mocks/ui.mock";
 
 const FILES = [{ path: "src/app.ts", status: "M" }];
-const DIRTY_STATUS = { files: FILES, isClean: () => false, commitsAhead: 0 };
+const DIRTY_STATUS = { files: FILES, isClean: () => false, commitsAhead: 0, commitsBehind: 0 };
 const SELECT_ALL = { askMultiSelect: mock(() => Promise.resolve(["src/app.ts"])) };
 
 function makeFlow(aiReviewer?: (diff: string) => Promise<string[]>) {

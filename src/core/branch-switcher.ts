@@ -40,5 +40,21 @@ export class BranchSwitcher {
 
     await this.ui.spin(`Switching to ${target}...`, () => this.git.checkoutBranch(target));
     this.ui.success(`Switched to ${target}.`);
+
+    try {
+      await this.git.fetchRemote();
+      const freshStatus = await this.git.getStatus();
+      if (freshStatus.commitsBehind > 0) {
+        const pullNow = await this.ui.askConfirm(
+          `⚠️  Branch '${target}' is ${freshStatus.commitsBehind} commit(s) behind origin. Pull now?`
+        );
+        if (pullNow) {
+          await this.ui.spin("Pulling...", () => this.git.pull());
+          this.ui.success("Up to date.");
+        }
+      }
+    } catch {
+      // Fetch failed (no remote or network) — silently continue
+    }
   }
 }
