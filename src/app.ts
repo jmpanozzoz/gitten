@@ -134,15 +134,15 @@ export async function app(
     let choice: MenuOption;
     try {
       choice = await ui.askSearchSelect<MainOption>("What do you want to do?", [
-        { value: "sync", label: "🚀 Sync  stage · commit · push" },
-        { value: "pull", label: "🔽 Pull  fetch · merge · rebase" },
-        { value: "branch", label: "🌿 New Branch  checkout -b" },
-        { value: "switch", label: "🔀 Switch Branch  checkout" },
-        { value: "stash", label: "📦 Stash  wip · save · apply" },
-        { value: "cherry", label: "🍒 Cherry Pick  apply commit" },
-        { value: "clean", label: "🧹 Clean Branches  delete branches" },
-        { value: "more", label: "⋯  More" },
-        { value: "exit", label: "🚪 Exit" },
+        { value: "sync",   label: "🚀 Sync           — stage · commit · push" },
+        { value: "pull",   label: "🔽 Pull           — merge · rebase" },
+        { value: "branch", label: "🌿 New Branch     — checkout -b" },
+        { value: "switch", label: "🔀 Switch Branch  — checkout" },
+        { value: "stash",  label: "📦 Stash          — save · apply · pop" },
+        { value: "cherry", label: "🍒 Cherry Pick    — apply commit" },
+        { value: "clean",  label: "🧹 Clean Branches — delete local · remote" },
+        { value: "more",   label: "⋯  More" },
+        { value: "exit",   label: "🚪 Exit" },
       ]);
     } catch (e) {
       if (e instanceof GoBackSignal) break;

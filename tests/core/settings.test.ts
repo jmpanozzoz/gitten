@@ -5,11 +5,16 @@ import { createUIMock } from "../mocks/ui.mock";
 
 const MOCK_READ = mock(() => Promise.resolve({}));
 const MOCK_WRITE = mock(() => Promise.resolve());
+const MOCK_TEST_CONNECTION = mock(() => Promise.resolve());
 
 mock.module("../../src/config/config", () => ({
   readConfig: MOCK_READ,
   writeConfig: MOCK_WRITE,
   getActiveAIConfig: mock(() => Promise.resolve(null)),
+}));
+
+mock.module("../../src/core/ai-suggester", () => ({
+  testAIConnection: MOCK_TEST_CONNECTION,
 }));
 
 // ─── configure ────────────────────────────────────────────────────────────────
@@ -175,6 +180,65 @@ test("shows only Configure option when no config exists yet", async () => {
   });
 
   await new Settings(ui).run();
+});
+
+// ─── connection test ──────────────────────────────────────────────────────────
+
+test("runs connection test and shows success when user opts in", async () => {
+  MOCK_TEST_CONNECTION.mockClear();
+  MOCK_TEST_CONNECTION.mockResolvedValueOnce(undefined);
+  const ui = createUIMock({
+    askSelect: mock()
+      .mockResolvedValueOnce("configure") // action
+      .mockResolvedValueOnce("openai"),   // provider
+    askText: mock()
+      .mockResolvedValueOnce("gpt-4o")   // model
+      .mockResolvedValueOnce("sk-key"),   // api key
+    askConfirm: mock(() => Promise.resolve(true)),
+  });
+
+  await new Settings(ui).run();
+
+  expect(MOCK_TEST_CONNECTION).toHaveBeenCalledTimes(1);
+  expect(ui.success).toHaveBeenCalledWith("Connection successful!");
+});
+
+test("shows warning when connection test fails", async () => {
+  MOCK_TEST_CONNECTION.mockClear();
+  MOCK_TEST_CONNECTION.mockRejectedValueOnce(new Error("Invalid API key — check your credentials in Settings"));
+  const ui = createUIMock({
+    askSelect: mock()
+      .mockResolvedValueOnce("configure")
+      .mockResolvedValueOnce("openai"),
+    askText: mock()
+      .mockResolvedValueOnce("gpt-4o")
+      .mockResolvedValueOnce("bad-key"),
+    askConfirm: mock(() => Promise.resolve(true)),
+  });
+
+  await new Settings(ui).run();
+
+  expect(ui.warn).toHaveBeenCalledWith(expect.stringContaining("Invalid API key"));
+  expect(ui.info).toHaveBeenCalledWith(expect.stringContaining("may not work"));
+});
+
+test("skips connection test when user declines", async () => {
+  MOCK_TEST_CONNECTION.mockClear();
+  const ui = createUIMock({
+    askSelect: mock()
+      .mockResolvedValueOnce("configure")
+      .mockResolvedValueOnce("openai"),
+    askText: mock()
+      .mockResolvedValueOnce("gpt-4o")
+      .mockResolvedValueOnce("sk-key"),
+    askConfirm: mock()
+      .mockResolvedValueOnce(true)   // enable
+      .mockResolvedValueOnce(false), // test connection → skip
+  });
+
+  await new Settings(ui).run();
+
+  expect(MOCK_TEST_CONNECTION).not.toHaveBeenCalled();
 });
 
 // ─── cancellation ─────────────────────────────────────────────────────────────
