@@ -1,5 +1,6 @@
 import type { IUI } from "./ports/ui.port";
 import { readConfig, writeConfig } from "../config/config";
+import { AI_PROVIDERS } from "../config/providers";
 
 type SettingsAction = "configure" | "enable" | "disable";
 
@@ -10,11 +11,14 @@ export class Settings {
     const config = await readConfig();
     const ai = config.ai;
     const isEnabled = ai?.enabled ?? false;
-    const hasConfig = !!(ai?.baseUrl && ai?.apiKey && ai?.model);
+    const hasConfig = !!(ai?.baseUrl && ai?.model);
 
+    const providerLabel = AI_PROVIDERS.find((p) => p.id === ai?.provider)?.label ?? ai?.baseUrl ?? "—";
     const statusLabel = isEnabled
-      ? `AI enabled — ${ai!.model} @ ${ai!.baseUrl}`
-      : "AI disabled";
+      ? `✨ AI enabled — ${ai!.model} via ${providerLabel}`
+      : hasConfig
+        ? `AI disabled (${providerLabel} / ${ai!.model})`
+        : "AI not configured";
     this.ui.info(`Current: ${statusLabel}`);
 
     const toggleOption = hasConfig
@@ -24,7 +28,7 @@ export class Settings {
       : null;
 
     const options: { value: SettingsAction; label: string }[] = [
-      { value: "configure", label: "✨ Configure AI (base URL, API key, model)" },
+      { value: "configure", label: "✨ Configure AI provider" },
       ...(toggleOption ? [toggleOption] : []),
     ];
 
@@ -38,22 +42,40 @@ export class Settings {
   private async configure(config: Awaited<ReturnType<typeof readConfig>>): Promise<void> {
     const existing = config.ai;
 
-    const baseUrl = await this.ui.askText(
-      "Base URL:",
-      "https://api.openai.com/v1",
-      existing?.baseUrl
+    const providerId = await this.ui.askSelect<string>(
+      "AI provider:",
+      AI_PROVIDERS.map((p) => ({ value: p.id, label: p.label }))
     );
-    const apiKey = await this.ui.askText("API key:", "sk-...", existing?.apiKey);
-    const model = await this.ui.askText("Model:", "gpt-4o-mini", existing?.model);
+
+    const provider = AI_PROVIDERS.find((p) => p.id === providerId)!;
+
+    let baseUrl: string;
+    if (providerId === "custom") {
+      baseUrl = await this.ui.askText("Base URL:", "https://api.example.com/v1", existing?.baseUrl);
+    } else {
+      baseUrl = provider.baseUrl;
+      this.ui.info(`Endpoint: ${baseUrl}`);
+    }
+
+    const model = await this.ui.askText(
+      "Model:",
+      provider.defaultModel || "gpt-4o-mini",
+      existing?.provider === providerId ? existing?.model : provider.defaultModel || undefined
+    );
+
+    let apiKey = existing?.apiKey ?? "";
+    if (provider.requiresKey) {
+      apiKey = await this.ui.askText("API key:", "sk-...", existing?.apiKey);
+    }
 
     const enable = await this.ui.askConfirm("Enable AI suggestions?");
 
     await writeConfig({
       ...config,
-      ai: { baseUrl, apiKey, model, enabled: enable },
+      ai: { provider: providerId, baseUrl, apiKey, model, enabled: enable },
     });
 
-    this.ui.success(enable ? `AI enabled — using ${model}` : "AI configured but disabled.");
+    this.ui.success(enable ? `AI enabled — ${provider.label} / ${model}` : "AI configured but disabled.");
   }
 
   private async enable(config: Awaited<ReturnType<typeof readConfig>>): Promise<void> {

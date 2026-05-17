@@ -5,6 +5,7 @@ const CONFIG_PATH = join(homedir(), ".gitten.json");
 
 export interface AIConfig {
   enabled: boolean;
+  provider: string;
   baseUrl: string;
   apiKey: string;
   model: string;
@@ -30,6 +31,6 @@ export async function writeConfig(config: GitttenConfig): Promise<void> {
 
 export async function getActiveAIConfig(): Promise<AIConfig | null> {
   const { ai } = await readConfig();
-  if (!ai?.enabled || !ai?.baseUrl || !ai?.apiKey || !ai?.model) return null;
-  return ai as AIConfig;
+  if (!ai?.enabled || !ai?.baseUrl || !ai?.model) return null;
+  return { provider: "custom", ...ai } as AIConfig;
 }

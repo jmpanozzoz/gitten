@@ -20,7 +20,7 @@ import { TagWizard } from "./core/tag-wizard";
 import { BisectWizard } from "./core/bisect-wizard";
 import { checkForUpdate } from "./utils/update-checker";
 import { getActiveAIConfig } from "./config/config";
-import { suggestBranchName, suggestCommitMessage, suggestGitignorePatterns, reviewStagedDiff } from "./core/ai-suggester";
+import { suggestBranchName, suggestCommitMessage, suggestGitignorePatterns, reviewStagedDiff, suggestAmendMessage } from "./core/ai-suggester";
 import { theme } from "./ui/theme";
 import type { IGitClient } from "./core/ports/git-client.port";
 import type { IUI } from "./core/ports/ui.port";
@@ -83,8 +83,16 @@ export async function app(
     return new GitignoreManager(git, ui, aiSuggester).run();
   };
 
+  const buildAmendFlow = async () => {
+    const aiConfig = await getActiveAIConfig();
+    const aiSuggester = aiConfig
+      ? (msg: string) => suggestAmendMessage(msg, aiConfig)
+      : undefined;
+    return new AmendFlow(git, ui, aiSuggester).run();
+  };
+
   const moreHandlers: Record<MoreOption, () => Promise<void>> = {
-    amend: () => new AmendFlow(git, ui).run(),
+    amend: () => buildAmendFlow(),
     tag: () => new TagWizard(git, ui).run(),
     bisect: () => new BisectWizard(git, ui).run(),
     worktree: () => new WorktreeManager(git, ui).run(),
