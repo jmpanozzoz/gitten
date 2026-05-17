@@ -132,3 +132,59 @@ test("shows stash hint after switching from dirty tree", async () => {
 
   expect(ui.info).toHaveBeenCalledWith(expect.stringContaining("stash"));
 });
+
+// ─── behind warning after switch ──────────────────────────────────────────────
+
+test("warns and offers pull when branch is behind origin after switching", async () => {
+  const BEHIND = { files: [], isClean: () => true, commitsAhead: 0, commitsBehind: 5 };
+  const git = createGitMock({
+    getBranches: mock(() => Promise.resolve(BRANCHES)),
+    getStatus: mock(() => Promise.resolve(BEHIND)),
+    checkoutBranch: mock(() => Promise.resolve()),
+    pull: mock(() => Promise.resolve({ filesChanged: 3 })),
+  });
+  const ui = createUIMock({
+    askSearchSelect: mock(() => Promise.resolve("main" as never)),
+    askConfirm: mock(() => Promise.resolve(true)),
+  });
+
+  await new BranchSwitcher(git, ui).run();
+
+  expect(ui.askConfirm).toHaveBeenCalledWith(expect.stringContaining("5 commit(s) behind"));
+  expect(git.pull).toHaveBeenCalledTimes(1);
+  expect(ui.success).toHaveBeenCalledWith("Up to date.");
+});
+
+test("skips pull when user declines the behind warning", async () => {
+  const BEHIND = { files: [], isClean: () => true, commitsAhead: 0, commitsBehind: 2 };
+  const git = createGitMock({
+    getBranches: mock(() => Promise.resolve(BRANCHES)),
+    getStatus: mock(() => Promise.resolve(BEHIND)),
+    checkoutBranch: mock(() => Promise.resolve()),
+  });
+  const ui = createUIMock({
+    askSearchSelect: mock(() => Promise.resolve("main" as never)),
+    askConfirm: mock(() => Promise.resolve(false)),
+  });
+
+  await new BranchSwitcher(git, ui).run();
+
+  expect(git.pull).not.toHaveBeenCalled();
+});
+
+test("does not warn when branch is up to date after switching", async () => {
+  const UP_TO_DATE = { files: [], isClean: () => true, commitsAhead: 0, commitsBehind: 0 };
+  const git = createGitMock({
+    getBranches: mock(() => Promise.resolve(BRANCHES)),
+    getStatus: mock(() => Promise.resolve(UP_TO_DATE)),
+    checkoutBranch: mock(() => Promise.resolve()),
+  });
+  const ui = createUIMock({
+    askSearchSelect: mock(() => Promise.resolve("main" as never)),
+  });
+
+  await new BranchSwitcher(git, ui).run();
+
+  expect(ui.askConfirm).not.toHaveBeenCalled();
+  expect(git.pull).not.toHaveBeenCalled();
+});

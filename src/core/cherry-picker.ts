@@ -2,8 +2,9 @@ import type { IGitClient } from "./ports/git-client.port";
 import type { IUI } from "./ports/ui.port";
 import { GoBackSignal } from "../ui/go-back";
 import { stdinResolution } from "../utils/stdin-resolution";
+import { theme } from "../ui/theme";
 
-const COMMIT_LOG_LIMIT = 15;
+const COMMIT_LOG_LIMIT = 30;
 
 export class CherryPicker {
   constructor(
@@ -14,16 +15,24 @@ export class CherryPicker {
 
   async run(): Promise<void> {
     const { all, current } = await this.git.getBranches();
-    const branches = all.filter((b) => b !== current);
+    const localBranches = all.filter((b) => b !== current);
 
-    if (branches.length === 0) {
+    const remoteBranches = await this.git.getRemoteBranches();
+    const remoteOnlyBranches = remoteBranches.filter((b) => !all.includes(b));
+
+    const branchOptions = [
+      ...localBranches.map((b) => ({ value: b, label: b })),
+      ...remoteOnlyBranches.map((b) => ({ value: `origin/${b}`, label: `origin/${b}  (remote only)` })),
+    ];
+
+    if (branchOptions.length === 0) {
       this.ui.info("No other branches to cherry-pick from.");
       return;
     }
 
     const sourceBranch = await this.ui.askSearchSelect(
       "Pick commits from which branch?",
-      branches.map((b) => ({ value: b, label: b }))
+      branchOptions
     );
 
     const commits = await this.git.getLog(sourceBranch, COMMIT_LOG_LIMIT);
@@ -37,6 +46,27 @@ export class CherryPicker {
       "Select a commit to cherry-pick:",
       commits.map((c) => ({ value: c.hash, label: `${c.hash} — ${c.message}` }))
     );
+
+    const preview = await this.ui.askConfirm("Preview this commit's diff before applying?");
+    if (preview) {
+      const diff = await this.git.getCommitDiff(hash);
+      if (diff) {
+        const MAX_LINES = 40;
+        const lines = diff.split("\n");
+        const colored = lines.slice(0, MAX_LINES)
+          .map((line) => {
+            if (line.startsWith("+") && !line.startsWith("+++")) return theme.diffAdd(line);
+            if (line.startsWith("-") && !line.startsWith("---")) return theme.diffRemove(line);
+            return theme.muted(line);
+          })
+          .join("\n");
+        this.ui.info(colored);
+        if (lines.length > MAX_LINES) this.ui.info(theme.muted(`...and ${lines.length - MAX_LINES} more lines`));
+      }
+
+      const proceed = await this.ui.askConfirm("Apply this commit?");
+      if (!proceed) return;
+    }
 
     try {
       await this.ui.spin(`Applying commit ${hash}...`, () =>

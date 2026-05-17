@@ -21,6 +21,7 @@ export interface StatusSummary {
   files: { path: string; status: string }[];
   isClean(): boolean;
   commitsAhead: number;
+  commitsBehind: number;
 }
 
 export interface Remote {
@@ -102,6 +103,9 @@ export interface IGitClient {
   discardLocalChanges(): Promise<void>;
   fetchRemote(): Promise<void>;
   resetHardToRemote(branch: string): Promise<void>;
+  getCommitDiff(hash: string): Promise<string>;
+  getStashDiff(index: number): Promise<string>;
+  pullRebase(): Promise<PullResult>;
 }
 
 export interface BisectResult {

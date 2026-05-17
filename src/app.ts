@@ -113,6 +113,7 @@ export async function app(
   };
 
   while (true) {
+    try { await git.fetchRemote(); } catch { /* no remote or network — skip */ }
     const ctx = await ui.spin("Loading context...", () => git.getRepoContext(), "");
     const parts: string[] = [`${repoName} · ${ctx.branch}`];
     if (ctx.commitsAhead > 0) parts.push(`${ctx.commitsAhead} ahead`);
@@ -124,14 +125,14 @@ export async function app(
 
     let choice: MenuOption;
     try {
-      choice = await ui.askSelect<MainOption>("What do you want to do?", [
-        { value: "sync", label: "🚀 Sync" },
-        { value: "pull", label: "🔽 Pull" },
-        { value: "branch", label: "🌿 New Branch" },
-        { value: "switch", label: "🔀 Switch Branch" },
-        { value: "stash", label: "📦 Stash" },
-        { value: "cherry", label: "🍒 Cherry Pick" },
-        { value: "clean", label: "🧹 Clean Branches" },
+      choice = await ui.askSearchSelect<MainOption>("What do you want to do?", [
+        { value: "sync", label: "🚀 Sync  stage · commit · push" },
+        { value: "pull", label: "🔽 Pull  fetch · merge · rebase" },
+        { value: "branch", label: "🌿 New Branch  checkout -b" },
+        { value: "switch", label: "🔀 Switch Branch  checkout" },
+        { value: "stash", label: "📦 Stash  wip · save · apply" },
+        { value: "cherry", label: "🍒 Cherry Pick  apply commit" },
+        { value: "clean", label: "🧹 Clean Branches  delete branches" },
         { value: "more", label: "⋯  More" },
         { value: "exit", label: "🚪 Exit" },
       ]);

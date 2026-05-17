@@ -100,3 +100,36 @@ test("rethrows unexpected pull errors", async () => {
 
   expect(new PullFlow(git, ui).run()).rejects.toThrow("repository not found");
 });
+
+// ─── rebase strategy ─────────────────────────────────────────────────────────
+
+test("calls pullRebase when user selects rebase strategy", async () => {
+  const git = createGitMock({
+    getRemotes: mock(() => Promise.resolve(WITH_REMOTE)),
+    pullRebase: mock(() => Promise.resolve({ filesChanged: 2 })),
+  });
+  const ui = createUIMock({
+    askSelect: mock(() => Promise.resolve("rebase" as never)),
+  });
+
+  await new PullFlow(git, ui).run();
+
+  expect(git.pullRebase).toHaveBeenCalledTimes(1);
+  expect(git.pull).not.toHaveBeenCalled();
+  expect(ui.success).toHaveBeenCalledWith(expect.stringContaining("2"));
+});
+
+test("calls pull (merge) when user selects merge strategy", async () => {
+  const git = createGitMock({
+    getRemotes: mock(() => Promise.resolve(WITH_REMOTE)),
+    pull: mock(() => Promise.resolve({ filesChanged: 1 })),
+  });
+  const ui = createUIMock({
+    askSelect: mock(() => Promise.resolve("merge" as never)),
+  });
+
+  await new PullFlow(git, ui).run();
+
+  expect(git.pull).toHaveBeenCalledTimes(1);
+  expect(git.pullRebase).not.toHaveBeenCalled();
+});

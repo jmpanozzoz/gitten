@@ -61,7 +61,7 @@ test("calls amendNoEdit when user selects staged-only and files are staged", asy
   const git = createGitMock({
     getLastCommit: mock(() => Promise.resolve(LAST_COMMIT)),
     getStatus: mock(() =>
-      Promise.resolve({ files: [{ path: "src/app.ts", status: "A" }], isClean: () => false, commitsAhead: 0 })
+      Promise.resolve({ files: [{ path: "src/app.ts", status: "A" }], isClean: () => false, commitsAhead: 0, commitsBehind: 0 })
     ),
     amendNoEdit: mock(() => Promise.resolve()),
   });
@@ -79,7 +79,7 @@ test("warns and aborts when user selects staged-only but nothing is staged", asy
   const git = createGitMock({
     getLastCommit: mock(() => Promise.resolve(LAST_COMMIT)),
     getStatus: mock(() =>
-      Promise.resolve({ files: [], isClean: () => true, commitsAhead: 0 })
+      Promise.resolve({ files: [], isClean: () => true, commitsAhead: 0, commitsBehind: 0 })
     ),
     amendNoEdit: mock(() => Promise.resolve()),
   });
@@ -99,7 +99,7 @@ test("amends both staged files and message when user selects both", async () => 
   const git = createGitMock({
     getLastCommit: mock(() => Promise.resolve(LAST_COMMIT)),
     getStatus: mock(() =>
-      Promise.resolve({ files: [{ path: "src/app.ts", status: "A" }], isClean: () => false, commitsAhead: 0 })
+      Promise.resolve({ files: [{ path: "src/app.ts", status: "A" }], isClean: () => false, commitsAhead: 0, commitsBehind: 0 })
     ),
     amendCommit: mock(() => Promise.resolve()),
   });
@@ -118,7 +118,7 @@ test("warns and aborts both-mode when nothing is staged", async () => {
   const git = createGitMock({
     getLastCommit: mock(() => Promise.resolve(LAST_COMMIT)),
     getStatus: mock(() =>
-      Promise.resolve({ files: [], isClean: () => true, commitsAhead: 0 })
+      Promise.resolve({ files: [], isClean: () => true, commitsAhead: 0, commitsBehind: 0 })
     ),
     amendCommit: mock(() => Promise.resolve()),
   });
