@@ -188,11 +188,12 @@ test("runs connection test and shows success when user opts in", async () => {
   MOCK_TEST_CONNECTION.mockClear();
   MOCK_TEST_CONNECTION.mockResolvedValueOnce(undefined);
   const ui = createUIMock({
-    askSelect: mock(() => Promise.resolve("configure")),
+    askSelect: mock()
+      .mockResolvedValueOnce("configure") // action
+      .mockResolvedValueOnce("openai"),   // provider
     askText: mock()
-      .mockResolvedValueOnce("https://api.openai.com/v1")
-      .mockResolvedValueOnce("sk-key")
-      .mockResolvedValueOnce("gpt-4o"),
+      .mockResolvedValueOnce("gpt-4o")   // model
+      .mockResolvedValueOnce("sk-key"),   // api key
     askConfirm: mock(() => Promise.resolve(true)),
   });
 
@@ -203,13 +204,15 @@ test("runs connection test and shows success when user opts in", async () => {
 });
 
 test("shows warning when connection test fails", async () => {
+  MOCK_TEST_CONNECTION.mockClear();
   MOCK_TEST_CONNECTION.mockRejectedValueOnce(new Error("Invalid API key — check your credentials in Settings"));
   const ui = createUIMock({
-    askSelect: mock(() => Promise.resolve("configure")),
+    askSelect: mock()
+      .mockResolvedValueOnce("configure")
+      .mockResolvedValueOnce("openai"),
     askText: mock()
-      .mockResolvedValueOnce("https://api.openai.com/v1")
-      .mockResolvedValueOnce("bad-key")
-      .mockResolvedValueOnce("gpt-4o"),
+      .mockResolvedValueOnce("gpt-4o")
+      .mockResolvedValueOnce("bad-key"),
     askConfirm: mock(() => Promise.resolve(true)),
   });
 
@@ -222,15 +225,15 @@ test("shows warning when connection test fails", async () => {
 test("skips connection test when user declines", async () => {
   MOCK_TEST_CONNECTION.mockClear();
   const ui = createUIMock({
-    askSelect: mock(() => Promise.resolve("configure")),
+    askSelect: mock()
+      .mockResolvedValueOnce("configure")
+      .mockResolvedValueOnce("openai"),
     askText: mock()
-      .mockResolvedValueOnce("https://api.openai.com/v1")
-      .mockResolvedValueOnce("sk-key")
-      .mockResolvedValueOnce("gpt-4o"),
-    // First confirm = enable (true), second = test connection (false)
+      .mockResolvedValueOnce("gpt-4o")
+      .mockResolvedValueOnce("sk-key"),
     askConfirm: mock()
-      .mockResolvedValueOnce(true)
-      .mockResolvedValueOnce(false),
+      .mockResolvedValueOnce(true)   // enable
+      .mockResolvedValueOnce(false), // test connection → skip
   });
 
   await new Settings(ui).run();
