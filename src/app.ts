@@ -20,7 +20,7 @@ import { TagWizard } from "./core/tag-wizard";
 import { BisectWizard } from "./core/bisect-wizard";
 import { checkForUpdate } from "./utils/update-checker";
 import { getActiveAIConfig } from "./config/config";
-import { suggestBranchName, suggestCommitMessage, suggestGitignorePatterns, reviewStagedDiff } from "./core/ai-suggester";
+import { suggestBranchName, suggestCommitMessage, suggestGitignorePatterns, reviewStagedDiff, suggestAmendMessage } from "./core/ai-suggester";
 import { theme } from "./ui/theme";
 import type { IGitClient } from "./core/ports/git-client.port";
 import type { IUI } from "./core/ports/ui.port";
@@ -83,8 +83,16 @@ export async function app(
     return new GitignoreManager(git, ui, aiSuggester).run();
   };
 
+  const buildAmendFlow = async () => {
+    const aiConfig = await getActiveAIConfig();
+    const aiSuggester = aiConfig
+      ? (msg: string) => suggestAmendMessage(msg, aiConfig)
+      : undefined;
+    return new AmendFlow(git, ui, aiSuggester).run();
+  };
+
   const moreHandlers: Record<MoreOption, () => Promise<void>> = {
-    amend: () => new AmendFlow(git, ui).run(),
+    amend: () => buildAmendFlow(),
     tag: () => new TagWizard(git, ui).run(),
     bisect: () => new BisectWizard(git, ui).run(),
     worktree: () => new WorktreeManager(git, ui).run(),
@@ -113,6 +121,7 @@ export async function app(
   };
 
   while (true) {
+    try { await git.fetchRemote(); } catch { /* no remote or network — skip */ }
     const ctx = await ui.spin("Loading context...", () => git.getRepoContext(), "");
     const parts: string[] = [`${repoName} · ${ctx.branch}`];
     if (ctx.commitsAhead > 0) parts.push(`${ctx.commitsAhead} ahead`);
@@ -124,16 +133,16 @@ export async function app(
 
     let choice: MenuOption;
     try {
-      choice = await ui.askSelect<MainOption>("What do you want to do?", [
-        { value: "sync", label: "🚀 Sync" },
-        { value: "pull", label: "🔽 Pull" },
-        { value: "branch", label: "🌿 New Branch" },
-        { value: "switch", label: "🔀 Switch Branch" },
-        { value: "stash", label: "📦 Stash" },
-        { value: "cherry", label: "🍒 Cherry Pick" },
-        { value: "clean", label: "🧹 Clean Branches" },
-        { value: "more", label: "⋯  More" },
-        { value: "exit", label: "🚪 Exit" },
+      choice = await ui.askSearchSelect<MainOption>("What do you want to do?", [
+        { value: "sync",   label: "🚀 Sync           — stage · commit · push" },
+        { value: "pull",   label: "🔽 Pull           — merge · rebase" },
+        { value: "branch", label: "🌿 New Branch     — checkout -b" },
+        { value: "switch", label: "🔀 Switch Branch  — checkout" },
+        { value: "stash",  label: "📦 Stash          — save · apply · pop" },
+        { value: "cherry", label: "🍒 Cherry Pick    — apply commit" },
+        { value: "clean",  label: "🧹 Clean Branches — delete local · remote" },
+        { value: "more",   label: "⋯  More" },
+        { value: "exit",   label: "🚪 Exit" },
       ]);
     } catch (e) {
       if (e instanceof GoBackSignal) break;

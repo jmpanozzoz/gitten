@@ -159,6 +159,49 @@ test("aborts stash push when working tree is clean", async () => {
   expect(ui.info).toHaveBeenCalled();
 });
 
+// ─── diff preview before apply ───────────────────────────────────────────────
+
+test("shows stash diff when user requests preview before applying", async () => {
+  const git = createGitMock({
+    getStashes: mock(() => Promise.resolve(STASHES)),
+    getStashDiff: mock(() => Promise.resolve("+const x = 1;\n-const x = 0;")),
+    stashPop: mock(() => Promise.resolve()),
+  });
+  const ui = createUIMock({
+    askSelect: mock()
+      .mockResolvedValueOnce("apply")
+      .mockResolvedValueOnce(0)
+      .mockResolvedValueOnce("pop"),
+    askConfirm: mock(() => Promise.resolve(true)),
+  });
+
+  await new StashManager(git, ui).run();
+
+  expect(git.getStashDiff).toHaveBeenCalledWith(0);
+  expect(ui.info).toHaveBeenCalledWith(expect.stringContaining("+const x = 1;"));
+  expect(git.stashPop).toHaveBeenCalledWith(0);
+});
+
+test("skips preview and applies directly when user declines preview", async () => {
+  const git = createGitMock({
+    getStashes: mock(() => Promise.resolve(STASHES)),
+    getStashDiff: mock(() => Promise.resolve("+const x = 1;")),
+    stashPop: mock(() => Promise.resolve()),
+  });
+  const ui = createUIMock({
+    askSelect: mock()
+      .mockResolvedValueOnce("apply")
+      .mockResolvedValueOnce(0)
+      .mockResolvedValueOnce("pop"),
+    askConfirm: mock(() => Promise.resolve(false)),
+  });
+
+  await new StashManager(git, ui).run();
+
+  expect(git.getStashDiff).not.toHaveBeenCalled();
+  expect(git.stashPop).toHaveBeenCalledWith(0);
+});
+
 // ─── esc / go-back ────────────────────────────────────────────────────────────
 
 test("propagates GoBackSignal when user presses ESC on action menu", async () => {

@@ -10,7 +10,7 @@ export function createGitMock(overrides: Partial<IGitClient> = {}): IGitClient {
     addRemote: mock(() => Promise.resolve()),
     removeRemote: mock(() => Promise.resolve()),
     setRemoteUrl: mock(() => Promise.resolve()),
-    getCurrentBranch: mock(() => Promise.resolve("main")),
+    getCurrentBranch: mock(() => Promise.resolve("feat/test")),
     getRepoContext: mock(() =>
       Promise.resolve({ branch: "main", modifiedCount: 0, commitsAhead: 0, commitsBehind: 0, insertions: 0, deletions: 0 } satisfies RepoContext)
     ),
@@ -32,7 +32,7 @@ export function createGitMock(overrides: Partial<IGitClient> = {}): IGitClient {
     mergeAbort: mock(() => Promise.resolve()),
     mergeContinue: mock(() => Promise.resolve()),
     getStatus: mock(() =>
-      Promise.resolve({ files: [], isClean: () => true, commitsAhead: 0 } satisfies StatusSummary)
+      Promise.resolve({ files: [], isClean: () => true, commitsAhead: 0, commitsBehind: 0 } satisfies StatusSummary)
     ),
     addAll: mock(() => Promise.resolve()),
     addFiles: mock(() => Promise.resolve()),
@@ -71,6 +71,10 @@ export function createGitMock(overrides: Partial<IGitClient> = {}): IGitClient {
     discardLocalChanges: mock(() => Promise.resolve()),
     fetchRemote: mock(() => Promise.resolve()),
     resetHardToRemote: mock(() => Promise.resolve()),
+    getCommitDiff: mock(() => Promise.resolve("")),
+    getStashDiff: mock(() => Promise.resolve("")),
+    pullRebase: mock(() => Promise.resolve({ filesChanged: 0 } satisfies PullResult)),
+    getConflictedFiles: mock(() => Promise.resolve([] as string[])),
     ...overrides,
   };
 }

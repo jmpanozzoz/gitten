@@ -1,5 +1,6 @@
 import type { IGitClient } from "./ports/git-client.port";
 import type { IUI } from "./ports/ui.port";
+import { theme } from "../ui/theme";
 
 type StashAction = "apply" | "drop" | "push";
 type ApplyMode = "pop" | "apply";
@@ -37,6 +38,26 @@ export class StashManager {
         label: `stash@{${s.index}}  ${s.message}  (${s.date})`,
       }))
     );
+
+    const preview = await this.ui.askConfirm("Preview stash contents before applying?");
+    if (preview) {
+      const diff = await this.git.getStashDiff(index);
+      if (diff) {
+        const MAX_LINES = 40;
+        const lines = diff.split("\n");
+        const colored = lines.slice(0, MAX_LINES)
+          .map((line) => {
+            if (line.startsWith("+") && !line.startsWith("+++")) return theme.diffAdd(line);
+            if (line.startsWith("-") && !line.startsWith("---")) return theme.diffRemove(line);
+            return theme.muted(line);
+          })
+          .join("\n");
+        this.ui.info(colored);
+        if (lines.length > MAX_LINES) this.ui.info(theme.muted(`...and ${lines.length - MAX_LINES} more lines`));
+      } else {
+        this.ui.info("No diff available for this stash.");
+      }
+    }
 
     const mode = await this.ui.askSelect<ApplyMode>("How to apply?", [
       { value: "pop", label: "Pop — apply and remove from stash list" },

@@ -4,6 +4,7 @@ import { theme } from "../ui/theme";
 
 const DEFAULT_COMMIT_MESSAGE = "chore: update";
 const NO_UPSTREAM_ERROR = "no upstream";
+const PROTECTED_BRANCHES = new Set(["main", "master"]);
 
 export type AISuggester = (diff: string) => Promise<string | null>;
 export type AiReviewer = (diff: string) => Promise<string[]>;
@@ -17,6 +18,22 @@ export class SyncFlow {
   ) {}
 
   async run(): Promise<void> {
+    const branch = await this.git.getCurrentBranch();
+
+    if (PROTECTED_BRANCHES.has(branch)) {
+      const proceed = await this.ui.askConfirm(
+        `⚠️  You are on '${branch}'. Commit directly to this branch?`
+      );
+      if (!proceed) return;
+    }
+
+    // Fetch silently so behind count is accurate before we start staging
+    try {
+      await this.git.fetchRemote();
+    } catch {
+      // No remote or network issue — continue without blocking
+    }
+
     const status = await this.git.getStatus();
 
     if (status.isClean()) {
@@ -27,6 +44,13 @@ export class SyncFlow {
       const proceed = await this.ui.askConfirm("Nothing to commit. Push current branch?");
       if (!proceed) return;
     } else {
+      if (status.commitsBehind > 0) {
+        const pullFirst = await this.ui.askConfirm(
+          `⚠️  Remote has ${status.commitsBehind} new commit(s). Pull first to avoid a rejected push?`
+        );
+        if (pullFirst) return;
+      }
+
       const staged = await this.selectFiles(status.files);
       if (staged.length === 0) return;
       const shouldPush = await this.stageAndCommit(staged);

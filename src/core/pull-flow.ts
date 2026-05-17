@@ -16,8 +16,17 @@ export class PullFlow {
       return;
     }
 
+    const strategy = await this.ui.askSelect<"merge" | "rebase">("Pull strategy:", [
+      { value: "merge", label: "Merge (default)" },
+      { value: "rebase", label: "Rebase — keeps history linear, avoids merge commits" },
+    ]);
+
+    const doPull = strategy === "rebase"
+      ? () => this.git.pullRebase()
+      : () => this.git.pull();
+
     try {
-      const result = await this.ui.spin("Pulling latest changes...", () => this.git.pull());
+      const result = await this.ui.spin("Pulling latest changes...", doPull);
       if (result.filesChanged === 0) {
         this.ui.info("Already up to date.");
       } else {
@@ -41,9 +50,16 @@ export class PullFlow {
   }
 
   private async handleConflict(): Promise<void> {
-    this.ui.warn(
-      "🚨 Conflict detected. Open your IDE, resolve the files, then press ENTER to continue or ESC to abort."
-    );
+    const conflicted = await this.git.getConflictedFiles();
+    if (conflicted.length > 0) {
+      this.ui.warn(`🚨 Merge conflict — ${conflicted.length} file(s) need resolution:`);
+      for (const f of conflicted) {
+        this.ui.warn(`  • ${f}`);
+      }
+    } else {
+      this.ui.warn("🚨 Merge conflict detected.");
+    }
+    this.ui.warn("Resolve in your IDE, then press ENTER to continue or ESC to abort.");
 
     const confirmed = await this.waitForResolution();
 

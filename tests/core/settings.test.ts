@@ -5,6 +5,7 @@ import { createUIMock } from "../mocks/ui.mock";
 
 const MOCK_READ = mock(() => Promise.resolve({}));
 const MOCK_WRITE = mock(() => Promise.resolve());
+const MOCK_TEST_CONNECTION = mock(() => Promise.resolve());
 
 mock.module("../../src/config/config", () => ({
   readConfig: MOCK_READ,
@@ -12,15 +13,20 @@ mock.module("../../src/config/config", () => ({
   getActiveAIConfig: mock(() => Promise.resolve(null)),
 }));
 
+mock.module("../../src/core/ai-suggester", () => ({
+  testAIConnection: MOCK_TEST_CONNECTION,
+}));
+
 // ─── configure ────────────────────────────────────────────────────────────────
 
-test("saves full config when user fills in all fields", async () => {
+test("saves full config when user fills in all fields (openai provider)", async () => {
   const ui = createUIMock({
-    askSelect: mock(() => Promise.resolve("configure")),
+    askSelect: mock()
+      .mockResolvedValueOnce("configure")   // action menu
+      .mockResolvedValueOnce("openai"),      // provider
     askText: mock()
-      .mockResolvedValueOnce("https://api.openai.com/v1")
-      .mockResolvedValueOnce("sk-test-key")
-      .mockResolvedValueOnce("gpt-4o-mini"),
+      .mockResolvedValueOnce("gpt-4o-mini") // model
+      .mockResolvedValueOnce("sk-test-key"), // api key
     askConfirm: mock(() => Promise.resolve(true)),
   });
 
@@ -29,9 +35,60 @@ test("saves full config when user fills in all fields", async () => {
   expect(MOCK_WRITE).toHaveBeenCalledWith(
     expect.objectContaining({
       ai: expect.objectContaining({
+        provider: "openai",
         baseUrl: "https://api.openai.com/v1",
         apiKey: "sk-test-key",
         model: "gpt-4o-mini",
+        enabled: true,
+      }),
+    })
+  );
+});
+
+test("saves config without API key for Ollama (local, no key required)", async () => {
+  const ui = createUIMock({
+    askSelect: mock()
+      .mockResolvedValueOnce("configure")
+      .mockResolvedValueOnce("ollama"),
+    askText: mock().mockResolvedValueOnce("llama3.2"), // model only
+    askConfirm: mock(() => Promise.resolve(true)),
+  });
+
+  await new Settings(ui).run();
+
+  expect(MOCK_WRITE).toHaveBeenCalledWith(
+    expect.objectContaining({
+      ai: expect.objectContaining({
+        provider: "ollama",
+        baseUrl: "http://localhost:11434/v1",
+        model: "llama3.2",
+        enabled: true,
+      }),
+    })
+  );
+});
+
+test("saves config with custom base URL when Custom provider selected", async () => {
+  const ui = createUIMock({
+    askSelect: mock()
+      .mockResolvedValueOnce("configure")
+      .mockResolvedValueOnce("custom"),
+    askText: mock()
+      .mockResolvedValueOnce("https://my-llm.example.com/v1") // base URL (custom)
+      .mockResolvedValueOnce("my-model")                       // model
+      .mockResolvedValueOnce("my-api-key"),                    // api key
+    askConfirm: mock(() => Promise.resolve(true)),
+  });
+
+  await new Settings(ui).run();
+
+  expect(MOCK_WRITE).toHaveBeenCalledWith(
+    expect.objectContaining({
+      ai: expect.objectContaining({
+        provider: "custom",
+        baseUrl: "https://my-llm.example.com/v1",
+        model: "my-model",
+        apiKey: "my-api-key",
         enabled: true,
       }),
     })
@@ -110,19 +167,78 @@ test("shows only Configure option when no config exists yet", async () => {
   MOCK_READ.mockResolvedValueOnce({});
 
   const ui = createUIMock({
-    askSelect: mock((_, options) => {
-      const values = options.map((o: { value: string }) => o.value);
-      expect(values).toEqual(["configure"]);
-      return Promise.resolve("configure");
-    }),
+    askSelect: mock()
+      .mockImplementationOnce((_: string, options: { value: string }[]) => {
+        expect(options.map((o) => o.value)).toEqual(["configure"]);
+        return Promise.resolve("configure");
+      })
+      .mockResolvedValueOnce("openai"), // provider
     askText: mock()
-      .mockResolvedValueOnce("https://api.openai.com/v1")
-      .mockResolvedValueOnce("sk-key")
-      .mockResolvedValueOnce("gpt-4o"),
+      .mockResolvedValueOnce("gpt-4o")  // model
+      .mockResolvedValueOnce("sk-key"), // api key
     askConfirm: mock(() => Promise.resolve(false)),
   });
 
   await new Settings(ui).run();
+});
+
+// ─── connection test ──────────────────────────────────────────────────────────
+
+test("runs connection test and shows success when user opts in", async () => {
+  MOCK_TEST_CONNECTION.mockClear();
+  MOCK_TEST_CONNECTION.mockResolvedValueOnce(undefined);
+  const ui = createUIMock({
+    askSelect: mock()
+      .mockResolvedValueOnce("configure") // action
+      .mockResolvedValueOnce("openai"),   // provider
+    askText: mock()
+      .mockResolvedValueOnce("gpt-4o")   // model
+      .mockResolvedValueOnce("sk-key"),   // api key
+    askConfirm: mock(() => Promise.resolve(true)),
+  });
+
+  await new Settings(ui).run();
+
+  expect(MOCK_TEST_CONNECTION).toHaveBeenCalledTimes(1);
+  expect(ui.success).toHaveBeenCalledWith("Connection successful!");
+});
+
+test("shows warning when connection test fails", async () => {
+  MOCK_TEST_CONNECTION.mockClear();
+  MOCK_TEST_CONNECTION.mockRejectedValueOnce(new Error("Invalid API key — check your credentials in Settings"));
+  const ui = createUIMock({
+    askSelect: mock()
+      .mockResolvedValueOnce("configure")
+      .mockResolvedValueOnce("openai"),
+    askText: mock()
+      .mockResolvedValueOnce("gpt-4o")
+      .mockResolvedValueOnce("bad-key"),
+    askConfirm: mock(() => Promise.resolve(true)),
+  });
+
+  await new Settings(ui).run();
+
+  expect(ui.warn).toHaveBeenCalledWith(expect.stringContaining("Invalid API key"));
+  expect(ui.info).toHaveBeenCalledWith(expect.stringContaining("may not work"));
+});
+
+test("skips connection test when user declines", async () => {
+  MOCK_TEST_CONNECTION.mockClear();
+  const ui = createUIMock({
+    askSelect: mock()
+      .mockResolvedValueOnce("configure")
+      .mockResolvedValueOnce("openai"),
+    askText: mock()
+      .mockResolvedValueOnce("gpt-4o")
+      .mockResolvedValueOnce("sk-key"),
+    askConfirm: mock()
+      .mockResolvedValueOnce(true)   // enable
+      .mockResolvedValueOnce(false), // test connection → skip
+  });
+
+  await new Settings(ui).run();
+
+  expect(MOCK_TEST_CONNECTION).not.toHaveBeenCalled();
 });
 
 // ─── cancellation ─────────────────────────────────────────────────────────────

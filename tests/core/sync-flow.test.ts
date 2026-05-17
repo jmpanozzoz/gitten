@@ -7,9 +7,9 @@ const FILES = [
   { path: "src/app.ts", status: "M" },
   { path: ".env", status: "?" },
 ];
-const DIRTY_STATUS = { files: FILES, isClean: () => false, commitsAhead: 0 };
-const CLEAN_STATUS = { files: [], isClean: () => true, commitsAhead: 0 };
-const CLEAN_STATUS_AHEAD = { files: [], isClean: () => true, commitsAhead: 3 };
+const DIRTY_STATUS = { files: FILES, isClean: () => false, commitsAhead: 0, commitsBehind: 0 };
+const CLEAN_STATUS = { files: [], isClean: () => true, commitsAhead: 0, commitsBehind: 0 };
+const CLEAN_STATUS_AHEAD = { files: [], isClean: () => true, commitsAhead: 3, commitsBehind: 0 };
 const CONFIRM_YES = { askConfirm: mock(() => Promise.resolve(true)) };
 const CONFIRM_NO = { askConfirm: mock(() => Promise.resolve(false)) };
 const SELECT_ALL = { askMultiSelect: mock(() => Promise.resolve(["src/app.ts", ".env"])) };
@@ -290,4 +290,74 @@ test("asks to push when working tree is clean but branch has commits ahead", asy
 
   expect(ui.askConfirm).toHaveBeenCalledWith("Nothing to commit. Push current branch?");
   expect(git.push).toHaveBeenCalledTimes(1);
+});
+
+// ─── protected branch warning ─────────────────────────────────────────────────
+
+test("warns before committing when on main and aborts if user declines", async () => {
+  const git = createGitMock({
+    getCurrentBranch: mock(() => Promise.resolve("main")),
+    getStatus: mock(() => Promise.resolve(DIRTY_STATUS)),
+  });
+  const ui = createUIMock({ askConfirm: mock(() => Promise.resolve(false)) });
+
+  await new SyncFlow(git, ui).run();
+
+  expect(ui.askConfirm).toHaveBeenCalledWith(expect.stringContaining("main"));
+  expect(git.addFiles).not.toHaveBeenCalled();
+});
+
+test("continues when user confirms commit to main", async () => {
+  const git = createGitMock({
+    getCurrentBranch: mock(() => Promise.resolve("main")),
+    getStatus: mock(() => Promise.resolve(DIRTY_STATUS)),
+    addFiles: mock(() => Promise.resolve()),
+    commit: mock(() => Promise.resolve()),
+    push: mock(() => Promise.resolve()),
+  });
+  const ui = createUIMock({
+    askConfirm: mock(() => Promise.resolve(true)),
+    ...SELECT_ALL,
+    askText: mock(() => Promise.resolve("fix: hotfix")),
+  });
+
+  await new SyncFlow(git, ui).run();
+
+  expect(git.addFiles).toHaveBeenCalledTimes(1);
+  expect(git.commit).toHaveBeenCalledTimes(1);
+});
+
+// ─── behind warning ───────────────────────────────────────────────────────────
+
+test("warns and aborts when branch is behind remote and user chooses to pull first", async () => {
+  const BEHIND_STATUS = { files: FILES, isClean: () => false, commitsAhead: 0, commitsBehind: 3 };
+  const git = createGitMock({
+    getStatus: mock(() => Promise.resolve(BEHIND_STATUS)),
+  });
+  const ui = createUIMock({ askConfirm: mock(() => Promise.resolve(true)) });
+
+  await new SyncFlow(git, ui).run();
+
+  expect(ui.askConfirm).toHaveBeenCalledWith(expect.stringContaining("3 new commit(s)"));
+  expect(git.addFiles).not.toHaveBeenCalled();
+});
+
+test("proceeds with commit when branch is behind but user continues anyway", async () => {
+  const BEHIND_STATUS = { files: FILES, isClean: () => false, commitsAhead: 0, commitsBehind: 2 };
+  const git = createGitMock({
+    getStatus: mock(() => Promise.resolve(BEHIND_STATUS)),
+    addFiles: mock(() => Promise.resolve()),
+    commit: mock(() => Promise.resolve()),
+    push: mock(() => Promise.resolve()),
+  });
+  // First confirm = behind warning (no = continue), second = push confirm
+  const ui = createUIMock({
+    askConfirm: mock(() => Promise.resolve(false)),
+    ...SELECT_ALL,
+    askText: mock(() => Promise.resolve("feat: proceed anyway")),
+  });
+
+  await new SyncFlow(git, ui).run();
+
+  expect(git.addFiles).toHaveBeenCalledTimes(1);
 });

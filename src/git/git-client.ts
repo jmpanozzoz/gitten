@@ -149,6 +149,7 @@ export class GitClient implements IGitClient {
       })),
       isClean: () => status.isClean(),
       commitsAhead: status.ahead,
+      commitsBehind: status.behind,
     };
   }
 
@@ -379,5 +380,23 @@ export class GitClient implements IGitClient {
 
   async resetHardToRemote(branch: string): Promise<void> {
     await this.git.reset(["--hard", `origin/${branch}`]);
+  }
+
+  async getCommitDiff(hash: string): Promise<string> {
+    return this.git.show([hash]);
+  }
+
+  async getStashDiff(index: number): Promise<string> {
+    return this.git.raw(["stash", "show", "-p", `stash@{${index}}`]);
+  }
+
+  async pullRebase(): Promise<PullResult> {
+    const result = await this.git.pull(["--rebase"]);
+    return { filesChanged: result.summary.changes };
+  }
+
+  async getConflictedFiles(): Promise<string[]> {
+    const status = await this.git.status();
+    return status.conflicted;
   }
 }

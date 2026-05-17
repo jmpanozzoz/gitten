@@ -1,5 +1,5 @@
 import { test, expect, mock, beforeEach, afterEach, spyOn } from "bun:test";
-import { suggestCommitMessage, suggestGitignorePatterns } from "../../src/core/ai-suggester";
+import { suggestCommitMessage, suggestGitignorePatterns, testAIConnection } from "../../src/core/ai-suggester";
 import type { AIConfig } from "../../src/config/config";
 
 const CONFIG: AIConfig = {
@@ -93,4 +93,63 @@ test("strips blank lines from suggestions", async () => {
   const result = await suggestGitignorePatterns([], [], CONFIG);
 
   expect(result).toEqual([".env", "*.log"]);
+});
+
+// ─── error classification ─────────────────────────────────────────────────────
+
+test("throws user-friendly message on 401 without response body", async () => {
+  spyOn(globalThis, "fetch").mockResolvedValueOnce(
+    new Response("{}", { status: 401 })
+  );
+
+  await expect(suggestCommitMessage("diff", CONFIG)).rejects.toThrow("Invalid API key");
+});
+
+test("throws user-friendly message on 429 rate limit", async () => {
+  spyOn(globalThis, "fetch").mockResolvedValueOnce(
+    new Response("{}", { status: 429 })
+  );
+
+  await expect(suggestCommitMessage("diff", CONFIG)).rejects.toThrow("Rate limit");
+});
+
+test("prefers provider error message over status-based fallback", async () => {
+  spyOn(globalThis, "fetch").mockResolvedValueOnce(
+    new Response(
+      JSON.stringify({ error: { message: "The model gpt-99 does not exist" } }),
+      { status: 404 }
+    )
+  );
+
+  await expect(suggestCommitMessage("diff", CONFIG)).rejects.toThrow("gpt-99 does not exist");
+});
+
+test("throws timeout error when fetch throws AbortError", async () => {
+  const abortErr = new Error("The operation was aborted");
+  abortErr.name = "AbortError";
+  spyOn(globalThis, "fetch").mockRejectedValueOnce(abortErr);
+
+  await expect(suggestCommitMessage("diff", CONFIG)).rejects.toThrow("timed out");
+});
+
+// ─── testAIConnection ─────────────────────────────────────────────────────────
+
+test("testAIConnection resolves when API returns a valid response", async () => {
+  mockFetch("OK");
+
+  await expect(testAIConnection(CONFIG)).resolves.toBeUndefined();
+});
+
+test("testAIConnection throws when API responds with error status", async () => {
+  spyOn(globalThis, "fetch").mockResolvedValueOnce(
+    new Response("{}", { status: 401 })
+  );
+
+  await expect(testAIConnection(CONFIG)).rejects.toThrow("Invalid API key");
+});
+
+test("testAIConnection throws on network failure", async () => {
+  spyOn(globalThis, "fetch").mockRejectedValueOnce(new Error("connection refused"));
+
+  await expect(testAIConnection(CONFIG)).rejects.toThrow("Network error");
 });

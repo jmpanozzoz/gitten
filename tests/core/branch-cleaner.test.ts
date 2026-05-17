@@ -5,15 +5,18 @@ import { createUIMock } from "../mocks/ui.mock";
 
 const PROTECTED = ["main", "master", "dev", "develop"];
 
-// ─── protected branches ───────────────────────────────────────────────────────
+// ─── branch filtering ─────────────────────────────────────────────────────────
 
-test.each(PROTECTED)('never includes "%s" in candidates', (branch) => {
+test("includes protected branches in candidates (shown with extra confirm)", () => {
   const cleaner = new BranchCleaner(createGitMock(), createUIMock());
   const candidates = cleaner.filterCandidates(
     [...PROTECTED, "feat/some-feature"],
     "feat/other"
   );
-  expect(candidates).not.toContain(branch);
+  for (const branch of PROTECTED) {
+    expect(candidates).toContain(branch);
+  }
+  expect(candidates).toContain("feat/some-feature");
 });
 
 test("never includes current branch in candidates", () => {
@@ -126,22 +129,20 @@ test("deletes remote-only branch from origin without asking", async () => {
   expect(ui.askConfirm).not.toHaveBeenCalled();
 });
 
-test("filters protected branches from remote-only list", async () => {
+test("shows protected branches in remote-only list (no longer filtered out)", async () => {
   const git = createGitMock({
     getBranches: mock(() =>
       Promise.resolve({ all: [], current: "dev" })
     ),
     getRemoteBranches: mock(() =>
-      Promise.resolve(["main", "master", "dev", "develop", "feat/ok"])
+      Promise.resolve(["main", "master", "feat/ok"])
     ),
   });
   const ui = createUIMock({
     askSearchMultiSelect: mock((_, options: { value: string; label: string }[]) => {
       const values = options.map((o) => o.value);
-      expect(values).not.toContain("remote:main");
-      expect(values).not.toContain("remote:master");
-      expect(values).not.toContain("remote:dev");
-      expect(values).not.toContain("remote:develop");
+      expect(values).toContain("remote:main");
+      expect(values).toContain("remote:master");
       expect(values).toContain("remote:feat/ok");
       return Promise.resolve([] as never);
     }),
@@ -149,6 +150,61 @@ test("filters protected branches from remote-only list", async () => {
   });
 
   await new BranchCleaner(git, ui).run();
+});
+
+// ─── protected branch extra confirmation ─────────────────────────────────────
+
+test("asks extra confirmation when a protected branch is selected", async () => {
+  const git = createGitMock({
+    getBranches: mock(() =>
+      Promise.resolve({ all: ["main", "feat/old"], current: "feat/old" })
+    ),
+    deleteLocalBranchForce: mock(() => Promise.resolve()),
+  });
+  const ui = createUIMock({
+    askSearchMultiSelect: mock(() => Promise.resolve(["main"] as never)),
+    askConfirm: mock(() => Promise.resolve(true)),
+  });
+
+  await new BranchCleaner(git, ui).run();
+
+  const confirmCalls = (ui.askConfirm as ReturnType<typeof mock>).mock.calls.map((c) => c[0] as string);
+  expect(confirmCalls.some((msg) => msg.includes("main") && msg.includes("protected"))).toBe(true);
+});
+
+test("aborts deletion when user declines protected branch confirmation", async () => {
+  const git = createGitMock({
+    getBranches: mock(() =>
+      Promise.resolve({ all: ["main", "feat/old"], current: "feat/old" })
+    ),
+    deleteLocalBranchForce: mock(() => Promise.resolve()),
+  });
+  const ui = createUIMock({
+    askSearchMultiSelect: mock(() => Promise.resolve(["main"] as never)),
+    askConfirm: mock(() => Promise.resolve(false)),
+  });
+
+  await new BranchCleaner(git, ui).run();
+
+  expect(git.deleteLocalBranchForce).not.toHaveBeenCalled();
+});
+
+test("skips extra confirm when no protected branches are selected", async () => {
+  const git = createGitMock({
+    getBranches: mock(() =>
+      Promise.resolve({ all: ["feat/old", "feat/another"], current: "main" })
+    ),
+    deleteLocalBranchForce: mock(() => Promise.resolve()),
+  });
+  const ui = createUIMock({
+    askSearchMultiSelect: mock(() => Promise.resolve(["feat/old"] as never)),
+    askConfirm: mock(() => Promise.resolve(false)),
+  });
+
+  await new BranchCleaner(git, ui).run();
+
+  const confirmCalls = (ui.askConfirm as ReturnType<typeof mock>).mock.calls.map((c) => c[0] as string);
+  expect(confirmCalls.every((msg) => !msg.includes("protected"))).toBe(true);
 });
 
 // ─── activity label ───────────────────────────────────────────────────────────
