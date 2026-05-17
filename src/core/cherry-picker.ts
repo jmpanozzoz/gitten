@@ -80,9 +80,16 @@ export class CherryPicker {
   }
 
   private async handleConflict(): Promise<void> {
-    this.ui.warn(
-      "🚨 Conflict detected. Open your IDE, resolve the files, then press ENTER to continue or ESC to abort."
-    );
+    const conflicted = await this.git.getConflictedFiles();
+    if (conflicted.length > 0) {
+      this.ui.warn(`🚨 Cherry-pick conflict — ${conflicted.length} file(s) need resolution:`);
+      for (const f of conflicted) {
+        this.ui.warn(`  • ${f}`);
+      }
+    } else {
+      this.ui.warn("🚨 Cherry-pick conflict detected.");
+    }
+    this.ui.warn("Resolve in your IDE, then press ENTER to continue or ESC to abort.");
 
     const confirmed = await this.waitForResolution();
 

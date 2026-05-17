@@ -157,7 +157,6 @@ test("deduplicates branches already available locally", async () => {
 
   const branchOptions = (askSearchSelect.mock.calls[0] as unknown[])[1] as { value: string }[];
   const values = branchOptions.map((o) => o.value);
-  // feat/local appears once (locally), not also as origin/feat/local
   expect(values.filter((v) => v.includes("feat/local")).length).toBe(1);
   expect(values.some((v) => v === "origin/feat/remote-only")).toBe(true);
 });
@@ -176,7 +175,6 @@ test("shows diff preview and aborts when user declines to apply after preview", 
     .mockResolvedValueOnce("abc1234");
   const ui = createUIMock({
     askSearchSelect,
-    // First confirm = "preview?" → yes, second = "apply?" → no
     askConfirm: mock()
       .mockResolvedValueOnce(true)
       .mockResolvedValueOnce(false),
@@ -207,4 +205,53 @@ test("applies commit when user confirms after preview", async () => {
   await new CherryPicker(git, ui).run();
 
   expect(git.cherryPick).toHaveBeenCalledWith("abc1234");
+});
+
+// ─── conflict file list ───────────────────────────────────────────────────────
+
+test("lists conflicted files by name on cherry-pick conflict", async () => {
+  const git = createGitMock({
+    getBranches: mock(() =>
+      Promise.resolve({ all: ["main", "feat/other"], current: "main" })
+    ),
+    getLog: mock(() => Promise.resolve(COMMITS)),
+    cherryPick: mock(() => Promise.reject(new Error("conflict"))),
+    getConflictedFiles: mock(() => Promise.resolve(["src/auth.ts", "src/utils.ts"])),
+    cherryPickAbort: mock(() => Promise.resolve()),
+  });
+  const askSearchSelect = mock()
+    .mockResolvedValueOnce("feat/other")
+    .mockResolvedValueOnce("abc1234");
+  const ui = createUIMock({ askSearchSelect });
+  const waitForResolution = mock(() => Promise.resolve(false));
+
+  await new CherryPicker(git, ui, waitForResolution).run();
+
+  const warnCalls = (ui.warn as ReturnType<typeof mock>).mock.calls.map((c) => c[0] as string);
+  expect(warnCalls.some((m) => m.includes("2 file(s)"))).toBe(true);
+  expect(warnCalls.some((m) => m.includes("src/auth.ts"))).toBe(true);
+  expect(warnCalls.some((m) => m.includes("src/utils.ts"))).toBe(true);
+});
+
+test("shows generic conflict message when git reports no conflicted files", async () => {
+  const git = createGitMock({
+    getBranches: mock(() =>
+      Promise.resolve({ all: ["main", "feat/other"], current: "main" })
+    ),
+    getLog: mock(() => Promise.resolve(COMMITS)),
+    cherryPick: mock(() => Promise.reject(new Error("conflict"))),
+    getConflictedFiles: mock(() => Promise.resolve([])),
+    cherryPickAbort: mock(() => Promise.resolve()),
+  });
+  const askSearchSelect = mock()
+    .mockResolvedValueOnce("feat/other")
+    .mockResolvedValueOnce("abc1234");
+  const ui = createUIMock({ askSearchSelect });
+  const waitForResolution = mock(() => Promise.resolve(false));
+
+  await new CherryPicker(git, ui, waitForResolution).run();
+
+  const warnCalls = (ui.warn as ReturnType<typeof mock>).mock.calls.map((c) => c[0] as string);
+  expect(warnCalls.some((m) => m.includes("detected"))).toBe(true);
+  expect(warnCalls.some((m) => m.includes("•"))).toBe(false);
 });
