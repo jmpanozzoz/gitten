@@ -106,6 +106,7 @@ export interface IGitClient {
   getCommitDiff(hash: string): Promise<string>;
   getStashDiff(index: number): Promise<string>;
   pullRebase(): Promise<PullResult>;
+  getConflictedFiles(): Promise<string[]>;
 }
 
 export interface BisectResult {

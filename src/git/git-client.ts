@@ -394,4 +394,9 @@ export class GitClient implements IGitClient {
     const result = await this.git.pull(["--rebase"]);
     return { filesChanged: result.summary.changes };
   }
+
+  async getConflictedFiles(): Promise<string[]> {
+    const status = await this.git.status();
+    return status.conflicted;
+  }
 }

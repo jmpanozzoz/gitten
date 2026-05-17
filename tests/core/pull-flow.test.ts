@@ -91,6 +91,43 @@ test("on conflict + ESC: aborts merge and shows info", async () => {
   expect(ui.info).toHaveBeenCalled();
 });
 
+// ─── conflict file list ───────────────────────────────────────────────────────
+
+test("lists conflicted files by name on merge conflict", async () => {
+  const git = createGitMock({
+    getRemotes: mock(() => Promise.resolve(WITH_REMOTE)),
+    pull: mock(() => Promise.reject(new Error("conflict"))),
+    getConflictedFiles: mock(() => Promise.resolve(["src/auth.ts", "src/routes.ts"])),
+    mergeAbort: mock(() => Promise.resolve()),
+  });
+  const ui = createUIMock();
+  const waitForResolution = mock(() => Promise.resolve(false));
+
+  await new PullFlow(git, ui, waitForResolution).run();
+
+  const warnCalls = (ui.warn as ReturnType<typeof mock>).mock.calls.map((c) => c[0] as string);
+  expect(warnCalls.some((m) => m.includes("2 file(s)"))).toBe(true);
+  expect(warnCalls.some((m) => m.includes("src/auth.ts"))).toBe(true);
+  expect(warnCalls.some((m) => m.includes("src/routes.ts"))).toBe(true);
+});
+
+test("shows generic conflict message when no files reported by git", async () => {
+  const git = createGitMock({
+    getRemotes: mock(() => Promise.resolve(WITH_REMOTE)),
+    pull: mock(() => Promise.reject(new Error("conflict"))),
+    getConflictedFiles: mock(() => Promise.resolve([])),
+    mergeAbort: mock(() => Promise.resolve()),
+  });
+  const ui = createUIMock();
+  const waitForResolution = mock(() => Promise.resolve(false));
+
+  await new PullFlow(git, ui, waitForResolution).run();
+
+  const warnCalls = (ui.warn as ReturnType<typeof mock>).mock.calls.map((c) => c[0] as string);
+  expect(warnCalls.some((m) => m.includes("detected"))).toBe(true);
+  expect(warnCalls.some((m) => m.includes("•"))).toBe(false);
+});
+
 test("rethrows unexpected pull errors", async () => {
   const git = createGitMock({
     getRemotes: mock(() => Promise.resolve(WITH_REMOTE)),
