@@ -52,17 +52,6 @@ Rules:
 - If nothing is wrong, output exactly: OK
 - Be brief — max 10 words per finding`;
 
-const AMEND_SYSTEM_PROMPT = `You are a git commit message improver. Given an existing commit message, rewrite it to follow conventional commits format.
-
-Rules:
-- Format: type: description  (e.g. "feat: add user login")
-- Types: feat, fix, chore, docs, refactor, test, style
-- Max 72 characters total
-- Lowercase, imperative mood
-- No period at the end
-- Keep the same intent, just fix the format and wording
-- Output ONLY the improved commit message — nothing else`;
-
 const GITIGNORE_SYSTEM_PROMPT = `You are a .gitignore expert. Given a list of tracked files and the current .gitignore content, suggest additional patterns that should be ignored for this project.
 
 Rules:
