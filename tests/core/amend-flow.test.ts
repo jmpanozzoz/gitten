@@ -163,3 +163,75 @@ test("shows error and returns when repo has no commits", async () => {
   expect(git.amendCommit).not.toHaveBeenCalled();
   expect(git.amendNoEdit).not.toHaveBeenCalled();
 });
+
+// ─── AI message improvement ────────────────────────────────────────────────────
+
+test("offers AI improvement and pre-fills suggestion when user accepts", async () => {
+  const git = createGitMock({
+    getLastCommit: mock(() => Promise.resolve(LAST_COMMIT)),
+    amendCommit: mock(() => Promise.resolve()),
+  });
+  const aiSuggester = mock(() => Promise.resolve("feat: improve authentication flow"));
+  const ui = createUIMock({
+    askSelect: mock(() => Promise.resolve("message")),
+    askConfirm: mock(() => Promise.resolve(true)),
+    askText: mock(() => Promise.resolve("feat: improve authentication flow")),
+  });
+
+  await new AmendFlow(git, ui, aiSuggester).run();
+
+  expect(aiSuggester).toHaveBeenCalledWith("feat: original message");
+  expect(git.amendCommit).toHaveBeenCalledWith("feat: improve authentication flow");
+});
+
+test("skips AI and uses original message when user declines improvement", async () => {
+  const git = createGitMock({
+    getLastCommit: mock(() => Promise.resolve(LAST_COMMIT)),
+    amendCommit: mock(() => Promise.resolve()),
+  });
+  const aiSuggester = mock(() => Promise.resolve("feat: ai suggestion"));
+  const ui = createUIMock({
+    askSelect: mock(() => Promise.resolve("message")),
+    askConfirm: mock(() => Promise.resolve(false)),
+    askText: mock(() => Promise.resolve("feat: manual message")),
+  });
+
+  await new AmendFlow(git, ui, aiSuggester).run();
+
+  expect(aiSuggester).not.toHaveBeenCalled();
+  expect(git.amendCommit).toHaveBeenCalledWith("feat: manual message");
+});
+
+test("falls back gracefully when AI suggester throws", async () => {
+  const git = createGitMock({
+    getLastCommit: mock(() => Promise.resolve(LAST_COMMIT)),
+    amendCommit: mock(() => Promise.resolve()),
+  });
+  const aiSuggester = mock(() => Promise.reject(new Error("network timeout")));
+  const ui = createUIMock({
+    askSelect: mock(() => Promise.resolve("message")),
+    askConfirm: mock(() => Promise.resolve(true)),
+    askText: mock(() => Promise.resolve("feat: manual fallback")),
+  });
+
+  await new AmendFlow(git, ui, aiSuggester).run();
+
+  expect(ui.warn).toHaveBeenCalledWith(expect.stringContaining("network timeout"));
+  expect(git.amendCommit).toHaveBeenCalledWith("feat: manual fallback");
+});
+
+test("does not offer AI improvement when no aiSuggester provided", async () => {
+  const git = createGitMock({
+    getLastCommit: mock(() => Promise.resolve(LAST_COMMIT)),
+    amendCommit: mock(() => Promise.resolve()),
+  });
+  const ui = createUIMock({
+    askSelect: mock(() => Promise.resolve("message")),
+    askText: mock(() => Promise.resolve("feat: no ai")),
+  });
+
+  await new AmendFlow(git, ui).run();
+
+  expect(ui.askConfirm).not.toHaveBeenCalled();
+  expect(git.amendCommit).toHaveBeenCalledWith("feat: no ai");
+});

@@ -2,11 +2,13 @@ import type { IGitClient } from "./ports/git-client.port";
 import type { IUI } from "./ports/ui.port";
 
 type AmendOption = "message" | "staged" | "both";
+export type AIMessageImprover = (message: string) => Promise<string | null>;
 
 export class AmendFlow {
   constructor(
     private readonly git: IGitClient,
-    private readonly ui: IUI
+    private readonly ui: IUI,
+    private readonly aiSuggester?: AIMessageImprover
   ) {}
 
   async run(): Promise<void> {
@@ -44,7 +46,24 @@ export class AmendFlow {
   }
 
   private async amendMessage(current: string): Promise<void> {
-    const input = await this.ui.askText("Commit message:", undefined, current);
+    let placeholder = current;
+
+    if (this.aiSuggester) {
+      const improve = await this.ui.askConfirm("✨ Improve commit message with AI?");
+      if (improve) {
+        try {
+          const suggestion = await this.ui.spin("Improving...", () => this.aiSuggester!(current));
+          if (suggestion) {
+            placeholder = suggestion;
+            this.ui.info(`Suggested: ${suggestion}`);
+          }
+        } catch (err) {
+          this.ui.warn(`AI failed: ${err instanceof Error ? err.message : "unknown error"}`);
+        }
+      }
+    }
+
+    const input = await this.ui.askText("Commit message:", undefined, placeholder);
     const message = input.trim() || current;
     await this.ui.spin("Amending commit...", () => this.git.amendCommit(message));
     this.ui.success(`Commit amended: "${message}"`);
