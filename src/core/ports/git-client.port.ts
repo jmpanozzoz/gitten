@@ -20,6 +20,7 @@ export interface CommitSummary {
 export interface StatusSummary {
   files: { path: string; status: string }[];
   isClean(): boolean;
+  hasStagedChanges(): boolean;
   commitsAhead: number;
   commitsBehind: number;
 }

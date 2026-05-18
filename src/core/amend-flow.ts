@@ -38,23 +38,23 @@ export class AmendFlow {
 
     if (choice === "staged" || choice === "both") {
       const status = await this.git.getStatus();
-      if (status.isClean()) {
+      if (!status.hasStagedChanges()) {
         this.ui.warn("Nothing staged — stage your changes before amending.");
         return;
       }
     }
 
     if (choice === "message") {
-      await this.amendMessage(last.message);
+      await this.amendMessage(last.message, false);
     } else if (choice === "staged") {
       await this.ui.spin("Amending with staged files...", () => this.git.amendNoEdit());
       this.ui.success("Commit amended with staged files.");
     } else {
-      await this.amendMessage(last.message);
+      await this.amendMessage(last.message, true);
     }
   }
 
-  private async amendMessage(current: string): Promise<void> {
+  private async amendMessage(current: string, withStagedFiles: boolean): Promise<void> {
     let placeholder = current;
 
     if (this.aiSuggester) {
@@ -75,6 +75,10 @@ export class AmendFlow {
     const input = await this.ui.askText("Commit message:", undefined, placeholder);
     const message = input.trim() || current;
     await this.ui.spin("Amending commit...", () => this.git.amendCommit(message));
-    this.ui.success(`Commit amended: "${message}"`);
+    this.ui.success(
+      withStagedFiles
+        ? `Commit amended with new message and staged files: "${message}"`
+        : `Commit amended: "${message}"`
+    );
   }
 }
