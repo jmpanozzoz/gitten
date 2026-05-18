@@ -148,6 +148,7 @@ export class GitClient implements IGitClient {
         status: f.working_dir !== " " ? f.working_dir : f.index,
       })),
       isClean: () => status.isClean(),
+      hasStagedChanges: () => status.files.some((f) => f.index !== " "),
       commitsAhead: status.ahead,
       commitsBehind: status.behind,
     };
