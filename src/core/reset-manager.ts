@@ -3,10 +3,13 @@ import type { IUI } from "./ports/ui.port";
 
 type ResetAction = "discard" | "remote";
 
+export type AICommitSummarizer = (messages: string[]) => Promise<string | null>;
+
 export class ResetManager {
   constructor(
     private readonly git: IGitClient,
-    private readonly ui: IUI
+    private readonly ui: IUI,
+    private readonly aiSummarizer?: AICommitSummarizer
   ) {}
 
   async run(): Promise<void> {
@@ -45,6 +48,14 @@ export class ResetManager {
         this.ui.warn(`⚠️  ${commits.length} local commit(s) not on remote will be permanently lost:`);
         for (const c of commits) {
           this.ui.warn(`  • ${c.hash} — ${c.message}`);
+        }
+        if (this.aiSummarizer) {
+          try {
+            const summary = await this.ui.spin("Summarizing what will be lost...", () =>
+              this.aiSummarizer!(commits.map((c) => c.message))
+            );
+            if (summary) this.ui.info(`✨ What will be lost:\n${summary}`);
+          } catch { /* non-blocking */ }
         }
       }
     } catch {

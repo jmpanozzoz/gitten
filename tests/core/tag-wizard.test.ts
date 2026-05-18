@@ -309,3 +309,45 @@ describe("package.json version as base", () => {
     expect(infoCalls.some((m) => m.includes("package.json") && m.includes("0.8.0"))).toBe(true);
   });
 });
+
+// ─── AI release notes ──────────────────────────────────────────────────────────
+
+test("generates release notes with AI and shows them before asking for tag name", async () => {
+  const git = createGitMock({
+    getPackageVersion: mock(() => Promise.resolve("1.0.0")),
+    getLastTag: mock(() => Promise.resolve("v1.0.0")),
+    getLogSince: mock(() => Promise.resolve([
+      { hash: "abc", message: "feat: add dark mode" },
+      { hash: "def", message: "fix: crash on startup" },
+    ])),
+    createAnnotatedTag: mock(() => Promise.resolve()),
+  });
+  const aiSummarizer = mock(() => Promise.resolve("• Added dark mode\n• Fixed crash on startup"));
+  const ui = createUIMock({
+    askText: mock(() => Promise.resolve("v1.1.0")),
+    askConfirm: mock(() => Promise.resolve(false)),
+  });
+
+  await new TagWizard(git, ui, aiSummarizer).run();
+
+  expect(aiSummarizer).toHaveBeenCalledWith(["feat: add dark mode", "fix: crash on startup"]);
+  const infoCalls = (ui.info as ReturnType<typeof mock>).mock.calls.map((c) => c[0] as string);
+  expect(infoCalls.some((m) => m.includes("What's in this release"))).toBe(true);
+});
+
+test("proceeds normally when no aiSummarizer provided", async () => {
+  const git = createGitMock({
+    getPackageVersion: mock(() => Promise.resolve("1.0.0")),
+    getLastTag: mock(() => Promise.resolve("v1.0.0")),
+    getLogSince: mock(() => Promise.resolve([{ hash: "abc", message: "feat: something" }])),
+    createAnnotatedTag: mock(() => Promise.resolve()),
+  });
+  const ui = createUIMock({
+    askText: mock(() => Promise.resolve("v1.1.0")),
+    askConfirm: mock(() => Promise.resolve(false)),
+  });
+
+  await new TagWizard(git, ui).run();
+
+  expect(git.createAnnotatedTag).toHaveBeenCalled();
+});
