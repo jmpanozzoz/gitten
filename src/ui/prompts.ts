@@ -45,14 +45,15 @@ export class UI implements IUI {
 
   async askSearchSelect<T>(
     message: string,
-    options: { value: T; label: string }[]
+    options: { value: T; label: string; hints?: string[] }[],
+    searchPool?: { value: T; label: string; hints?: string[] }[]
   ): Promise<T> {
-    return searchSelect(message, options);
+    return searchSelect(message, options, searchPool);
   }
 
   async askSearchMultiSelect<T>(
     message: string,
-    options: { value: T; label: string }[]
+    options: { value: T; label: string; hints?: string[] }[]
   ): Promise<T[]> {
     return searchMultiSelect(message, options);
   }

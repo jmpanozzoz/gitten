@@ -11,21 +11,21 @@ export interface AIConfig {
   model: string;
 }
 
-export interface GitttenConfig {
+export interface GittenConfig {
   ai?: Partial<AIConfig>;
 }
 
-export async function readConfig(): Promise<GitttenConfig> {
+export async function readConfig(): Promise<GittenConfig> {
   try {
     const file = Bun.file(CONFIG_PATH);
     if (!(await file.exists())) return {};
-    return (await file.json()) as GitttenConfig;
+    return (await file.json()) as GittenConfig;
   } catch {
     return {};
   }
 }
 
-export async function writeConfig(config: GitttenConfig): Promise<void> {
+export async function writeConfig(config: GittenConfig): Promise<void> {
   await Bun.write(CONFIG_PATH, JSON.stringify(config, null, 2));
 }
 
