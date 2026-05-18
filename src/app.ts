@@ -131,19 +131,32 @@ export async function app(
     }
     ui.context(parts.join(" · "));
 
-    let choice: MenuOption;
+    const moreOptions: { value: MoreOption; label: string; hints?: string[] }[] = [
+      { value: "amend",     label: "✏️  Amend",      hints: ["edit", "fix", "modify", "update", "rewrite", "message", "last commit"] },
+      { value: "tag",       label: "🏷️  Tag",        hints: ["release", "version", "label", "mark", "v1", "publish"] },
+      { value: "bisect",    label: "🔎 Bisect",      hints: ["debug", "bug", "search", "binary", "regression", "blame", "find"] },
+      { value: "worktree",  label: "🗂️  Worktrees",  hints: ["workspace", "parallel", "multiple", "linked"] },
+      { value: "undo",      label: "↩  Undo",        hints: ["revert", "rollback", "back", "cancel", "uncommit", "unpush"] },
+      { value: "reset",     label: "⚡ Reset",        hints: ["revert", "undo", "rollback", "restore", "hard", "soft", "mixed", "discard"] },
+      { value: "remotes",   label: "🔗 Remotes",     hints: ["remote", "origin", "url", "server", "github", "gitlab", "upstream"] },
+      { value: "gitignore", label: "🙈 .gitignore",  hints: ["ignore", "exclude", "skip", "hide", "patterns", "untrack"] },
+      { value: "purge",     label: "🔥 Purge",       hints: ["delete", "remove", "clean", "sensitive", "secret", "password", "rewrite", "bfg"] },
+      { value: "settings",  label: "⚙️  Settings",   hints: ["config", "configuration", "preferences", "setup", "ai", "options"] },
+    ];
+
+    let choice: MainOption | MoreOption;
     try {
-      choice = await ui.askSearchSelect<MainOption>("What do you want to do?", [
-        { value: "sync",   label: "🚀 Sync           — stage · commit · push" },
-        { value: "pull",   label: "🔽 Pull           — merge · rebase" },
-        { value: "branch", label: "🌿 New Branch     — checkout -b" },
-        { value: "switch", label: "🔀 Switch Branch  — checkout" },
-        { value: "stash",  label: "📦 Stash          — save · apply · pop" },
-        { value: "cherry", label: "🍒 Cherry Pick    — apply commit" },
-        { value: "clean",  label: "🧹 Clean Branches — delete local · remote" },
+      choice = await ui.askSearchSelect<MainOption | MoreOption>("What do you want to do?", [
+        { value: "sync",   label: "🚀 Sync",          hints: ["push", "commit", "add", "stage", "upload", "send", "save", "publish"] },
+        { value: "pull",   label: "🔽 Pull",          hints: ["fetch", "merge", "rebase", "download", "update", "get", "integrate"] },
+        { value: "branch", label: "🌿 New Branch",    hints: ["create", "new", "start", "feature", "feat", "fix", "hotfix"] },
+        { value: "switch", label: "🔀 Switch Branch", hints: ["checkout", "change", "go", "move", "navigate"] },
+        { value: "stash",  label: "📦 Stash",         hints: ["save", "hide", "temporary", "shelve", "wip", "draft", "store"] },
+        { value: "cherry", label: "🍒 Cherry Pick",   hints: ["apply", "pick", "copy", "transfer", "port", "backport"] },
+        { value: "clean",  label: "🧹 Clean Branches",hints: ["delete", "remove", "prune", "trim", "old", "merged", "archive"] },
         { value: "more",   label: "⋯  More" },
         { value: "exit",   label: "🚪 Exit" },
-      ]);
+      ], moreOptions);
     } catch (e) {
       if (e instanceof GoBackSignal) break;
       throw e;
@@ -153,19 +166,10 @@ export async function app(
 
     try {
       if (choice === "more") {
-        const more = await ui.askSelect<MoreOption>("More options:", [
-          { value: "amend", label: "✏️  Amend Last Commit" },
-          { value: "tag", label: "🏷️  Tag / Release" },
-          { value: "bisect", label: "🔎 Find Bug Commit (Bisect)" },
-          { value: "worktree", label: "🗂️  Worktrees" },
-          { value: "undo", label: "↩  Undo Commit" },
-          { value: "reset", label: "⚡ Reset" },
-          { value: "remotes", label: "🔗 Remotes" },
-          { value: "gitignore", label: "🙈 .gitignore" },
-          { value: "purge", label: "🔥 Purge History" },
-          { value: "settings", label: "⚙️  Settings" },
-        ]);
+        const more = await ui.askSelect<MoreOption>("More options:", moreOptions);
         await moreHandlers[more]();
+      } else if (choice in moreHandlers) {
+        await moreHandlers[choice as MoreOption]();
       } else {
         await mainHandlers[choice as Exclude<MainOption, "exit" | "more">]();
       }

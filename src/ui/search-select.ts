@@ -13,11 +13,15 @@ const K = {
 
 const MAX_VISIBLE = 8;
 
-type Opt<T> = { value: T; label: string };
+type Opt<T> = { value: T; label: string; hints?: string[] };
 
 function applyFilter<T>(options: Opt<T>[], query: string): Opt<T>[] {
   const q = query.trim().toLowerCase();
-  return q ? options.filter((o) => o.label.toLowerCase().includes(q)) : options;
+  if (!q) return options;
+  return options.filter((o) =>
+    o.label.toLowerCase().includes(q) ||
+    (o.hints?.some((h) => h.toLowerCase().includes(q)) ?? false)
+  );
 }
 
 function highlightMatch(label: string, query: string, isCursor: boolean): string {
@@ -47,9 +51,11 @@ function buildSelectLines<T>(
   message: string,
   query: string,
   options: Opt<T>[],
-  cursor: number
+  cursor: number,
+  searchPool?: Opt<T>[]
 ): string[] {
-  const f = applyFilter(options, query);
+  const pool = query.trim() && searchPool ? [...options, ...searchPool] : options;
+  const f = applyFilter(pool, query);
   const clamped = Math.min(cursor, Math.max(0, f.length - 1));
   const { start, end } = visibleWindow(f, clamped);
   const lines: string[] = [];
@@ -158,7 +164,8 @@ function teardownStdin(listener: (data: string) => void): void {
 
 export async function searchSelect<T>(
   message: string,
-  options: Opt<T>[]
+  options: Opt<T>[],
+  searchPool?: Opt<T>[]
 ): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     let query = "";
@@ -166,7 +173,7 @@ export async function searchSelect<T>(
     let lastLineCount = 0;
 
     function draw(): void {
-      const lines = buildSelectLines(message, query, options, cursor);
+      const lines = buildSelectLines(message, query, options, cursor, searchPool);
       redraw(lines, lastLineCount);
       lastLineCount = lines.length;
     }
@@ -190,7 +197,8 @@ export async function searchSelect<T>(
         process.exit(0);
       }
 
-      const f = applyFilter(options, query);
+      const pool = query.trim() && searchPool ? [...options, ...searchPool] : options;
+      const f = applyFilter(pool, query);
       const maxCursor = Math.max(0, f.length - 1);
 
       if (data === K.UP) { if (cursor > 0) cursor--; draw(); return; }
