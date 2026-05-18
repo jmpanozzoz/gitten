@@ -39,6 +39,9 @@ export class StashManager {
       }))
     );
 
+    const stat = await this.git.getStashStat(index);
+    this.ui.info(`${stat.filesChanged} file(s) changed — +${stat.insertions} −${stat.deletions}`);
+
     const preview = await this.ui.askConfirm("Preview stash contents before applying?");
     if (preview) {
       const diff = await this.git.getStashDiff(index);

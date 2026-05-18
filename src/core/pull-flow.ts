@@ -1,6 +1,7 @@
 import type { IGitClient } from "./ports/git-client.port";
 import type { IUI } from "./ports/ui.port";
 import { stdinResolution } from "../utils/stdin-resolution";
+import { resolveConflict } from "./conflict-resolver";
 
 export class PullFlow {
   constructor(
@@ -41,39 +42,18 @@ export class PullFlow {
       }
 
       if (message.includes("conflict")) {
-        await this.handleConflict();
+        await resolveConflict(this.git, this.ui, {
+          label: "Merge",
+          onContinue: async () => {
+            await this.git.addAll();
+            await this.git.mergeContinue();
+          },
+          onAbort: () => this.git.mergeAbort(),
+        }, this.waitForResolution);
         return;
       }
 
       throw err;
-    }
-  }
-
-  private async handleConflict(): Promise<void> {
-    const conflicted = await this.git.getConflictedFiles();
-    if (conflicted.length > 0) {
-      this.ui.warn(`🚨 Merge conflict — ${conflicted.length} file(s) need resolution:`);
-      for (const f of conflicted) {
-        this.ui.warn(`  • ${f}`);
-      }
-    } else {
-      this.ui.warn("🚨 Merge conflict detected.");
-    }
-    this.ui.warn("Resolve in your IDE, then press ENTER to continue or ESC to abort.");
-
-    const confirmed = await this.waitForResolution();
-
-    if (confirmed) {
-      try {
-        await this.git.addAll();
-        await this.git.mergeContinue();
-        this.ui.success("Merge completed.");
-      } catch {
-        this.ui.error("Failed to complete merge. Check your working tree.");
-      }
-    } else {
-      await this.git.mergeAbort();
-      this.ui.info("Merge aborted. Working tree is clean.");
     }
   }
 }
