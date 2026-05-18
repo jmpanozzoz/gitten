@@ -388,7 +388,7 @@ git clone https://github.com/jmpanozzoz/gitten.git
 cd gitten
 bun install
 bun run dev    # hot reload
-bun test       # 156 unit tests, no real git process spawned
+bun test       # 279 unit tests, no real git process spawned
 bun run build  # compile to ./gitten binary
 ```
 

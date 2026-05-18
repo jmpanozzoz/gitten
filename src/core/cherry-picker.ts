@@ -2,7 +2,7 @@ import type { IGitClient } from "./ports/git-client.port";
 import type { IUI } from "./ports/ui.port";
 import { GoBackSignal } from "../ui/go-back";
 import { stdinResolution } from "../utils/stdin-resolution";
-import { theme } from "../ui/theme";
+import { renderDiff } from "../ui/diff-renderer";
 
 const COMMIT_LOG_LIMIT = 30;
 
@@ -50,19 +50,7 @@ export class CherryPicker {
     const preview = await this.ui.askConfirm("Preview this commit's diff before applying?");
     if (preview) {
       const diff = await this.git.getCommitDiff(hash);
-      if (diff) {
-        const MAX_LINES = 40;
-        const lines = diff.split("\n");
-        const colored = lines.slice(0, MAX_LINES)
-          .map((line) => {
-            if (line.startsWith("+") && !line.startsWith("+++")) return theme.diffAdd(line);
-            if (line.startsWith("-") && !line.startsWith("---")) return theme.diffRemove(line);
-            return theme.muted(line);
-          })
-          .join("\n");
-        this.ui.info(colored);
-        if (lines.length > MAX_LINES) this.ui.info(theme.muted(`...and ${lines.length - MAX_LINES} more lines`));
-      }
+      if (diff) this.ui.info(renderDiff(diff));
 
       const proceed = await this.ui.askConfirm("Apply this commit?");
       if (!proceed) return;
