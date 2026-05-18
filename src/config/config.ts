@@ -11,8 +11,25 @@ export interface AIConfig {
   model: string;
 }
 
+export interface LimitsConfig {
+  undoCommitLimit: number;
+  cherryPickLogLimit: number;
+  bisectLogLimit: number;
+}
+
+export const DEFAULT_LIMITS: LimitsConfig = {
+  undoCommitLimit: 10,
+  cherryPickLogLimit: 30,
+  bisectLogLimit: 30,
+};
+
 export interface GittenConfig {
   ai?: Partial<AIConfig>;
+  limits?: Partial<LimitsConfig>;
+}
+
+export function getLimits(config: GittenConfig): LimitsConfig {
+  return { ...DEFAULT_LIMITS, ...config.limits };
 }
 
 export async function readConfig(): Promise<GittenConfig> {

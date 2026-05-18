@@ -1,5 +1,6 @@
 import type { IGitClient } from "./ports/git-client.port";
 import type { IUI } from "./ports/ui.port";
+import { readConfig, getLimits } from "../config/config";
 
 type ResetMode = "soft" | "mixed";
 
@@ -10,8 +11,9 @@ export class UndoCommit {
   ) {}
 
   async run(): Promise<void> {
+    const { undoCommitLimit } = getLimits(await readConfig());
     const branch = await this.git.getCurrentBranch();
-    const commits = await this.git.getLog(branch, 10);
+    const commits = await this.git.getLog(branch, undoCommitLimit);
 
     if (commits.length === 0) {
       this.ui.info("No commits to undo.");
