@@ -5,6 +5,7 @@ import { PROTECTED_BRANCHES } from "./protected-branches";
 
 const DEFAULT_COMMIT_MESSAGE = "chore: update";
 const NO_UPSTREAM_ERROR = "no upstream";
+const PROTECTED_BRANCHES = new Set(["main", "master"]);
 
 export type AISuggester = (diff: string) => Promise<string | null>;
 export type AiReviewer = (diff: string) => Promise<string[]>;
