@@ -10,7 +10,7 @@ const COMMITS = [
 
 test("shows info when there are no other branches", async () => {
   const git = createGitMock({
-    getBranches: mock(() => Promise.resolve({ all: ["main"], current: "main" })),
+    getBranches: mock(() => Promise.resolve({ all: ["main"], current: "feat/test" })),
   });
   const ui = createUIMock();
 
@@ -23,7 +23,7 @@ test("shows info when there are no other branches", async () => {
 test("shows info when selected branch has no commits", async () => {
   const git = createGitMock({
     getBranches: mock(() =>
-      Promise.resolve({ all: ["main", "feat/other"], current: "main" })
+      Promise.resolve({ all: ["main", "feat/other"], current: "feat/test" })
     ),
     getLog: mock(() => Promise.resolve([])),
   });
@@ -62,7 +62,7 @@ test("excludes current branch from source branch list", async () => {
 test("calls cherryPick with the selected commit hash", async () => {
   const git = createGitMock({
     getBranches: mock(() =>
-      Promise.resolve({ all: ["main", "feat/other"], current: "main" })
+      Promise.resolve({ all: ["main", "feat/other"], current: "feat/test" })
     ),
     getLog: mock(() => Promise.resolve(COMMITS)),
     cherryPick: mock(() => Promise.resolve()),
@@ -81,7 +81,7 @@ test("calls cherryPick with the selected commit hash", async () => {
 test("on conflict + ENTER: calls cherryPickContinue", async () => {
   const git = createGitMock({
     getBranches: mock(() =>
-      Promise.resolve({ all: ["main", "feat/other"], current: "main" })
+      Promise.resolve({ all: ["main", "feat/other"], current: "feat/test" })
     ),
     getLog: mock(() => Promise.resolve(COMMITS)),
     cherryPick: mock(() => Promise.reject(new Error("conflict"))),
@@ -102,7 +102,7 @@ test("on conflict + ENTER: calls cherryPickContinue", async () => {
 test("on conflict + ESC: calls cherryPickAbort", async () => {
   const git = createGitMock({
     getBranches: mock(() =>
-      Promise.resolve({ all: ["main", "feat/other"], current: "main" })
+      Promise.resolve({ all: ["main", "feat/other"], current: "feat/test" })
     ),
     getLog: mock(() => Promise.resolve(COMMITS)),
     cherryPick: mock(() => Promise.reject(new Error("conflict"))),
@@ -124,7 +124,7 @@ test("on conflict + ESC: calls cherryPickAbort", async () => {
 
 test("includes remote-only branches in source branch list", async () => {
   const git = createGitMock({
-    getBranches: mock(() => Promise.resolve({ all: ["main"], current: "main" })),
+    getBranches: mock(() => Promise.resolve({ all: ["main"], current: "feat/test" })),
     getRemoteBranches: mock(() => Promise.resolve(["feat/remote-only"])),
     getLog: mock(() => Promise.resolve(COMMITS)),
     cherryPick: mock(() => Promise.resolve()),
@@ -143,7 +143,7 @@ test("includes remote-only branches in source branch list", async () => {
 
 test("deduplicates branches already available locally", async () => {
   const git = createGitMock({
-    getBranches: mock(() => Promise.resolve({ all: ["main", "feat/local"], current: "main" })),
+    getBranches: mock(() => Promise.resolve({ all: ["main", "feat/local"], current: "feat/test" })),
     getRemoteBranches: mock(() => Promise.resolve(["feat/local", "feat/remote-only"])),
     getLog: mock(() => Promise.resolve(COMMITS)),
     cherryPick: mock(() => Promise.resolve()),
@@ -165,7 +165,7 @@ test("deduplicates branches already available locally", async () => {
 
 test("shows diff preview and aborts when user declines to apply after preview", async () => {
   const git = createGitMock({
-    getBranches: mock(() => Promise.resolve({ all: ["main", "feat/other"], current: "main" })),
+    getBranches: mock(() => Promise.resolve({ all: ["main", "feat/other"], current: "feat/test" })),
     getLog: mock(() => Promise.resolve(COMMITS)),
     getCommitDiff: mock(() => Promise.resolve("+const x = 1;\n-const x = 0;")),
     cherryPick: mock(() => Promise.resolve()),
@@ -189,7 +189,7 @@ test("shows diff preview and aborts when user declines to apply after preview", 
 
 test("applies commit when user confirms after preview", async () => {
   const git = createGitMock({
-    getBranches: mock(() => Promise.resolve({ all: ["main", "feat/other"], current: "main" })),
+    getBranches: mock(() => Promise.resolve({ all: ["main", "feat/other"], current: "feat/test" })),
     getLog: mock(() => Promise.resolve(COMMITS)),
     getCommitDiff: mock(() => Promise.resolve("+const x = 1;")),
     cherryPick: mock(() => Promise.resolve()),
@@ -207,12 +207,45 @@ test("applies commit when user confirms after preview", async () => {
   expect(git.cherryPick).toHaveBeenCalledWith("abc1234");
 });
 
+// ─── protected branch warning ─────────────────────────────────────────────────
+
+test("warns when cherry-picking onto a protected branch and aborts if user declines", async () => {
+  const git = createGitMock({
+    getBranches: mock(() => Promise.resolve({ all: ["main", "feat/other"], current: "main" })),
+  });
+  const ui = createUIMock({ askConfirm: mock(() => Promise.resolve(false)) });
+
+  await new CherryPicker(git, ui).run();
+
+  expect(ui.askConfirm).toHaveBeenCalledWith(expect.stringContaining("main"));
+  expect(git.cherryPick).not.toHaveBeenCalled();
+});
+
+test("proceeds with cherry-pick when user confirms on protected branch", async () => {
+  const git = createGitMock({
+    getBranches: mock(() => Promise.resolve({ all: ["main", "feat/src"], current: "main" })),
+    getLog: mock(() => Promise.resolve(COMMITS)),
+    cherryPick: mock(() => Promise.resolve()),
+  });
+  const askSearchSelect = mock()
+    .mockResolvedValueOnce("feat/src")
+    .mockResolvedValueOnce("abc1234");
+  const ui = createUIMock({
+    askSearchSelect,
+    askConfirm: mock(() => Promise.resolve(true)),
+  });
+
+  await new CherryPicker(git, ui).run();
+
+  expect(git.cherryPick).toHaveBeenCalledWith("abc1234");
+});
+
 // ─── conflict file list ───────────────────────────────────────────────────────
 
 test("lists conflicted files by name on cherry-pick conflict", async () => {
   const git = createGitMock({
     getBranches: mock(() =>
-      Promise.resolve({ all: ["main", "feat/other"], current: "main" })
+      Promise.resolve({ all: ["main", "feat/other"], current: "feat/test" })
     ),
     getLog: mock(() => Promise.resolve(COMMITS)),
     cherryPick: mock(() => Promise.reject(new Error("conflict"))),
@@ -236,7 +269,7 @@ test("lists conflicted files by name on cherry-pick conflict", async () => {
 test("shows generic conflict message when git reports no conflicted files", async () => {
   const git = createGitMock({
     getBranches: mock(() =>
-      Promise.resolve({ all: ["main", "feat/other"], current: "main" })
+      Promise.resolve({ all: ["main", "feat/other"], current: "feat/test" })
     ),
     getLog: mock(() => Promise.resolve(COMMITS)),
     cherryPick: mock(() => Promise.reject(new Error("conflict"))),

@@ -73,6 +73,7 @@ export function createGitMock(overrides: Partial<IGitClient> = {}): IGitClient {
     resetHardToRemote: mock(() => Promise.resolve()),
     getCommitDiff: mock(() => Promise.resolve("")),
     getStashDiff: mock(() => Promise.resolve("")),
+    getStashStat: mock(() => Promise.resolve({ filesChanged: 0, insertions: 0, deletions: 0 })),
     pullRebase: mock(() => Promise.resolve({ filesChanged: 0 } satisfies PullResult)),
     getConflictedFiles: mock(() => Promise.resolve([] as string[])),
     ...overrides,

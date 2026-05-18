@@ -164,6 +164,37 @@ test("shows error and returns when repo has no commits", async () => {
   expect(git.amendNoEdit).not.toHaveBeenCalled();
 });
 
+// ─── protected branch warning ─────────────────────────────────────────────────
+
+test("warns and aborts when amending on a protected branch and user declines", async () => {
+  const git = createGitMock({
+    getCurrentBranch: mock(() => Promise.resolve("main")),
+  });
+  const ui = createUIMock({ askConfirm: mock(() => Promise.resolve(false)) });
+
+  await new AmendFlow(git, ui).run();
+
+  expect(ui.askConfirm).toHaveBeenCalledWith(expect.stringContaining("main"));
+  expect(git.getLastCommit).not.toHaveBeenCalled();
+});
+
+test("proceeds with amend when user confirms on protected branch", async () => {
+  const git = createGitMock({
+    getCurrentBranch: mock(() => Promise.resolve("main")),
+    getLastCommit: mock(() => Promise.resolve(LAST_COMMIT)),
+    amendCommit: mock(() => Promise.resolve()),
+  });
+  const ui = createUIMock({
+    askSelect: mock(() => Promise.resolve("message")),
+    askConfirm: mock(() => Promise.resolve(true)),
+    askText: mock(() => Promise.resolve("fix: hotfix")),
+  });
+
+  await new AmendFlow(git, ui).run();
+
+  expect(git.amendCommit).toHaveBeenCalledWith("fix: hotfix");
+});
+
 // ─── AI message improvement ────────────────────────────────────────────────────
 
 test("offers AI improvement and pre-fills suggestion when user accepts", async () => {
