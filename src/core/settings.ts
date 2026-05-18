@@ -1,15 +1,26 @@
 import type { IUI } from "./ports/ui.port";
-import { readConfig, writeConfig } from "../config/config";
+import { readConfig, writeConfig, getLimits, DEFAULT_LIMITS } from "../config/config";
 import { AI_PROVIDERS } from "../config/providers";
 import { testAIConnection } from "./ai-suggester";
 import type { AIConfig } from "../config/config";
 
-type SettingsAction = "configure" | "enable" | "disable";
+type SettingsAction = "ai" | "limits";
+type AIAction = "configure" | "enable" | "disable";
 
 export class Settings {
   constructor(private readonly ui: IUI) {}
 
   async run(): Promise<void> {
+    const action = await this.ui.askSelect<SettingsAction>("Settings:", [
+      { value: "ai",     label: "✨ AI Assistant" },
+      { value: "limits", label: "🔢 Limits" },
+    ]);
+
+    if (action === "ai")     return this.runAI();
+    if (action === "limits") return this.runLimits();
+  }
+
+  private async runAI(): Promise<void> {
     const config = await readConfig();
     const ai = config.ai;
     const isEnabled = ai?.enabled ?? false;
@@ -25,20 +36,61 @@ export class Settings {
 
     const toggleOption = hasConfig
       ? isEnabled
-        ? { value: "disable" as SettingsAction, label: "○  Disable AI" }
-        : { value: "enable"  as SettingsAction, label: "✓  Enable AI" }
+        ? { value: "disable" as AIAction, label: "○  Disable AI" }
+        : { value: "enable"  as AIAction, label: "✓  Enable AI" }
       : null;
 
-    const options: { value: SettingsAction; label: string }[] = [
+    const options: { value: AIAction; label: string }[] = [
       { value: "configure", label: "✨ Configure AI provider" },
       ...(toggleOption ? [toggleOption] : []),
     ];
 
-    const action = await this.ui.askSelect<SettingsAction>("AI Assistant settings:", options);
+    const aiAction = await this.ui.askSelect<AIAction>("AI Assistant settings:", options);
 
-    if (action === "disable") return this.disable(config);
-    if (action === "enable")  return this.enable(config);
-    if (action === "configure") return this.configure(config);
+    if (aiAction === "disable")   return this.disable(config);
+    if (aiAction === "enable")    return this.enable(config);
+    if (aiAction === "configure") return this.configure(config);
+  }
+
+  private async runLimits(): Promise<void> {
+    const config = await readConfig();
+    const current = getLimits(config);
+
+    this.ui.info(
+      `Current limits — undo: ${current.undoCommitLimit}  ·  cherry-pick: ${current.cherryPickLogLimit}  ·  bisect: ${current.bisectLogLimit}`
+    );
+
+    const parseLimit = (raw: string, fallback: number): number => {
+      const n = parseInt(raw, 10);
+      return n > 0 && n <= 500 ? n : fallback;
+    };
+
+    const undoRaw = await this.ui.askText(
+      "Undo commit history depth:",
+      String(DEFAULT_LIMITS.undoCommitLimit),
+      String(current.undoCommitLimit)
+    );
+    const cherryRaw = await this.ui.askText(
+      "Cherry-pick commit history depth:",
+      String(DEFAULT_LIMITS.cherryPickLogLimit),
+      String(current.cherryPickLogLimit)
+    );
+    const bisectRaw = await this.ui.askText(
+      "Bisect commit history depth:",
+      String(DEFAULT_LIMITS.bisectLogLimit),
+      String(current.bisectLogLimit)
+    );
+
+    const limits = {
+      undoCommitLimit:    parseLimit(undoRaw,    current.undoCommitLimit),
+      cherryPickLogLimit: parseLimit(cherryRaw,  current.cherryPickLogLimit),
+      bisectLogLimit:     parseLimit(bisectRaw,  current.bisectLogLimit),
+    };
+
+    await writeConfig({ ...config, limits });
+    this.ui.success(
+      `Limits saved — undo: ${limits.undoCommitLimit}  ·  cherry-pick: ${limits.cherryPickLogLimit}  ·  bisect: ${limits.bisectLogLimit}`
+    );
   }
 
   private async configure(config: Awaited<ReturnType<typeof readConfig>>): Promise<void> {

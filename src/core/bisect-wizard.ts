@@ -1,5 +1,6 @@
 import type { IGitClient, BisectResult } from "./ports/git-client.port";
 import type { IUI } from "./ports/ui.port";
+import { readConfig, getLimits } from "../config/config";
 
 type VerdictOption = "bad" | "good" | "stop";
 
@@ -13,8 +14,9 @@ export class BisectWizard {
   ) {}
 
   async run(): Promise<void> {
+    const { bisectLogLimit } = getLimits(await readConfig());
     const branch = await this.git.getCurrentBranch();
-    const commits = await this.git.getLog(branch, 30);
+    const commits = await this.git.getLog(branch, bisectLogLimit);
 
     if (commits.length === 0) {
       this.ui.warn("No commits found on this branch.");

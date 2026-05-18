@@ -5,8 +5,7 @@ import { stdinResolution } from "../utils/stdin-resolution";
 import { renderDiff } from "../ui/diff-renderer";
 import { resolveConflict } from "./conflict-resolver";
 import { PROTECTED_BRANCHES } from "./protected-branches";
-
-const COMMIT_LOG_LIMIT = 30;
+import { readConfig, getLimits } from "../config/config";
 
 export type AICommitExplainer = (diff: string) => Promise<string | null>;
 
@@ -48,7 +47,8 @@ export class CherryPicker {
       branchOptions
     );
 
-    const commits = await this.git.getLog(sourceBranch, COMMIT_LOG_LIMIT);
+    const { cherryPickLogLimit } = getLimits(await readConfig());
+    const commits = await this.git.getLog(sourceBranch, cherryPickLogLimit);
 
     if (commits.length === 0) {
       this.ui.info("No commits found on that branch.");
