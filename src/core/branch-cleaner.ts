@@ -1,7 +1,6 @@
 import type { IGitClient } from "./ports/git-client.port";
 import type { IUI } from "./ports/ui.port";
-
-const PROTECTED_BRANCHES = new Set(["main", "master", "dev", "develop"]);
+import { PROTECTED_BRANCHES } from "./protected-branches";
 
 export class BranchCleaner {
   constructor(

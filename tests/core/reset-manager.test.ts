@@ -92,7 +92,7 @@ test("asks confirmation before resetting to remote", async () => {
   await new ResetManager(git, ui).run();
 
   expect(askConfirm).toHaveBeenCalledWith(
-    "This will discard all local commits and changes not pushed to origin/feat/my-feature."
+    "Reset branch 'feat/my-feature' to origin/feat/my-feature? This cannot be undone."
   );
 });
 
@@ -127,8 +127,32 @@ test("does not reset when user declines confirmation", async () => {
 
   await new ResetManager(git, ui).run();
 
-  expect(git.fetchRemote).not.toHaveBeenCalled();
+  // fetchRemote is called before confirm to show commits at risk
+  expect(git.fetchRemote).toHaveBeenCalledTimes(1);
   expect(git.resetHardToRemote).not.toHaveBeenCalled();
+});
+
+test("shows local commits that would be lost before asking confirmation", async () => {
+  const git = createGitMock({
+    getCurrentBranch: mock(() => Promise.resolve("feat/local")),
+    fetchRemote: mock(() => Promise.resolve()),
+    getLogSince: mock(() => Promise.resolve([
+      { hash: "abc1234", message: "feat: unpushed change" },
+      { hash: "def5678", message: "fix: also unpushed" },
+    ])),
+    resetHardToRemote: mock(() => Promise.resolve()),
+  });
+  const ui = createUIMock({
+    askSelect: mock(() => Promise.resolve("remote" as never)),
+    askConfirm: mock(() => Promise.resolve(false)),
+  });
+
+  await new ResetManager(git, ui).run();
+
+  const warnCalls = (ui.warn as ReturnType<typeof mock>).mock.calls.map((c) => c[0] as string);
+  expect(warnCalls.some((m) => m.includes("2 local commit(s)"))).toBe(true);
+  expect(warnCalls.some((m) => m.includes("abc1234"))).toBe(true);
+  expect(warnCalls.some((m) => m.includes("def5678"))).toBe(true);
 });
 
 // ── ESC navigation ─────────────────────────────────────────────────────────────

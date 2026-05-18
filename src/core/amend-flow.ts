@@ -1,5 +1,6 @@
 import type { IGitClient } from "./ports/git-client.port";
 import type { IUI } from "./ports/ui.port";
+import { PROTECTED_BRANCHES } from "./protected-branches";
 
 type AmendOption = "message" | "staged" | "both";
 export type AIMessageImprover = (message: string) => Promise<string | null>;
@@ -12,6 +13,14 @@ export class AmendFlow {
   ) {}
 
   async run(): Promise<void> {
+    const branch = await this.git.getCurrentBranch();
+    if (PROTECTED_BRANCHES.has(branch)) {
+      const proceed = await this.ui.askConfirm(
+        `⚠️  You are on '${branch}'. Amend a commit on this branch?`
+      );
+      if (!proceed) return;
+    }
+
     let last: { hash: string; message: string };
     try {
       last = await this.git.getLastCommit();

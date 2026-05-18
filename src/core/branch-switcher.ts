@@ -35,7 +35,7 @@ export class BranchSwitcher {
       if (!stashAndSwitch) return;
 
       await this.ui.spin("Stashing changes...", () => this.git.stash());
-      this.ui.info('Changes stashed. Run "git stash pop" to restore them later.');
+      this.ui.info("Changes stashed. Use the Stash menu to apply them later.");
     }
 
     await this.ui.spin(`Switching to ${target}...`, () => this.git.checkoutBranch(target));

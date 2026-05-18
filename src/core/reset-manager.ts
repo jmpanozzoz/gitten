@@ -38,15 +38,25 @@ export class ResetManager {
   private async resetToRemote(): Promise<void> {
     const branch = await this.git.getCurrentBranch();
 
+    try {
+      await this.git.fetchRemote();
+      const commits = await this.git.getLogSince(`origin/${branch}`);
+      if (commits.length > 0) {
+        this.ui.warn(`⚠️  ${commits.length} local commit(s) not on remote will be permanently lost:`);
+        for (const c of commits) {
+          this.ui.warn(`  • ${c.hash} — ${c.message}`);
+        }
+      }
+    } catch {
+      // no remote or offline — continue, the confirmation is enough
+    }
+
     const confirmed = await this.ui.askConfirm(
-      `This will discard all local commits and changes not pushed to origin/${branch}.`
+      `Reset branch '${branch}' to origin/${branch}? This cannot be undone.`
     );
     if (!confirmed) return;
 
-    await this.ui.spin("Fetching and resetting...", async () => {
-      await this.git.fetchRemote();
-      await this.git.resetHardToRemote(branch);
-    });
+    await this.ui.spin("Resetting...", () => this.git.resetHardToRemote(branch));
     this.ui.success(`Branch reset to origin/${branch}.`);
   }
 }

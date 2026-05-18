@@ -1,6 +1,7 @@
 import type { IGitClient } from "./ports/git-client.port";
 import type { IUI } from "./ports/ui.port";
-import { theme } from "../ui/theme";
+import { renderDiff } from "../ui/diff-renderer";
+import { PROTECTED_BRANCHES } from "./protected-branches";
 
 const DEFAULT_COMMIT_MESSAGE = "chore: update";
 const NO_UPSTREAM_ERROR = "no upstream";
@@ -48,7 +49,10 @@ export class SyncFlow {
         const pullFirst = await this.ui.askConfirm(
           `⚠️  Remote has ${status.commitsBehind} new commit(s). Pull first to avoid a rejected push?`
         );
-        if (pullFirst) return;
+        if (pullFirst) {
+          this.ui.info("Go to Pull from the main menu, then come back to Sync.");
+          return;
+        }
       }
 
       const staged = await this.selectFiles(status.files);
@@ -90,22 +94,7 @@ export class SyncFlow {
   private async showDiffPreview(): Promise<void> {
     const diff = await this.git.getStagedDiff();
     if (!diff) return;
-
-    const MAX_LINES = 30;
-    const lines = diff.split("\n");
-    const preview = lines.slice(0, MAX_LINES);
-    const remaining = lines.length - MAX_LINES;
-
-    const colored = preview
-      .map((line) => {
-        if (line.startsWith("+") && !line.startsWith("+++")) return theme.diffAdd(line);
-        if (line.startsWith("-") && !line.startsWith("---")) return theme.diffRemove(line);
-        return theme.muted(line);
-      })
-      .join("\n");
-
-    this.ui.info(colored);
-    if (remaining > 0) this.ui.info(theme.muted(`...and ${remaining} more lines`));
+    this.ui.info(renderDiff(diff, 30));
   }
 
   private async runAiReview(): Promise<void> {
