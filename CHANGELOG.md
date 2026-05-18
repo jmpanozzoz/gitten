@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.1](https://github.com/jmpanozzoz/gitten/compare/v1.0.0...v1.0.1) (2026-05-18)
+
+
+### Bug Fixes
+
+* 1.0.1 ux-improvements ([#113](https://github.com/jmpanozzoz/gitten/issues/113)) ([52d46cf](https://github.com/jmpanozzoz/gitten/commit/52d46cf13aaac51c603f8489ee02ef5f47f3ad8b))
+
 ## [1.0.0](https://github.com/jmpanozzoz/gitten/compare/v0.9.3...v1.0.0) (2026-05-17)
 
 
