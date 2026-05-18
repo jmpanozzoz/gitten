@@ -57,7 +57,7 @@ export class Settings {
     const current = getLimits(config);
 
     this.ui.info(
-      `Current limits — undo: ${current.undoCommitLimit}  ·  cherry-pick: ${current.cherryPickLogLimit}  ·  bisect: ${current.bisectLogLimit}`
+      `Current limits — undo: ${current.undoCommitLimit}  ·  cherry-pick: ${current.cherryPickLogLimit}  ·  bisect: ${current.bisectLogLimit}  ·  revert: ${current.revertLogLimit}`
     );
 
     const parseLimit = (raw: string, fallback: number): number => {
@@ -80,16 +80,22 @@ export class Settings {
       String(DEFAULT_LIMITS.bisectLogLimit),
       String(current.bisectLogLimit)
     );
+    const revertRaw = await this.ui.askText(
+      "Revert commit history depth:",
+      String(DEFAULT_LIMITS.revertLogLimit),
+      String(current.revertLogLimit)
+    );
 
     const limits = {
       undoCommitLimit:    parseLimit(undoRaw,    current.undoCommitLimit),
       cherryPickLogLimit: parseLimit(cherryRaw,  current.cherryPickLogLimit),
       bisectLogLimit:     parseLimit(bisectRaw,  current.bisectLogLimit),
+      revertLogLimit:     parseLimit(revertRaw,  current.revertLogLimit),
     };
 
     await writeConfig({ ...config, limits });
     this.ui.success(
-      `Limits saved — undo: ${limits.undoCommitLimit}  ·  cherry-pick: ${limits.cherryPickLogLimit}  ·  bisect: ${limits.bisectLogLimit}`
+      `Limits saved — undo: ${limits.undoCommitLimit}  ·  cherry-pick: ${limits.cherryPickLogLimit}  ·  bisect: ${limits.bisectLogLimit}  ·  revert: ${limits.revertLogLimit}`
     );
   }
 

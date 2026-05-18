@@ -11,8 +11,8 @@ mock.module("../../src/config/config", () => ({
   readConfig: MOCK_READ,
   writeConfig: MOCK_WRITE,
   getActiveAIConfig: mock(() => Promise.resolve(null)),
-  getLimits: mock(() => ({ undoCommitLimit: 10, cherryPickLogLimit: 30, bisectLogLimit: 30 })),
-  DEFAULT_LIMITS: { undoCommitLimit: 10, cherryPickLogLimit: 30, bisectLogLimit: 30 },
+  getLimits: mock(() => ({ undoCommitLimit: 10, cherryPickLogLimit: 30, bisectLogLimit: 30, revertLogLimit: 30 })),
+  DEFAULT_LIMITS: { undoCommitLimit: 10, cherryPickLogLimit: 30, bisectLogLimit: 30, revertLogLimit: 30 },
 }));
 
 mock.module("../../src/core/ai-suggester", () => ({
@@ -279,14 +279,15 @@ test("saves updated limits when user enters valid values", async () => {
     askText: mock()
       .mockResolvedValueOnce("20")  // undo limit
       .mockResolvedValueOnce("50")  // cherry-pick limit
-      .mockResolvedValueOnce("40"), // bisect limit
+      .mockResolvedValueOnce("40")  // bisect limit
+      .mockResolvedValueOnce("25"), // revert limit
   });
 
   await new Settings(ui).run();
 
   expect(MOCK_WRITE).toHaveBeenCalledWith(
     expect.objectContaining({
-      limits: { undoCommitLimit: 20, cherryPickLogLimit: 50, bisectLogLimit: 40 },
+      limits: { undoCommitLimit: 20, cherryPickLogLimit: 50, bisectLogLimit: 40, revertLogLimit: 25 },
     })
   );
   expect(ui.success).toHaveBeenCalledWith(expect.stringContaining("20"));

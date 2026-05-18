@@ -18,6 +18,8 @@ import { WorktreeManager } from "./core/worktree-manager";
 import { AmendFlow } from "./core/amend-flow";
 import { TagWizard } from "./core/tag-wizard";
 import { BisectWizard } from "./core/bisect-wizard";
+import { RevertCommit } from "./core/revert-commit";
+import { DiffViewer } from "./core/diff-viewer";
 import { checkForUpdate } from "./utils/update-checker";
 import { getActiveAIConfig } from "./config/config";
 import { suggestBranchName, suggestCommitMessage, suggestGitignorePatterns, reviewStagedDiff, suggestAmendMessage, explainCommitDiff, summarizeCommits } from "./core/ai-suggester";
@@ -27,7 +29,7 @@ import type { IUI } from "./core/ports/ui.port";
 import { version } from "../package.json";
 
 type MainOption = "branch" | "switch" | "clean" | "cherry" | "pull" | "sync" | "stash" | "more" | "exit";
-type MoreOption = "remotes" | "gitignore" | "undo" | "purge" | "settings" | "reset" | "worktree" | "amend" | "tag" | "bisect";
+type MoreOption = "remotes" | "gitignore" | "undo" | "purge" | "settings" | "reset" | "worktree" | "amend" | "tag" | "bisect" | "revert" | "diff";
 
 export async function app(
   git: IGitClient = new GitClient(),
@@ -142,6 +144,8 @@ export async function app(
     purge: () => new HistoryPurge(git, ui).run(),
     settings: () => new Settings(ui).run(),
     reset: () => buildResetManager(),
+    revert: () => new RevertCommit(git, ui).run(),
+    diff: () => new DiffViewer(git, ui).run(),
   };
 
   const mainHandlers: Record<Exclude<MainOption, "exit" | "more">, () => Promise<void>> = {
@@ -172,16 +176,18 @@ export async function app(
     ui.context(parts.join(" · "));
 
     const moreOptions: { value: MoreOption; label: string; hints?: string[] }[] = [
-      { value: "amend",     label: "✏️  Amend",      hints: ["edit", "fix", "modify", "update", "rewrite", "message", "last commit"] },
-      { value: "tag",       label: "🏷️  Tag",        hints: ["release", "version", "label", "mark", "v1", "publish"] },
-      { value: "bisect",    label: "🔎 Bisect",      hints: ["debug", "bug", "search", "binary", "regression", "blame", "find"] },
-      { value: "worktree",  label: "🗂️  Worktrees",  hints: ["workspace", "parallel", "multiple", "linked"] },
-      { value: "undo",      label: "↩  Undo",        hints: ["revert", "rollback", "back", "cancel", "uncommit", "unpush"] },
-      { value: "reset",     label: "⚡ Reset",        hints: ["revert", "undo", "rollback", "restore", "hard", "soft", "mixed", "discard"] },
-      { value: "remotes",   label: "🔗 Remotes",     hints: ["remote", "origin", "url", "server", "github", "gitlab", "upstream"] },
-      { value: "gitignore", label: "🙈 .gitignore",  hints: ["ignore", "exclude", "skip", "hide", "patterns", "untrack"] },
-      { value: "purge",     label: "🔥 Purge",       hints: ["delete", "remove", "clean", "sensitive", "secret", "password", "rewrite", "bfg"] },
-      { value: "settings",  label: "⚙️  Settings",   hints: ["config", "configuration", "preferences", "setup", "ai", "options"] },
+      { value: "amend",     label: "✏️  Amend",        hints: ["edit", "fix", "modify", "update", "rewrite", "message", "last commit"] },
+      { value: "revert",    label: "↩  Revert Commit", hints: ["undo", "rollback", "safe", "new commit", "cancel"] },
+      { value: "tag",       label: "🏷️  Tag",          hints: ["release", "version", "label", "mark", "v1", "publish"] },
+      { value: "bisect",    label: "🔎 Bisect",        hints: ["debug", "bug", "search", "binary", "regression", "blame", "find"] },
+      { value: "diff",      label: "🔍 Diff",          hints: ["compare", "branch", "changes", "difference", "versus", "vs"] },
+      { value: "worktree",  label: "🗂️  Worktrees",    hints: ["workspace", "parallel", "multiple", "linked"] },
+      { value: "undo",      label: "⏪ Undo",          hints: ["uncommit", "unpush", "back", "cancel", "reset soft"] },
+      { value: "reset",     label: "⚡ Reset",          hints: ["rollback", "restore", "hard", "soft", "mixed", "discard", "origin"] },
+      { value: "remotes",   label: "🔗 Remotes",       hints: ["remote", "origin", "url", "server", "github", "gitlab", "upstream"] },
+      { value: "gitignore", label: "🙈 .gitignore",    hints: ["ignore", "exclude", "skip", "hide", "patterns", "untrack"] },
+      { value: "purge",     label: "🔥 Purge",         hints: ["delete", "remove", "clean", "sensitive", "secret", "password", "rewrite", "bfg"] },
+      { value: "settings",  label: "⚙️  Settings",     hints: ["config", "configuration", "preferences", "setup", "ai", "options", "limits"] },
     ];
 
     let choice: MainOption | MoreOption;

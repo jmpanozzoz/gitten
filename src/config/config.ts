@@ -15,12 +15,14 @@ export interface LimitsConfig {
   undoCommitLimit: number;
   cherryPickLogLimit: number;
   bisectLogLimit: number;
+  revertLogLimit: number;
 }
 
 export const DEFAULT_LIMITS: LimitsConfig = {
   undoCommitLimit: 10,
   cherryPickLogLimit: 30,
   bisectLogLimit: 30,
+  revertLogLimit: 30,
 };
 
 export interface GittenConfig {
