@@ -202,6 +202,30 @@ test("skips preview and applies directly when user declines preview", async () =
   expect(git.stashPop).toHaveBeenCalledWith(0);
 });
 
+// ─── stash stat display ───────────────────────────────────────────────────────
+
+test("shows file count and insertion/deletion stat before preview prompt", async () => {
+  const git = createGitMock({
+    getStashes: mock(() => Promise.resolve(STASHES)),
+    getStashStat: mock(() => Promise.resolve({ filesChanged: 3, insertions: 12, deletions: 4 })),
+    stashPop: mock(() => Promise.resolve()),
+  });
+  const ui = createUIMock({
+    askSelect: mock()
+      .mockResolvedValueOnce("apply")
+      .mockResolvedValueOnce(0)
+      .mockResolvedValueOnce("pop"),
+    askConfirm: mock(() => Promise.resolve(false)),
+  });
+
+  await new StashManager(git, ui).run();
+
+  expect(git.getStashStat).toHaveBeenCalledWith(0);
+  expect(ui.info).toHaveBeenCalledWith(expect.stringContaining("3 file(s)"));
+  expect(ui.info).toHaveBeenCalledWith(expect.stringContaining("+12"));
+  expect(ui.info).toHaveBeenCalledWith(expect.stringContaining("−4"));
+});
+
 // ─── esc / go-back ────────────────────────────────────────────────────────────
 
 test("propagates GoBackSignal when user presses ESC on action menu", async () => {

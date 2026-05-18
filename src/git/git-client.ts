@@ -369,6 +369,19 @@ export class GitClient implements IGitClient {
     await this.git.stash(["drop", `stash@{${index}}`]);
   }
 
+  async getStashStat(index: number): Promise<{ filesChanged: number; insertions: number; deletions: number }> {
+    const raw = await this.git.raw(["stash", "show", "--numstat", `stash@{${index}}`]);
+    if (!raw.trim()) return { filesChanged: 0, insertions: 0, deletions: 0 };
+    const lines = raw.trim().split("\n").filter(Boolean);
+    let insertions = 0, deletions = 0;
+    for (const line of lines) {
+      const [ins, del] = line.split("\t").map(Number);
+      if (!isNaN(ins)) insertions += ins;
+      if (!isNaN(del)) deletions += del;
+    }
+    return { filesChanged: lines.length, insertions, deletions };
+  }
+
   async discardLocalChanges(): Promise<void> {
     await this.git.raw(["restore", "."]);
     await this.git.clean("fd");

@@ -3,6 +3,8 @@ import type { IUI } from "./ports/ui.port";
 import { GoBackSignal } from "../ui/go-back";
 import { stdinResolution } from "../utils/stdin-resolution";
 import { renderDiff } from "../ui/diff-renderer";
+import { resolveConflict } from "./conflict-resolver";
+import { PROTECTED_BRANCHES } from "./protected-branches";
 
 const COMMIT_LOG_LIMIT = 30;
 
@@ -15,6 +17,14 @@ export class CherryPicker {
 
   async run(): Promise<void> {
     const { all, current } = await this.git.getBranches();
+
+    if (PROTECTED_BRANCHES.has(current)) {
+      const proceed = await this.ui.askConfirm(
+        `⚠️  You are on '${current}'. Apply a cherry-picked commit here?`
+      );
+      if (!proceed) return;
+    }
+
     const localBranches = all.filter((b) => b !== current);
 
     const remoteBranches = await this.git.getRemoteBranches();
@@ -63,34 +73,11 @@ export class CherryPicker {
       this.ui.success("Commit applied successfully.");
     } catch (e) {
       if (e instanceof GoBackSignal) throw e;
-      await this.handleConflict();
-    }
-  }
-
-  private async handleConflict(): Promise<void> {
-    const conflicted = await this.git.getConflictedFiles();
-    if (conflicted.length > 0) {
-      this.ui.warn(`🚨 Cherry-pick conflict — ${conflicted.length} file(s) need resolution:`);
-      for (const f of conflicted) {
-        this.ui.warn(`  • ${f}`);
-      }
-    } else {
-      this.ui.warn("🚨 Cherry-pick conflict detected.");
-    }
-    this.ui.warn("Resolve in your IDE, then press ENTER to continue or ESC to abort.");
-
-    const confirmed = await this.waitForResolution();
-
-    if (confirmed) {
-      try {
-        await this.git.cherryPickContinue();
-        this.ui.success("Cherry-pick completed.");
-      } catch {
-        this.ui.error("Failed to continue cherry-pick. Check your working tree.");
-      }
-    } else {
-      await this.git.cherryPickAbort();
-      this.ui.info("Cherry-pick aborted. Working tree is clean.");
+      await resolveConflict(this.git, this.ui, {
+        label: "Cherry-pick",
+        onContinue: () => this.git.cherryPickContinue(),
+        onAbort: () => this.git.cherryPickAbort(),
+      }, this.waitForResolution);
     }
   }
 }
