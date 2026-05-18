@@ -178,3 +178,47 @@ test("resets bisect and shows error when start fails", async () => {
   expect(ui.error).toHaveBeenCalledWith(expect.stringContaining("Failed to start bisect"));
   expect(git.bisectReset).toHaveBeenCalled();
 });
+
+// ─── AI bad commit explanation ─────────────────────────────────────────────────
+
+test("calls aiExplainer with bad commit diff when bisect finds culprit", async () => {
+  const BAD_COMMIT = { hash: "bad1234", message: "feat: add broken auth" };
+  const git = createGitMock({
+    getLog: mock(() => Promise.resolve([
+      { hash: "good123", message: "chore: init" },
+      BAD_COMMIT,
+    ])),
+    bisectBad: mock(() => Promise.resolve({ done: true, badCommit: BAD_COMMIT })),
+    bisectGood: mock(() => Promise.resolve({ done: false })),
+    getLastCommit: mock(() => Promise.resolve({ hash: "mid1234", message: "fix: interim" })),
+    getCommitDiff: mock(() => Promise.resolve("diff --git a/auth.ts...")),
+  });
+  const aiExplainer = mock(() => Promise.resolve("Breaks authentication by removing token validation"));
+  const ui = createUIMock({
+    askSearchSelect: mock(() => Promise.resolve("good123")),
+    askSelect: mock(() => Promise.resolve("bad")),
+  });
+
+  await new BisectWizard(git, ui, aiExplainer).run();
+
+  expect(aiExplainer).toHaveBeenCalledWith("diff --git a/auth.ts...");
+  const infoCalls = (ui.info as ReturnType<typeof mock>).mock.calls.map((c) => c[0] as string);
+  expect(infoCalls.some((m) => m.includes("Breaks authentication"))).toBe(true);
+});
+
+test("proceeds normally when no aiExplainer provided", async () => {
+  const BAD_COMMIT = { hash: "bad1234", message: "feat: add broken auth" };
+  const git = createGitMock({
+    getLog: mock(() => Promise.resolve([{ hash: "good123", message: "chore: init" }])),
+    bisectBad: mock(() => Promise.resolve({ done: true, badCommit: BAD_COMMIT })),
+    getLastCommit: mock(() => Promise.resolve({ hash: "mid1234", message: "fix: interim" })),
+  });
+  const ui = createUIMock({
+    askSearchSelect: mock(() => Promise.resolve("good123")),
+    askSelect: mock(() => Promise.resolve("bad")),
+  });
+
+  await new BisectWizard(git, ui).run();
+
+  expect(ui.success).toHaveBeenCalledWith(expect.stringContaining("bad1234"));
+});

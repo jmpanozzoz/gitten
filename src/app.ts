@@ -20,7 +20,7 @@ import { TagWizard } from "./core/tag-wizard";
 import { BisectWizard } from "./core/bisect-wizard";
 import { checkForUpdate } from "./utils/update-checker";
 import { getActiveAIConfig } from "./config/config";
-import { suggestBranchName, suggestCommitMessage, suggestGitignorePatterns, reviewStagedDiff, suggestAmendMessage } from "./core/ai-suggester";
+import { suggestBranchName, suggestCommitMessage, suggestGitignorePatterns, reviewStagedDiff, suggestAmendMessage, explainCommitDiff, summarizeCommits } from "./core/ai-suggester";
 import { theme } from "./ui/theme";
 import type { IGitClient } from "./core/ports/git-client.port";
 import type { IUI } from "./core/ports/ui.port";
@@ -91,17 +91,57 @@ export async function app(
     return new AmendFlow(git, ui, aiSuggester).run();
   };
 
+  const buildCherryPicker = async () => {
+    const aiConfig = await getActiveAIConfig();
+    const aiExplainer = aiConfig
+      ? (diff: string) => explainCommitDiff(diff, aiConfig)
+      : undefined;
+    return new CherryPicker(git, ui, undefined, aiExplainer).run();
+  };
+
+  const buildPullFlow = async () => {
+    const aiConfig = await getActiveAIConfig();
+    const aiSummarizer = aiConfig
+      ? (msgs: string[]) => summarizeCommits(msgs, aiConfig)
+      : undefined;
+    return new PullFlow(git, ui, undefined, aiSummarizer).run();
+  };
+
+  const buildBisectWizard = async () => {
+    const aiConfig = await getActiveAIConfig();
+    const aiExplainer = aiConfig
+      ? (diff: string) => explainCommitDiff(diff, aiConfig)
+      : undefined;
+    return new BisectWizard(git, ui, aiExplainer).run();
+  };
+
+  const buildTagWizard = async () => {
+    const aiConfig = await getActiveAIConfig();
+    const aiSummarizer = aiConfig
+      ? (msgs: string[]) => summarizeCommits(msgs, aiConfig)
+      : undefined;
+    return new TagWizard(git, ui, aiSummarizer).run();
+  };
+
+  const buildResetManager = async () => {
+    const aiConfig = await getActiveAIConfig();
+    const aiSummarizer = aiConfig
+      ? (msgs: string[]) => summarizeCommits(msgs, aiConfig)
+      : undefined;
+    return new ResetManager(git, ui, aiSummarizer).run();
+  };
+
   const moreHandlers: Record<MoreOption, () => Promise<void>> = {
     amend: () => buildAmendFlow(),
-    tag: () => new TagWizard(git, ui).run(),
-    bisect: () => new BisectWizard(git, ui).run(),
+    tag: () => buildTagWizard(),
+    bisect: () => buildBisectWizard(),
     worktree: () => new WorktreeManager(git, ui).run(),
     remotes: () => new RemoteManager(git, ui).run(),
     gitignore: () => buildGitignoreManager(),
     undo: () => new UndoCommit(git, ui).run(),
     purge: () => new HistoryPurge(git, ui).run(),
     settings: () => new Settings(ui).run(),
-    reset: () => new ResetManager(git, ui).run(),
+    reset: () => buildResetManager(),
   };
 
   const mainHandlers: Record<Exclude<MainOption, "exit" | "more">, () => Promise<void>> = {
@@ -114,8 +154,8 @@ export async function app(
     },
     switch: () => new BranchSwitcher(git, ui).run(),
     clean: () => new BranchCleaner(git, ui).run(),
-    cherry: () => new CherryPicker(git, ui).run(),
-    pull: () => new PullFlow(git, ui).run(),
+    cherry: () => buildCherryPicker(),
+    pull: () => buildPullFlow(),
     sync: () => buildSyncFlow(),
     stash: () => new StashManager(git, ui).run(),
   };

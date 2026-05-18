@@ -3,10 +3,13 @@ import type { IUI } from "./ports/ui.port";
 
 type VerdictOption = "bad" | "good" | "stop";
 
+export type AICommitExplainer = (diff: string) => Promise<string | null>;
+
 export class BisectWizard {
   constructor(
     private readonly git: IGitClient,
-    private readonly ui: IUI
+    private readonly ui: IUI,
+    private readonly aiExplainer?: AICommitExplainer
   ) {}
 
   async run(): Promise<void> {
@@ -83,6 +86,15 @@ export class BisectWizard {
         this.ui.success(
           `First bad commit found: ${result.badCommit.hash}${result.badCommit.message ? ` — ${result.badCommit.message}` : ""}`
         );
+        if (this.aiExplainer) {
+          try {
+            const diff = await this.git.getCommitDiff(result.badCommit.hash);
+            if (diff) {
+              const explanation = await this.ui.spin("Analyzing bad commit...", () => this.aiExplainer!(diff));
+              if (explanation) this.ui.info(`✨ ${explanation}`);
+            }
+          } catch { /* non-blocking */ }
+        }
         await this.ui.spin("Resetting bisect...", () => this.git.bisectReset());
         return;
       }

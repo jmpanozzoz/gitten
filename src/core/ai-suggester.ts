@@ -10,6 +10,8 @@ const MAX_TOKENS = {
   amend: 120,
   review: 500,
   gitignore: 300,
+  explain: 80,
+  summarize: 200,
   test: 5,
 } as const;
 
@@ -110,6 +112,33 @@ export async function suggestGitignorePatterns(
   } catch {
     return [];
   }
+}
+
+const EXPLAIN_COMMIT_SYSTEM_PROMPT = `You are a git commit analyst. Given a commit diff, explain in one concise sentence what it does and why.
+
+Rules:
+- One sentence, max 80 characters
+- Start with a verb (e.g. "Fixes", "Adds", "Removes", "Refactors")
+- Focus on intent, not mechanics
+- Output ONLY the explanation — nothing else`;
+
+const SUMMARIZE_COMMITS_SYSTEM_PROMPT = `You are a changelog generator. Given a list of commit messages, produce a concise bullet-point summary.
+
+Rules:
+- Max 5 bullets, using "•" as the bullet character
+- Group related changes together
+- Focus on user-facing impact
+- Omit trivial chore/style commits unless they are the only ones
+- Output ONLY the bullet points — no headers, no blank lines`;
+
+export async function explainCommitDiff(diff: string, config: AIConfig): Promise<string | null> {
+  const truncated = diff.length > MAX_DIFF_CHARS ? diff.slice(0, MAX_DIFF_CHARS) + "\n...(truncated)" : diff;
+  return callAI(EXPLAIN_COMMIT_SYSTEM_PROMPT, `Commit diff:\n\`\`\`\n${truncated}\n\`\`\``, config, MAX_TOKENS.explain);
+}
+
+export async function summarizeCommits(messages: string[], config: AIConfig): Promise<string | null> {
+  const prompt = messages.map((m, i) => `${i + 1}. ${m}`).join("\n");
+  return callAI(SUMMARIZE_COMMITS_SYSTEM_PROMPT, `Commit messages:\n${prompt}`, config, MAX_TOKENS.summarize);
 }
 
 export async function testAIConnection(config: AIConfig): Promise<void> {
