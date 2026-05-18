@@ -121,8 +121,8 @@ export async function app(
   };
 
   while (true) {
-    try { await git.fetchRemote(); } catch { /* no remote or network — skip */ }
-    const ctx = await ui.spin("Loading context...", () => git.getRepoContext(), "");
+    git.fetchRemote().catch(() => {}); // background — never blocks the menu
+    const ctx = await git.getRepoContext();
     const parts: string[] = [`${repoName} · ${ctx.branch}`];
     if (ctx.commitsAhead > 0) parts.push(`${ctx.commitsAhead} ahead`);
     if (ctx.commitsBehind > 0) parts.push(`${ctx.commitsBehind} behind`);
