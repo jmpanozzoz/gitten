@@ -127,6 +127,18 @@ export class GitClient implements IGitClient {
     await this.git.raw(["cherry-pick", "--abort"]);
   }
 
+  async revertCommit(hash: string): Promise<void> {
+    await this.git.raw(["revert", "--no-edit", hash]);
+  }
+
+  async revertContinue(): Promise<void> {
+    await this.git.raw(["revert", "--continue", "--no-edit"]);
+  }
+
+  async revertAbort(): Promise<void> {
+    await this.git.raw(["revert", "--abort"]);
+  }
+
   async pull(): Promise<PullResult> {
     const result = await this.git.pull();
     return { filesChanged: result.summary.changes };
@@ -148,6 +160,7 @@ export class GitClient implements IGitClient {
         status: f.working_dir !== " " ? f.working_dir : f.index,
       })),
       isClean: () => status.isClean(),
+      hasStagedChanges: () => status.files.some((f) => f.index !== " "),
       commitsAhead: status.ahead,
       commitsBehind: status.behind,
     };
@@ -168,6 +181,10 @@ export class GitClient implements IGitClient {
 
   async getStagedDiff(): Promise<string> {
     return this.git.diff(["--cached"]);
+  }
+
+  async getBranchDiff(branch: string): Promise<string> {
+    return this.git.diff([branch]);
   }
 
   async commit(message: string): Promise<void> {

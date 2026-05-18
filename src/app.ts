@@ -18,16 +18,18 @@ import { WorktreeManager } from "./core/worktree-manager";
 import { AmendFlow } from "./core/amend-flow";
 import { TagWizard } from "./core/tag-wizard";
 import { BisectWizard } from "./core/bisect-wizard";
+import { RevertCommit } from "./core/revert-commit";
+import { DiffViewer } from "./core/diff-viewer";
 import { checkForUpdate } from "./utils/update-checker";
 import { getActiveAIConfig } from "./config/config";
-import { suggestBranchName, suggestCommitMessage, suggestGitignorePatterns, reviewStagedDiff, suggestAmendMessage } from "./core/ai-suggester";
+import { suggestBranchName, suggestCommitMessage, suggestGitignorePatterns, reviewStagedDiff, suggestAmendMessage, explainCommitDiff, summarizeCommits } from "./core/ai-suggester";
 import { theme } from "./ui/theme";
 import type { IGitClient } from "./core/ports/git-client.port";
 import type { IUI } from "./core/ports/ui.port";
 import { version } from "../package.json";
 
 type MainOption = "branch" | "switch" | "clean" | "cherry" | "pull" | "sync" | "stash" | "more" | "exit";
-type MoreOption = "remotes" | "gitignore" | "undo" | "purge" | "settings" | "reset" | "worktree" | "amend" | "tag" | "bisect";
+type MoreOption = "remotes" | "gitignore" | "undo" | "purge" | "settings" | "reset" | "worktree" | "amend" | "tag" | "bisect" | "revert" | "diff";
 
 export async function app(
   git: IGitClient = new GitClient(),
@@ -91,17 +93,59 @@ export async function app(
     return new AmendFlow(git, ui, aiSuggester).run();
   };
 
+  const buildCherryPicker = async () => {
+    const aiConfig = await getActiveAIConfig();
+    const aiExplainer = aiConfig
+      ? (diff: string) => explainCommitDiff(diff, aiConfig)
+      : undefined;
+    return new CherryPicker(git, ui, undefined, aiExplainer).run();
+  };
+
+  const buildPullFlow = async () => {
+    const aiConfig = await getActiveAIConfig();
+    const aiSummarizer = aiConfig
+      ? (msgs: string[]) => summarizeCommits(msgs, aiConfig)
+      : undefined;
+    return new PullFlow(git, ui, undefined, aiSummarizer).run();
+  };
+
+  const buildBisectWizard = async () => {
+    const aiConfig = await getActiveAIConfig();
+    const aiExplainer = aiConfig
+      ? (diff: string) => explainCommitDiff(diff, aiConfig)
+      : undefined;
+    return new BisectWizard(git, ui, aiExplainer).run();
+  };
+
+  const buildTagWizard = async () => {
+    const aiConfig = await getActiveAIConfig();
+    const aiSummarizer = aiConfig
+      ? (msgs: string[]) => summarizeCommits(msgs, aiConfig)
+      : undefined;
+    return new TagWizard(git, ui, aiSummarizer).run();
+  };
+
+  const buildResetManager = async () => {
+    const aiConfig = await getActiveAIConfig();
+    const aiSummarizer = aiConfig
+      ? (msgs: string[]) => summarizeCommits(msgs, aiConfig)
+      : undefined;
+    return new ResetManager(git, ui, aiSummarizer).run();
+  };
+
   const moreHandlers: Record<MoreOption, () => Promise<void>> = {
     amend: () => buildAmendFlow(),
-    tag: () => new TagWizard(git, ui).run(),
-    bisect: () => new BisectWizard(git, ui).run(),
+    tag: () => buildTagWizard(),
+    bisect: () => buildBisectWizard(),
     worktree: () => new WorktreeManager(git, ui).run(),
     remotes: () => new RemoteManager(git, ui).run(),
     gitignore: () => buildGitignoreManager(),
     undo: () => new UndoCommit(git, ui).run(),
     purge: () => new HistoryPurge(git, ui).run(),
     settings: () => new Settings(ui).run(),
-    reset: () => new ResetManager(git, ui).run(),
+    reset: () => buildResetManager(),
+    revert: () => new RevertCommit(git, ui).run(),
+    diff: () => new DiffViewer(git, ui).run(),
   };
 
   const mainHandlers: Record<Exclude<MainOption, "exit" | "more">, () => Promise<void>> = {
@@ -114,8 +158,8 @@ export async function app(
     },
     switch: () => new BranchSwitcher(git, ui).run(),
     clean: () => new BranchCleaner(git, ui).run(),
-    cherry: () => new CherryPicker(git, ui).run(),
-    pull: () => new PullFlow(git, ui).run(),
+    cherry: () => buildCherryPicker(),
+    pull: () => buildPullFlow(),
     sync: () => buildSyncFlow(),
     stash: () => new StashManager(git, ui).run(),
   };
@@ -131,19 +175,34 @@ export async function app(
     }
     ui.context(parts.join(" · "));
 
-    let choice: MenuOption;
+    const moreOptions: { value: MoreOption; label: string; hints?: string[] }[] = [
+      { value: "amend",     label: "✏️  Amend",        hints: ["edit", "fix", "modify", "update", "rewrite", "message", "last commit"] },
+      { value: "revert",    label: "↩  Revert Commit", hints: ["undo", "rollback", "safe", "new commit", "cancel"] },
+      { value: "tag",       label: "🏷️  Tag",          hints: ["release", "version", "label", "mark", "v1", "publish"] },
+      { value: "bisect",    label: "🔎 Bisect",        hints: ["debug", "bug", "search", "binary", "regression", "blame", "find"] },
+      { value: "diff",      label: "🔍 Diff",          hints: ["compare", "branch", "changes", "difference", "versus", "vs"] },
+      { value: "worktree",  label: "🗂️  Worktrees",    hints: ["workspace", "parallel", "multiple", "linked"] },
+      { value: "undo",      label: "⏪ Undo",          hints: ["uncommit", "unpush", "back", "cancel", "reset soft"] },
+      { value: "reset",     label: "⚡ Reset",          hints: ["rollback", "restore", "hard", "soft", "mixed", "discard", "origin"] },
+      { value: "remotes",   label: "🔗 Remotes",       hints: ["remote", "origin", "url", "server", "github", "gitlab", "upstream"] },
+      { value: "gitignore", label: "🙈 .gitignore",    hints: ["ignore", "exclude", "skip", "hide", "patterns", "untrack"] },
+      { value: "purge",     label: "🔥 Purge",         hints: ["delete", "remove", "clean", "sensitive", "secret", "password", "rewrite", "bfg"] },
+      { value: "settings",  label: "⚙️  Settings",     hints: ["config", "configuration", "preferences", "setup", "ai", "options", "limits"] },
+    ];
+
+    let choice: MainOption | MoreOption;
     try {
-      choice = await ui.askSearchSelect<MainOption>("What do you want to do?", [
-        { value: "sync",   label: "🚀 Sync           — stage · commit · push" },
-        { value: "pull",   label: "🔽 Pull           — merge · rebase" },
-        { value: "branch", label: "🌿 New Branch     — checkout -b" },
-        { value: "switch", label: "🔀 Switch Branch  — checkout" },
-        { value: "stash",  label: "📦 Stash          — save · apply · pop" },
-        { value: "cherry", label: "🍒 Cherry Pick    — apply commit" },
-        { value: "clean",  label: "🧹 Clean Branches — delete local · remote" },
+      choice = await ui.askSearchSelect<MainOption | MoreOption>("What do you want to do?", [
+        { value: "sync",   label: "🚀 Sync",          hints: ["push", "commit", "add", "stage", "upload", "send", "save", "publish"] },
+        { value: "pull",   label: "🔽 Pull",          hints: ["fetch", "merge", "rebase", "download", "update", "get", "integrate"] },
+        { value: "branch", label: "🌿 New Branch",    hints: ["create", "new", "start", "feature", "feat", "fix", "hotfix"] },
+        { value: "switch", label: "🔀 Switch Branch", hints: ["checkout", "change", "go", "move", "navigate"] },
+        { value: "stash",  label: "📦 Stash",         hints: ["save", "hide", "temporary", "shelve", "wip", "draft", "store"] },
+        { value: "cherry", label: "🍒 Cherry Pick",   hints: ["apply", "pick", "copy", "transfer", "port", "backport"] },
+        { value: "clean",  label: "🧹 Clean Branches",hints: ["delete", "remove", "prune", "trim", "old", "merged", "archive"] },
         { value: "more",   label: "⋯  More" },
         { value: "exit",   label: "🚪 Exit" },
-      ]);
+      ], moreOptions);
     } catch (e) {
       if (e instanceof GoBackSignal) break;
       throw e;
@@ -153,19 +212,10 @@ export async function app(
 
     try {
       if (choice === "more") {
-        const more = await ui.askSelect<MoreOption>("More options:", [
-          { value: "amend", label: "✏️  Amend Last Commit" },
-          { value: "tag", label: "🏷️  Tag / Release" },
-          { value: "bisect", label: "🔎 Find Bug Commit (Bisect)" },
-          { value: "worktree", label: "🗂️  Worktrees" },
-          { value: "undo", label: "↩  Undo Commit" },
-          { value: "reset", label: "⚡ Reset" },
-          { value: "remotes", label: "🔗 Remotes" },
-          { value: "gitignore", label: "🙈 .gitignore" },
-          { value: "purge", label: "🔥 Purge History" },
-          { value: "settings", label: "⚙️  Settings" },
-        ]);
+        const more = await ui.askSelect<MoreOption>("More options:", moreOptions);
         await moreHandlers[more]();
+      } else if (choice in moreHandlers) {
+        await moreHandlers[choice as MoreOption]();
       } else {
         await mainHandlers[choice as Exclude<MainOption, "exit" | "more">]();
       }

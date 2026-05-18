@@ -24,10 +24,13 @@ function bumpVersion(base: string | null, bump: BumpType): string {
   return `v${major}.${minor}.${patch + 1}`;
 }
 
+export type AICommitSummarizer = (messages: string[]) => Promise<string | null>;
+
 export class TagWizard {
   constructor(
     private readonly git: IGitClient,
-    private readonly ui: IUI
+    private readonly ui: IUI,
+    private readonly aiSummarizer?: AICommitSummarizer
   ) {}
 
   async run(): Promise<void> {
@@ -55,6 +58,15 @@ export class TagWizard {
     this.ui.info(
       `Current version (${baseLabel}) · ${commits.length} commit(s) → suggested: ${suggested} (${bump})`
     );
+
+    if (this.aiSummarizer) {
+      try {
+        const notes = await this.ui.spin("Generating release notes...", () =>
+          this.aiSummarizer!(commits.map((c) => c.message))
+        );
+        if (notes) this.ui.info(`✨ What's in this release:\n${notes}`);
+      } catch { /* non-blocking */ }
+    }
 
     const version = await this.ui.askText("Tag name:", suggested, suggested);
     const finalVersion = version.trim() || suggested;

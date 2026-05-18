@@ -1,17 +1,22 @@
 import type { IGitClient, BisectResult } from "./ports/git-client.port";
 import type { IUI } from "./ports/ui.port";
+import { readConfig, getLimits } from "../config/config";
 
 type VerdictOption = "bad" | "good" | "stop";
+
+export type AICommitExplainer = (diff: string) => Promise<string | null>;
 
 export class BisectWizard {
   constructor(
     private readonly git: IGitClient,
-    private readonly ui: IUI
+    private readonly ui: IUI,
+    private readonly aiExplainer?: AICommitExplainer
   ) {}
 
   async run(): Promise<void> {
+    const { bisectLogLimit } = getLimits(await readConfig());
     const branch = await this.git.getCurrentBranch();
-    const commits = await this.git.getLog(branch, 30);
+    const commits = await this.git.getLog(branch, bisectLogLimit);
 
     if (commits.length === 0) {
       this.ui.warn("No commits found on this branch.");
@@ -83,6 +88,15 @@ export class BisectWizard {
         this.ui.success(
           `First bad commit found: ${result.badCommit.hash}${result.badCommit.message ? ` — ${result.badCommit.message}` : ""}`
         );
+        if (this.aiExplainer) {
+          try {
+            const diff = await this.git.getCommitDiff(result.badCommit.hash);
+            if (diff) {
+              const explanation = await this.ui.spin("Analyzing bad commit...", () => this.aiExplainer!(diff));
+              if (explanation) this.ui.info(`✨ ${explanation}`);
+            }
+          } catch { /* non-blocking */ }
+        }
         await this.ui.spin("Resetting bisect...", () => this.git.bisectReset());
         return;
       }

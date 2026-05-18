@@ -165,3 +165,44 @@ test("propagates GoBackSignal when user presses ESC on action menu", async () =>
 
   await expect(new ResetManager(git, ui).run()).rejects.toBeInstanceOf(GoBackSignal);
 });
+
+// ─── AI lost commits summary ───────────────────────────────────────────────────
+
+test("summarizes commits to be lost with AI before confirmation", async () => {
+  const git = createGitMock({
+    getCurrentBranch: mock(() => Promise.resolve("feat/test")),
+    getLogSince: mock(() => Promise.resolve([
+      { hash: "abc", message: "feat: add feature" },
+      { hash: "def", message: "fix: patch bug" },
+    ])),
+    resetHardToRemote: mock(() => Promise.resolve()),
+  });
+  const aiSummarizer = mock(() => Promise.resolve("• Added new feature\n• Patched a bug"));
+  const ui = createUIMock({
+    askSelect: mock(() => Promise.resolve("remote")),
+    askConfirm: mock(() => Promise.resolve(true)),
+  });
+
+  await new ResetManager(git, ui, aiSummarizer).run();
+
+  expect(aiSummarizer).toHaveBeenCalledWith(["feat: add feature", "fix: patch bug"]);
+  const infoCalls = (ui.info as ReturnType<typeof mock>).mock.calls.map((c) => c[0] as string);
+  expect(infoCalls.some((m) => m.includes("What will be lost"))).toBe(true);
+});
+
+test("skips AI summary when no local commits to lose", async () => {
+  const git = createGitMock({
+    getCurrentBranch: mock(() => Promise.resolve("feat/test")),
+    getLogSince: mock(() => Promise.resolve([])),
+    resetHardToRemote: mock(() => Promise.resolve()),
+  });
+  const aiSummarizer = mock(() => Promise.resolve("• something"));
+  const ui = createUIMock({
+    askSelect: mock(() => Promise.resolve("remote")),
+    askConfirm: mock(() => Promise.resolve(true)),
+  });
+
+  await new ResetManager(git, ui, aiSummarizer).run();
+
+  expect(aiSummarizer).not.toHaveBeenCalled();
+});

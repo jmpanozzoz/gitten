@@ -11,19 +11,34 @@ mock.module("../../src/config/config", () => ({
   readConfig: MOCK_READ,
   writeConfig: MOCK_WRITE,
   getActiveAIConfig: mock(() => Promise.resolve(null)),
+  getLimits: mock(() => ({ undoCommitLimit: 10, cherryPickLogLimit: 30, bisectLogLimit: 30, revertLogLimit: 30 })),
+  DEFAULT_LIMITS: { undoCommitLimit: 10, cherryPickLogLimit: 30, bisectLogLimit: 30, revertLogLimit: 30 },
 }));
 
 mock.module("../../src/core/ai-suggester", () => ({
   testAIConnection: MOCK_TEST_CONNECTION,
 }));
 
+// ─── top-level menu ───────────────────────────────────────────────────────────
+
+test("propagates GoBackSignal when user presses ESC on top-level menu", async () => {
+  MOCK_WRITE.mockClear();
+  const ui = createUIMock({
+    askSelect: mock(() => Promise.reject(new GoBackSignal())),
+  });
+
+  await expect(new Settings(ui).run()).rejects.toBeInstanceOf(GoBackSignal);
+  expect(MOCK_WRITE).not.toHaveBeenCalled();
+});
+
 // ─── configure ────────────────────────────────────────────────────────────────
 
 test("saves full config when user fills in all fields (openai provider)", async () => {
   const ui = createUIMock({
     askSelect: mock()
-      .mockResolvedValueOnce("configure")   // action menu
-      .mockResolvedValueOnce("openai"),      // provider
+      .mockResolvedValueOnce("ai")          // top-level menu
+      .mockResolvedValueOnce("configure")   // ai action
+      .mockResolvedValueOnce("openai"),     // provider
     askText: mock()
       .mockResolvedValueOnce("gpt-4o-mini") // model
       .mockResolvedValueOnce("sk-test-key"), // api key
@@ -48,9 +63,10 @@ test("saves full config when user fills in all fields (openai provider)", async 
 test("saves config without API key for Ollama (local, no key required)", async () => {
   const ui = createUIMock({
     askSelect: mock()
+      .mockResolvedValueOnce("ai")
       .mockResolvedValueOnce("configure")
       .mockResolvedValueOnce("ollama"),
-    askText: mock().mockResolvedValueOnce("llama3.2"), // model only
+    askText: mock().mockResolvedValueOnce("llama3.2"),
     askConfirm: mock(() => Promise.resolve(true)),
   });
 
@@ -71,12 +87,13 @@ test("saves config without API key for Ollama (local, no key required)", async (
 test("saves config with custom base URL when Custom provider selected", async () => {
   const ui = createUIMock({
     askSelect: mock()
+      .mockResolvedValueOnce("ai")
       .mockResolvedValueOnce("configure")
       .mockResolvedValueOnce("custom"),
     askText: mock()
-      .mockResolvedValueOnce("https://my-llm.example.com/v1") // base URL (custom)
-      .mockResolvedValueOnce("my-model")                       // model
-      .mockResolvedValueOnce("my-api-key"),                    // api key
+      .mockResolvedValueOnce("https://my-llm.example.com/v1")
+      .mockResolvedValueOnce("my-model")
+      .mockResolvedValueOnce("my-api-key"),
     askConfirm: mock(() => Promise.resolve(true)),
   });
 
@@ -103,7 +120,9 @@ test("disables AI when user chooses disable", async () => {
   });
 
   const ui = createUIMock({
-    askSelect: mock(() => Promise.resolve("disable")),
+    askSelect: mock()
+      .mockResolvedValueOnce("ai")
+      .mockResolvedValueOnce("disable"),
   });
 
   await new Settings(ui).run();
@@ -119,7 +138,9 @@ test("enables AI when user chooses enable", async () => {
   });
 
   const ui = createUIMock({
-    askSelect: mock(() => Promise.resolve("enable")),
+    askSelect: mock()
+      .mockResolvedValueOnce("ai")
+      .mockResolvedValueOnce("enable"),
   });
 
   await new Settings(ui).run();
@@ -135,12 +156,14 @@ test("shows Enable option when AI is configured but disabled", async () => {
   });
 
   const ui = createUIMock({
-    askSelect: mock((_, options) => {
-      const values = options.map((o: { value: string }) => o.value);
-      expect(values).toContain("enable");
-      expect(values).not.toContain("disable");
-      return Promise.resolve("enable");
-    }),
+    askSelect: mock()
+      .mockResolvedValueOnce("ai")
+      .mockImplementationOnce((_: string, options: { value: string }[]) => {
+        const values = options.map((o) => o.value);
+        expect(values).toContain("enable");
+        expect(values).not.toContain("disable");
+        return Promise.resolve("enable");
+      }),
   });
 
   await new Settings(ui).run();
@@ -152,12 +175,14 @@ test("shows Disable option when AI is enabled", async () => {
   });
 
   const ui = createUIMock({
-    askSelect: mock((_, options) => {
-      const values = options.map((o: { value: string }) => o.value);
-      expect(values).toContain("disable");
-      expect(values).not.toContain("enable");
-      return Promise.resolve("disable");
-    }),
+    askSelect: mock()
+      .mockResolvedValueOnce("ai")
+      .mockImplementationOnce((_: string, options: { value: string }[]) => {
+        const values = options.map((o) => o.value);
+        expect(values).toContain("disable");
+        expect(values).not.toContain("enable");
+        return Promise.resolve("disable");
+      }),
   });
 
   await new Settings(ui).run();
@@ -168,14 +193,15 @@ test("shows only Configure option when no config exists yet", async () => {
 
   const ui = createUIMock({
     askSelect: mock()
+      .mockResolvedValueOnce("ai")
       .mockImplementationOnce((_: string, options: { value: string }[]) => {
         expect(options.map((o) => o.value)).toEqual(["configure"]);
         return Promise.resolve("configure");
       })
-      .mockResolvedValueOnce("openai"), // provider
+      .mockResolvedValueOnce("openai"),
     askText: mock()
-      .mockResolvedValueOnce("gpt-4o")  // model
-      .mockResolvedValueOnce("sk-key"), // api key
+      .mockResolvedValueOnce("gpt-4o")
+      .mockResolvedValueOnce("sk-key"),
     askConfirm: mock(() => Promise.resolve(false)),
   });
 
@@ -189,11 +215,12 @@ test("runs connection test and shows success when user opts in", async () => {
   MOCK_TEST_CONNECTION.mockResolvedValueOnce(undefined);
   const ui = createUIMock({
     askSelect: mock()
-      .mockResolvedValueOnce("configure") // action
-      .mockResolvedValueOnce("openai"),   // provider
+      .mockResolvedValueOnce("ai")
+      .mockResolvedValueOnce("configure")
+      .mockResolvedValueOnce("openai"),
     askText: mock()
-      .mockResolvedValueOnce("gpt-4o")   // model
-      .mockResolvedValueOnce("sk-key"),   // api key
+      .mockResolvedValueOnce("gpt-4o")
+      .mockResolvedValueOnce("sk-key"),
     askConfirm: mock(() => Promise.resolve(true)),
   });
 
@@ -208,6 +235,7 @@ test("shows warning when connection test fails", async () => {
   MOCK_TEST_CONNECTION.mockRejectedValueOnce(new Error("Invalid API key — check your credentials in Settings"));
   const ui = createUIMock({
     askSelect: mock()
+      .mockResolvedValueOnce("ai")
       .mockResolvedValueOnce("configure")
       .mockResolvedValueOnce("openai"),
     askText: mock()
@@ -226,14 +254,15 @@ test("skips connection test when user declines", async () => {
   MOCK_TEST_CONNECTION.mockClear();
   const ui = createUIMock({
     askSelect: mock()
+      .mockResolvedValueOnce("ai")
       .mockResolvedValueOnce("configure")
       .mockResolvedValueOnce("openai"),
     askText: mock()
       .mockResolvedValueOnce("gpt-4o")
       .mockResolvedValueOnce("sk-key"),
     askConfirm: mock()
-      .mockResolvedValueOnce(true)   // enable
-      .mockResolvedValueOnce(false), // test connection → skip
+      .mockResolvedValueOnce(true)
+      .mockResolvedValueOnce(false),
   });
 
   await new Settings(ui).run();
@@ -241,14 +270,63 @@ test("skips connection test when user declines", async () => {
   expect(MOCK_TEST_CONNECTION).not.toHaveBeenCalled();
 });
 
-// ─── cancellation ─────────────────────────────────────────────────────────────
+// ─── limits ───────────────────────────────────────────────────────────────────
 
-test("propagates GoBackSignal when user presses ESC", async () => {
+test("saves updated limits when user enters valid values", async () => {
   MOCK_WRITE.mockClear();
   const ui = createUIMock({
-    askSelect: mock(() => Promise.reject(new GoBackSignal())),
+    askSelect: mock(() => Promise.resolve("limits")),
+    askText: mock()
+      .mockResolvedValueOnce("20")  // undo limit
+      .mockResolvedValueOnce("50")  // cherry-pick limit
+      .mockResolvedValueOnce("40")  // bisect limit
+      .mockResolvedValueOnce("25"), // revert limit
   });
 
-  await expect(new Settings(ui).run()).rejects.toBeInstanceOf(GoBackSignal);
-  expect(MOCK_WRITE).not.toHaveBeenCalled();
+  await new Settings(ui).run();
+
+  expect(MOCK_WRITE).toHaveBeenCalledWith(
+    expect.objectContaining({
+      limits: { undoCommitLimit: 20, cherryPickLogLimit: 50, bisectLogLimit: 40, revertLogLimit: 25 },
+    })
+  );
+  expect(ui.success).toHaveBeenCalledWith(expect.stringContaining("20"));
+});
+
+test("keeps current value when user enters invalid input for a limit", async () => {
+  MOCK_WRITE.mockClear();
+  const ui = createUIMock({
+    askSelect: mock(() => Promise.resolve("limits")),
+    askText: mock()
+      .mockResolvedValueOnce("abc") // invalid → keeps default 10
+      .mockResolvedValueOnce("30")
+      .mockResolvedValueOnce("30"),
+  });
+
+  await new Settings(ui).run();
+
+  expect(MOCK_WRITE).toHaveBeenCalledWith(
+    expect.objectContaining({
+      limits: expect.objectContaining({ undoCommitLimit: 10 }),
+    })
+  );
+});
+
+test("rejects values above 500 and keeps current limit", async () => {
+  MOCK_WRITE.mockClear();
+  const ui = createUIMock({
+    askSelect: mock(() => Promise.resolve("limits")),
+    askText: mock()
+      .mockResolvedValueOnce("999") // > 500 → keeps default 10
+      .mockResolvedValueOnce("30")
+      .mockResolvedValueOnce("30"),
+  });
+
+  await new Settings(ui).run();
+
+  expect(MOCK_WRITE).toHaveBeenCalledWith(
+    expect.objectContaining({
+      limits: expect.objectContaining({ undoCommitLimit: 10 }),
+    })
+  );
 });

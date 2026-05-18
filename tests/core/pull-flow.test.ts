@@ -170,3 +170,57 @@ test("calls pull (merge) when user selects merge strategy", async () => {
   expect(git.pull).toHaveBeenCalledTimes(1);
   expect(git.pullRebase).not.toHaveBeenCalled();
 });
+
+// ─── AI pull summary ───────────────────────────────────────────────────────────
+
+test("summarizes incoming commits with AI after successful pull", async () => {
+  const git = createGitMock({
+    getRemotes: mock(() => Promise.resolve([{ name: "origin", url: "https://github.com/x/y" }])),
+    getLastCommit: mock(() => Promise.resolve({ hash: "before123", message: "chore: old" })),
+    pull: mock(() => Promise.resolve({ filesChanged: 3 })),
+    getLogSince: mock(() => Promise.resolve([
+      { hash: "abc", message: "feat: add login" },
+      { hash: "def", message: "fix: typo" },
+    ])),
+  });
+  const aiSummarizer = mock(() => Promise.resolve("• Added login feature\n• Fixed typo in header"));
+  const ui = createUIMock({
+    askSelect: mock(() => Promise.resolve("merge")),
+  });
+
+  await new PullFlow(git, ui, undefined, aiSummarizer).run();
+
+  expect(aiSummarizer).toHaveBeenCalledWith(["feat: add login", "fix: typo"]);
+  const infoCalls = (ui.info as ReturnType<typeof mock>).mock.calls.map((c) => c[0] as string);
+  expect(infoCalls.some((m) => m.includes("What changed"))).toBe(true);
+});
+
+test("skips AI summary when already up to date", async () => {
+  const git = createGitMock({
+    getRemotes: mock(() => Promise.resolve([{ name: "origin", url: "https://github.com/x/y" }])),
+    getLastCommit: mock(() => Promise.resolve({ hash: "before123", message: "chore: old" })),
+    pull: mock(() => Promise.resolve({ filesChanged: 0 })),
+  });
+  const aiSummarizer = mock(() => Promise.resolve("• something"));
+  const ui = createUIMock({
+    askSelect: mock(() => Promise.resolve("merge")),
+  });
+
+  await new PullFlow(git, ui, undefined, aiSummarizer).run();
+
+  expect(aiSummarizer).not.toHaveBeenCalled();
+});
+
+test("proceeds normally when no aiSummarizer provided", async () => {
+  const git = createGitMock({
+    getRemotes: mock(() => Promise.resolve([{ name: "origin", url: "https://github.com/x/y" }])),
+    pull: mock(() => Promise.resolve({ filesChanged: 2 })),
+  });
+  const ui = createUIMock({
+    askSelect: mock(() => Promise.resolve("merge")),
+  });
+
+  await new PullFlow(git, ui).run();
+
+  expect(ui.success).toHaveBeenCalled();
+});

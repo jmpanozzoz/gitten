@@ -147,7 +147,7 @@ test("dispatches to settings handler from more submenu", async () => {
 test("dispatches to amend handler from more submenu", async () => {
   const git = createGitMock({
     getLastCommit: mock(() => Promise.resolve({ hash: "abc1234", message: "chore: update" })),
-    getStatus: mock(() => Promise.resolve({ files: [], isClean: () => true, commitsAhead: 0, commitsBehind: 0 })),
+    getStatus: mock(() => Promise.resolve({ files: [], isClean: () => true, hasStagedChanges: () => false, commitsAhead: 0, commitsBehind: 0 })),
   });
   const ui = createUIMock({
     askSearchSelect: mock()

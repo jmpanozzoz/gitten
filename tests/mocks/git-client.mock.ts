@@ -26,18 +26,22 @@ export function createGitMock(overrides: Partial<IGitClient> = {}): IGitClient {
     deleteRemoteBranch: mock(() => Promise.resolve()),
     getLog: mock(() => Promise.resolve([] satisfies CommitSummary[])),
     cherryPick: mock(() => Promise.resolve()),
+    revertCommit: mock(() => Promise.resolve()),
+    revertContinue: mock(() => Promise.resolve()),
+    revertAbort: mock(() => Promise.resolve()),
     cherryPickContinue: mock(() => Promise.resolve()),
     cherryPickAbort: mock(() => Promise.resolve()),
     pull: mock(() => Promise.resolve({ filesChanged: 0 } satisfies PullResult)),
     mergeAbort: mock(() => Promise.resolve()),
     mergeContinue: mock(() => Promise.resolve()),
     getStatus: mock(() =>
-      Promise.resolve({ files: [], isClean: () => true, commitsAhead: 0, commitsBehind: 0 } satisfies StatusSummary)
+      Promise.resolve({ files: [], isClean: () => true, hasStagedChanges: () => false, commitsAhead: 0, commitsBehind: 0 } satisfies StatusSummary)
     ),
     addAll: mock(() => Promise.resolve()),
     addFiles: mock(() => Promise.resolve()),
     getDiffStat: mock(() => Promise.resolve({ insertions: 0, deletions: 0 } satisfies DiffStat)),
     getStagedDiff: mock(() => Promise.resolve("")),
+    getBranchDiff: mock(() => Promise.resolve("")),
     commit: mock(() => Promise.resolve()),
     push: mock(() => Promise.resolve()),
     readGitignore: mock(() => Promise.resolve([] as string[])),

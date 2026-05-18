@@ -20,6 +20,7 @@ export interface CommitSummary {
 export interface StatusSummary {
   files: { path: string; status: string }[];
   isClean(): boolean;
+  hasStagedChanges(): boolean;
   commitsAhead: number;
   commitsBehind: number;
 }
@@ -62,6 +63,9 @@ export interface IGitClient {
   cherryPick(hash: string): Promise<void>;
   cherryPickContinue(): Promise<void>;
   cherryPickAbort(): Promise<void>;
+  revertCommit(hash: string): Promise<void>;
+  revertContinue(): Promise<void>;
+  revertAbort(): Promise<void>;
   pull(): Promise<PullResult>;
   mergeAbort(): Promise<void>;
   mergeContinue(): Promise<void>;
@@ -70,6 +74,7 @@ export interface IGitClient {
   addFiles(paths: string[]): Promise<void>;
   getDiffStat(): Promise<DiffStat>;
   getStagedDiff(): Promise<string>;
+  getBranchDiff(branch: string): Promise<string>;
   commit(message: string): Promise<void>;
   push(setUpstream?: boolean): Promise<void>;
   readGitignore(): Promise<string[]>;

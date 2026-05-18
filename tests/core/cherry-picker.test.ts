@@ -288,3 +288,60 @@ test("shows generic conflict message when git reports no conflicted files", asyn
   expect(warnCalls.some((m) => m.includes("detected"))).toBe(true);
   expect(warnCalls.some((m) => m.includes("•"))).toBe(false);
 });
+
+// ─── AI commit explanation ─────────────────────────────────────────────────────
+
+test("calls aiExplainer with commit diff and shows explanation", async () => {
+  const git = createGitMock({
+    getBranches: mock(() => Promise.resolve({ all: ["main", "feat/other"], current: "feat/test" })),
+    getLog: mock(() => Promise.resolve(COMMITS)),
+    getCommitDiff: mock(() => Promise.resolve("diff --git a/src/app.ts...")),
+    cherryPick: mock(() => Promise.resolve()),
+  });
+  const aiExplainer = mock(() => Promise.resolve("Adds login feature with OAuth support"));
+  const ui = createUIMock({
+    askSearchSelect: mock(() => Promise.resolve("feat/other")).mockResolvedValueOnce("feat/other").mockResolvedValueOnce("abc1234"),
+    askConfirm: mock(() => Promise.resolve(false)),
+  });
+
+  await new CherryPicker(git, ui, undefined, aiExplainer).run();
+
+  expect(aiExplainer).toHaveBeenCalledTimes(1);
+  expect(aiExplainer).toHaveBeenCalledWith("diff --git a/src/app.ts...");
+  const infoCalls = (ui.info as ReturnType<typeof mock>).mock.calls.map((c) => c[0] as string);
+  expect(infoCalls.some((m) => m.includes("Adds login feature"))).toBe(true);
+});
+
+test("proceeds normally when no aiExplainer provided", async () => {
+  const git = createGitMock({
+    getBranches: mock(() => Promise.resolve({ all: ["main", "feat/other"], current: "feat/test" })),
+    getLog: mock(() => Promise.resolve(COMMITS)),
+    cherryPick: mock(() => Promise.resolve()),
+  });
+  const ui = createUIMock({
+    askSearchSelect: mock(() => Promise.resolve("feat/other")).mockResolvedValueOnce("feat/other").mockResolvedValueOnce("abc1234"),
+    askConfirm: mock(() => Promise.resolve(false)),
+  });
+
+  await new CherryPicker(git, ui).run();
+
+  expect(git.cherryPick).toHaveBeenCalledWith("abc1234");
+});
+
+test("proceeds normally when aiExplainer throws", async () => {
+  const git = createGitMock({
+    getBranches: mock(() => Promise.resolve({ all: ["main", "feat/other"], current: "feat/test" })),
+    getLog: mock(() => Promise.resolve(COMMITS)),
+    getCommitDiff: mock(() => Promise.resolve("diff...")),
+    cherryPick: mock(() => Promise.resolve()),
+  });
+  const aiExplainer = mock(() => Promise.reject(new Error("network timeout")));
+  const ui = createUIMock({
+    askSearchSelect: mock(() => Promise.resolve("feat/other")).mockResolvedValueOnce("feat/other").mockResolvedValueOnce("abc1234"),
+    askConfirm: mock(() => Promise.resolve(false)),
+  });
+
+  await new CherryPicker(git, ui, undefined, aiExplainer).run();
+
+  expect(git.cherryPick).toHaveBeenCalledWith("abc1234");
+});

@@ -11,21 +11,40 @@ export interface AIConfig {
   model: string;
 }
 
-export interface GitttenConfig {
-  ai?: Partial<AIConfig>;
+export interface LimitsConfig {
+  undoCommitLimit: number;
+  cherryPickLogLimit: number;
+  bisectLogLimit: number;
+  revertLogLimit: number;
 }
 
-export async function readConfig(): Promise<GitttenConfig> {
+export const DEFAULT_LIMITS: LimitsConfig = {
+  undoCommitLimit: 10,
+  cherryPickLogLimit: 30,
+  bisectLogLimit: 30,
+  revertLogLimit: 30,
+};
+
+export interface GittenConfig {
+  ai?: Partial<AIConfig>;
+  limits?: Partial<LimitsConfig>;
+}
+
+export function getLimits(config: GittenConfig): LimitsConfig {
+  return { ...DEFAULT_LIMITS, ...config.limits };
+}
+
+export async function readConfig(): Promise<GittenConfig> {
   try {
     const file = Bun.file(CONFIG_PATH);
     if (!(await file.exists())) return {};
-    return (await file.json()) as GitttenConfig;
+    return (await file.json()) as GittenConfig;
   } catch {
     return {};
   }
 }
 
-export async function writeConfig(config: GitttenConfig): Promise<void> {
+export async function writeConfig(config: GittenConfig): Promise<void> {
   await Bun.write(CONFIG_PATH, JSON.stringify(config, null, 2));
 }
 
