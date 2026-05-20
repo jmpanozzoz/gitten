@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.0](https://github.com/jmpanozzoz/gitten/compare/v1.0.1...v1.1.0) (2026-05-18)
+
+
+### Features
+
+* smart search, AI integrations, configurable limits, revert and diff ([#122](https://github.com/jmpanozzoz/gitten/issues/122)) ([7bc603d](https://github.com/jmpanozzoz/gitten/commit/7bc603da6cb50b666bff7df169c06df4cc69f6ad))
+
 ## [1.0.1](https://github.com/jmpanozzoz/gitten/compare/v1.0.0...v1.0.1) (2026-05-18)
 
 
