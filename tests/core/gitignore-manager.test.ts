@@ -31,7 +31,7 @@ test("addPattern: appends new pattern to empty gitignore", async () => {
   await new GitignoreManager(git, ui).run();
 
   expect(git.writeGitignore).toHaveBeenCalledTimes(1);
-  const written = (git.writeGitignore as ReturnType<typeof mock>).mock.calls[0][0] as string[];
+  const written = (git.writeGitignore as ReturnType<typeof mock>).mock.calls[0]![0] as string[];
   expect(written).toContain(".env");
 });
 
@@ -68,7 +68,7 @@ test("addPattern: untracks matching tracked files when user confirms", async () 
   await new GitignoreManager(git, ui).run();
 
   expect(git.untrackFiles).toHaveBeenCalledTimes(1);
-  const untracked = (git.untrackFiles as ReturnType<typeof mock>).mock.calls[0][0] as string[];
+  const untracked = (git.untrackFiles as ReturnType<typeof mock>).mock.calls[0]![0] as string[];
   expect(untracked).toContain(".env");
   expect(untracked).toContain(".env.local");
   expect(untracked).not.toContain("src/app.ts");
@@ -129,7 +129,7 @@ test("applyTemplate: writes template lines merged with existing gitignore", asyn
   await new GitignoreManager(git, ui).run();
 
   expect(git.writeGitignore).toHaveBeenCalledTimes(1);
-  const written = (git.writeGitignore as ReturnType<typeof mock>).mock.calls[0][0] as string[];
+  const written = (git.writeGitignore as ReturnType<typeof mock>).mock.calls[0]![0] as string[];
   expect(written).toContain("node_modules/");
   expect(written.length).toBeGreaterThan(1);
 });
@@ -149,7 +149,7 @@ test("applyTemplate: deduplicates lines already present in gitignore", async () 
 
   await new GitignoreManager(git, ui).run();
 
-  const written = (git.writeGitignore as ReturnType<typeof mock>).mock.calls[0][0] as string[];
+  const written = (git.writeGitignore as ReturnType<typeof mock>).mock.calls[0]![0] as string[];
   const nodeModulesOccurrences = written.filter((l) => l === "node_modules/").length;
   expect(nodeModulesOccurrences).toBe(1);
 });

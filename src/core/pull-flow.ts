@@ -1,9 +1,8 @@
 import type { IGitClient } from "./ports/git-client.port";
 import type { IUI } from "./ports/ui.port";
+import type { AICommitSummarizer } from "./ports/ai.port";
 import { stdinResolution } from "../utils/stdin-resolution";
 import { resolveConflict } from "./conflict-resolver";
-
-export type AICommitSummarizer = (messages: string[]) => Promise<string | null>;
 
 export class PullFlow {
   constructor(

@@ -1,9 +1,9 @@
 import type { IGitClient } from "./ports/git-client.port";
 import type { IUI } from "./ports/ui.port";
+import type { AIMessageImprover } from "./ports/ai.port";
 import { PROTECTED_BRANCHES } from "./protected-branches";
 
 type AmendOption = "message" | "staged" | "both";
-export type AIMessageImprover = (message: string) => Promise<string | null>;
 
 export class AmendFlow {
   constructor(

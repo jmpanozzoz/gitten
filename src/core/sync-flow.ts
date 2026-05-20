@@ -1,20 +1,18 @@
 import type { IGitClient } from "./ports/git-client.port";
 import type { IUI } from "./ports/ui.port";
+import type { AICommitSuggester, AICommitReviewer } from "./ports/ai.port";
 import { renderDiff } from "../ui/diff-renderer";
 import { PROTECTED_BRANCHES } from "./protected-branches";
 
 const DEFAULT_COMMIT_MESSAGE = "chore: update";
 const NO_UPSTREAM_ERROR = "no upstream";
 
-export type AISuggester = (diff: string) => Promise<string | null>;
-export type AiReviewer = (diff: string) => Promise<string[]>;
-
 export class SyncFlow {
   constructor(
     private readonly git: IGitClient,
     private readonly ui: IUI,
-    private readonly aiSuggester?: AISuggester,
-    private readonly aiReviewer?: AiReviewer
+    private readonly aiSuggester?: AICommitSuggester,
+    private readonly aiReviewer?: AICommitReviewer
   ) {}
 
   async run(): Promise<void> {

@@ -1,9 +1,10 @@
-import { test, expect, mock, beforeEach, afterEach, spyOn } from "bun:test";
+import { test, expect, mock, afterEach, spyOn } from "bun:test";
 import { suggestCommitMessage, suggestGitignorePatterns, testAIConnection } from "../../src/core/ai-suggester";
 import type { AIConfig } from "../../src/config/config";
 
 const CONFIG: AIConfig = {
   enabled: true,
+  provider: "openai",
   baseUrl: "https://api.example.com/v1",
   apiKey: "sk-test",
   model: "gpt-4o-mini",

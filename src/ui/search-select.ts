@@ -75,7 +75,7 @@ function buildSelectLines<T>(
 
     for (let i = start; i < end; i++) {
       const isCursor = i === clamped;
-      const text = highlightMatch(f[i].label, query, isCursor);
+      const text = highlightMatch(f[i]!.label, query, isCursor);
       lines.push(
         isCursor
           ? `${pc.cyan("│")}  ${pc.cyan("❯")} ${text}`
@@ -120,7 +120,7 @@ function buildMultiSelectLines<T>(
     if (start > 0) lines.push(`${pc.cyan("│")}     ${pc.dim(`↑ ${start} more`)}`);
 
     for (let i = start; i < end; i++) {
-      const opt = f[i];
+      const opt = f[i]!;
       const isCursor = i === clamped;
       const isChecked = checked.has(opt.value);
       const checkbox = isChecked ? pc.green("◼") : pc.dim("◻");
@@ -205,7 +205,7 @@ export async function searchSelect<T>(
       if (data === K.DOWN) { if (cursor < maxCursor) cursor++; draw(); return; }
 
       if (data === K.ENTER) {
-        if (f.length > 0) done(f[Math.min(cursor, f.length - 1)]);
+        if (f.length > 0) done(f[Math.min(cursor, f.length - 1)] ?? null);
         return;
       }
 

@@ -1,7 +1,16 @@
 import { mock } from "bun:test";
-import type { IUI, BranchType } from "../../src/core/ports/ui.port";
+import type { IUI } from "../../src/core/ports/ui.port";
 
-export function createUIMock(overrides: Partial<IUI> = {}): IUI {
+type LooseUI = {
+  askSelect(message: string, options: { value: string; label: string }[]): Promise<string>;
+  askMultiSelect(message: string, options: { value: string; label: string }[]): Promise<string[]>;
+  askSearchSelect(message: string, options: { value: unknown; label: string; hints?: string[] }[], searchPool?: { value: unknown; label: string; hints?: string[] }[]): Promise<unknown>;
+  askSearchMultiSelect(message: string, options: { value: unknown; label: string; hints?: string[] }[]): Promise<unknown[]>;
+};
+
+type IUIMockOverrides = Partial<Omit<IUI, keyof LooseUI> & LooseUI>;
+
+export function createUIMock(overrides: IUIMockOverrides = {}): IUI {
   return {
     intro: mock(() => {}),
     outro: mock(() => {}),
@@ -19,5 +28,5 @@ export function createUIMock(overrides: Partial<IUI> = {}): IUI {
     info: mock(() => {}),
     context: mock(() => {}),
     ...overrides,
-  };
+  } as IUI;
 }

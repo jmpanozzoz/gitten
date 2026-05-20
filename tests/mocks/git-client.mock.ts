@@ -1,5 +1,5 @@
 import { mock } from "bun:test";
-import type { IGitClient, BranchSummary, CommitSummary, StatusSummary, Remote, PullResult, DiffStat, StashEntry, WorktreeEntry, BisectResult } from "../../src/core/ports/git-client.port";
+import type { IGitClient, BranchSummary, CommitSummary, StatusSummary, Remote, PullResult, DiffStat, StashEntry, WorktreeEntry, BisectResult, RepoContext } from "../../src/core/ports/git-client.port";
 
 export function createGitMock(overrides: Partial<IGitClient> = {}): IGitClient {
   return {

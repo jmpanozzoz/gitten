@@ -1,14 +1,10 @@
 import type { IGitClient } from "./ports/git-client.port";
 import type { IUI } from "./ports/ui.port";
+import type { AIGitignoreSuggester } from "./ports/ai.port";
 
 type GitignoreAction = "add" | "template" | "ai" | "view";
 
 type TemplateName = "node" | "python" | "macos" | "go" | "rust" | "java" | "dotenv";
-
-export type GitignoreAISuggester = (
-  trackedFiles: string[],
-  existingPatterns: string[]
-) => Promise<string[]>;
 
 const TEMPLATES: Record<TemplateName, string[]> = {
   node: [
@@ -71,7 +67,7 @@ export class GitignoreManager {
   constructor(
     private readonly git: IGitClient,
     private readonly ui: IUI,
-    private readonly aiSuggester?: GitignoreAISuggester
+    private readonly aiSuggester?: AIGitignoreSuggester
   ) {}
 
   async run(): Promise<void> {

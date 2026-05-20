@@ -1,6 +1,6 @@
 import { test, expect, mock } from "bun:test";
 import { BranchCreator } from "../../src/core/branch-creator";
-import type { AIBranchSuggester } from "../../src/core/branch-creator";
+import type { AIBranchSuggester } from "../../src/core/ports/ai.port";
 import { createGitMock } from "../mocks/git-client.mock";
 import { createUIMock } from "../mocks/ui.mock";
 

@@ -28,7 +28,7 @@ describe("version bump suggestion", () => {
 
     await new TagWizard(git, ui).run();
 
-    const [, , initialVersion] = (ui.askText as ReturnType<typeof mock>).mock.calls[0];
+    const [, , initialVersion] = (ui.askText as ReturnType<typeof mock>).mock.calls[0]!;
     expect(initialVersion).toBe("v1.3.0");
   });
 
@@ -47,7 +47,7 @@ describe("version bump suggestion", () => {
 
     await new TagWizard(git, ui).run();
 
-    const [, , initialVersion] = (ui.askText as ReturnType<typeof mock>).mock.calls[0];
+    const [, , initialVersion] = (ui.askText as ReturnType<typeof mock>).mock.calls[0]!;
     expect(initialVersion).toBe("v1.2.4");
   });
 
@@ -66,7 +66,7 @@ describe("version bump suggestion", () => {
 
     await new TagWizard(git, ui).run();
 
-    const [, , initialVersion] = (ui.askText as ReturnType<typeof mock>).mock.calls[0];
+    const [, , initialVersion] = (ui.askText as ReturnType<typeof mock>).mock.calls[0]!;
     expect(initialVersion).toBe("v2.0.0");
   });
 
@@ -85,7 +85,7 @@ describe("version bump suggestion", () => {
 
     await new TagWizard(git, ui).run();
 
-    const [, , initialVersion] = (ui.askText as ReturnType<typeof mock>).mock.calls[0];
+    const [, , initialVersion] = (ui.askText as ReturnType<typeof mock>).mock.calls[0]!;
     expect(initialVersion).toBe("v0.1.0");
   });
 });
@@ -245,7 +245,7 @@ describe("package.json version as base", () => {
 
     await new TagWizard(git, ui).run();
 
-    const [, , initialVersion] = (ui.askText as ReturnType<typeof mock>).mock.calls[0];
+    const [, , initialVersion] = (ui.askText as ReturnType<typeof mock>).mock.calls[0]!;
     expect(initialVersion).toBe("v0.8.1");
   });
 
@@ -265,7 +265,7 @@ describe("package.json version as base", () => {
 
     await new TagWizard(git, ui).run();
 
-    const [, , initialVersion] = (ui.askText as ReturnType<typeof mock>).mock.calls[0];
+    const [, , initialVersion] = (ui.askText as ReturnType<typeof mock>).mock.calls[0]!;
     expect(initialVersion).toBe("v0.9.0");
   });
 
@@ -285,7 +285,7 @@ describe("package.json version as base", () => {
 
     await new TagWizard(git, ui).run();
 
-    const [, , initialVersion] = (ui.askText as ReturnType<typeof mock>).mock.calls[0];
+    const [, , initialVersion] = (ui.askText as ReturnType<typeof mock>).mock.calls[0]!;
     expect(initialVersion).toBe("v1.0.1");
   });
 

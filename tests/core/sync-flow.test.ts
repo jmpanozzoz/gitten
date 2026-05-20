@@ -7,9 +7,9 @@ const FILES = [
   { path: "src/app.ts", status: "M" },
   { path: ".env", status: "?" },
 ];
-const DIRTY_STATUS = { files: FILES, isClean: () => false, commitsAhead: 0, commitsBehind: 0 };
-const CLEAN_STATUS = { files: [], isClean: () => true, commitsAhead: 0, commitsBehind: 0 };
-const CLEAN_STATUS_AHEAD = { files: [], isClean: () => true, commitsAhead: 3, commitsBehind: 0 };
+const DIRTY_STATUS = { files: FILES, isClean: () => false, hasStagedChanges: () => false, commitsAhead: 0, commitsBehind: 0 };
+const CLEAN_STATUS = { files: [], isClean: () => true, hasStagedChanges: () => false, commitsAhead: 0, commitsBehind: 0 };
+const CLEAN_STATUS_AHEAD = { files: [], isClean: () => true, hasStagedChanges: () => false, commitsAhead: 3, commitsBehind: 0 };
 const CONFIRM_YES = { askConfirm: mock(() => Promise.resolve(true)) };
 const CONFIRM_NO = { askConfirm: mock(() => Promise.resolve(false)) };
 const SELECT_ALL = { askMultiSelect: mock(() => Promise.resolve(["src/app.ts", ".env"])) };
@@ -103,7 +103,7 @@ test("shows file paths with their status in the multiselect", async () => {
 
   await new SyncFlow(git, ui).run();
 
-  const options = (ui.askMultiSelect as ReturnType<typeof mock>).mock.calls[0][1] as {
+  const options = (ui.askMultiSelect as ReturnType<typeof mock>).mock.calls[0]![1] as {
     value: string;
     label: string;
   }[];
@@ -330,7 +330,7 @@ test("continues when user confirms commit to main", async () => {
 // ─── behind warning ───────────────────────────────────────────────────────────
 
 test("warns and aborts when branch is behind remote and user chooses to pull first", async () => {
-  const BEHIND_STATUS = { files: FILES, isClean: () => false, commitsAhead: 0, commitsBehind: 3 };
+  const BEHIND_STATUS = { files: FILES, isClean: () => false, hasStagedChanges: () => false, commitsAhead: 0, commitsBehind: 3 };
   const git = createGitMock({
     getStatus: mock(() => Promise.resolve(BEHIND_STATUS)),
   });
@@ -343,7 +343,7 @@ test("warns and aborts when branch is behind remote and user chooses to pull fir
 });
 
 test("proceeds with commit when branch is behind but user continues anyway", async () => {
-  const BEHIND_STATUS = { files: FILES, isClean: () => false, commitsAhead: 0, commitsBehind: 2 };
+  const BEHIND_STATUS = { files: FILES, isClean: () => false, hasStagedChanges: () => false, commitsAhead: 0, commitsBehind: 2 };
   const git = createGitMock({
     getStatus: mock(() => Promise.resolve(BEHIND_STATUS)),
     addFiles: mock(() => Promise.resolve()),

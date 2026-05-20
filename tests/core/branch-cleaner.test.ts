@@ -219,7 +219,7 @@ test("shows last activity date in branch label", async () => {
   });
   const ui = createUIMock({
     askSearchMultiSelect: mock((_, options: { value: string; label: string }[]) => {
-      expect(options[0].label).toContain("3 months ago");
+      expect(options[0]!.label).toContain("3 months ago");
       return Promise.resolve([] as never);
     }),
     askConfirm: mock(() => Promise.resolve(false)),

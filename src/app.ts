@@ -22,6 +22,7 @@ import { RevertCommit } from "./core/revert-commit";
 import { DiffViewer } from "./core/diff-viewer";
 import { checkForUpdate } from "./utils/update-checker";
 import { getActiveAIConfig } from "./config/config";
+import type { AIConfig } from "./config/config";
 import { suggestBranchName, suggestCommitMessage, suggestGitignorePatterns, reviewStagedDiff, suggestAmendMessage, explainCommitDiff, summarizeCommits } from "./core/ai-suggester";
 import { theme } from "./ui/theme";
 import type { IGitClient } from "./core/ports/git-client.port";
@@ -33,11 +34,13 @@ type MoreOption = "remotes" | "gitignore" | "undo" | "purge" | "settings" | "res
 
 export async function app(
   git: IGitClient = new GitClient(),
-  ui: IUI = new UI()
+  ui: IUI = new UI(),
+  fetchAIConfig: () => Promise<AIConfig | null> = getActiveAIConfig,
+  checkUpdate: (v: string) => Promise<string | null> = checkForUpdate
 ): Promise<void> {
   ui.intro("🐱 Gitten — Your Git assistant");
 
-  const latestVersion = await checkForUpdate(version);
+  const latestVersion = await checkUpdate(version);
   if (latestVersion) {
     ui.info(
       `Update available: v${latestVersion} — run the install script to upgrade:\n  curl -fsSL https://raw.githubusercontent.com/jmpanozzoz/gitten/main/install.sh | bash`
@@ -67,7 +70,7 @@ export async function app(
   const repoName = process.cwd().split("/").pop() ?? "unknown";
 
   const buildSyncFlow = async () => {
-    const aiConfig = await getActiveAIConfig();
+    const aiConfig = await fetchAIConfig();
     const aiSuggester = aiConfig
       ? (diff: string) => suggestCommitMessage(diff, aiConfig)
       : undefined;
@@ -78,7 +81,7 @@ export async function app(
   };
 
   const buildGitignoreManager = async () => {
-    const aiConfig = await getActiveAIConfig();
+    const aiConfig = await fetchAIConfig();
     const aiSuggester = aiConfig
       ? (files: string[], existing: string[]) => suggestGitignorePatterns(files, existing, aiConfig)
       : undefined;
@@ -86,7 +89,7 @@ export async function app(
   };
 
   const buildAmendFlow = async () => {
-    const aiConfig = await getActiveAIConfig();
+    const aiConfig = await fetchAIConfig();
     const aiSuggester = aiConfig
       ? (msg: string) => suggestAmendMessage(msg, aiConfig)
       : undefined;
@@ -94,7 +97,7 @@ export async function app(
   };
 
   const buildCherryPicker = async () => {
-    const aiConfig = await getActiveAIConfig();
+    const aiConfig = await fetchAIConfig();
     const aiExplainer = aiConfig
       ? (diff: string) => explainCommitDiff(diff, aiConfig)
       : undefined;
@@ -102,7 +105,7 @@ export async function app(
   };
 
   const buildPullFlow = async () => {
-    const aiConfig = await getActiveAIConfig();
+    const aiConfig = await fetchAIConfig();
     const aiSummarizer = aiConfig
       ? (msgs: string[]) => summarizeCommits(msgs, aiConfig)
       : undefined;
@@ -110,7 +113,7 @@ export async function app(
   };
 
   const buildBisectWizard = async () => {
-    const aiConfig = await getActiveAIConfig();
+    const aiConfig = await fetchAIConfig();
     const aiExplainer = aiConfig
       ? (diff: string) => explainCommitDiff(diff, aiConfig)
       : undefined;
@@ -118,7 +121,7 @@ export async function app(
   };
 
   const buildTagWizard = async () => {
-    const aiConfig = await getActiveAIConfig();
+    const aiConfig = await fetchAIConfig();
     const aiSummarizer = aiConfig
       ? (msgs: string[]) => summarizeCommits(msgs, aiConfig)
       : undefined;
@@ -126,7 +129,7 @@ export async function app(
   };
 
   const buildResetManager = async () => {
-    const aiConfig = await getActiveAIConfig();
+    const aiConfig = await fetchAIConfig();
     const aiSummarizer = aiConfig
       ? (msgs: string[]) => summarizeCommits(msgs, aiConfig)
       : undefined;
@@ -150,7 +153,7 @@ export async function app(
 
   const mainHandlers: Record<Exclude<MainOption, "exit" | "more">, () => Promise<void>> = {
     branch: async () => {
-      const aiConfig = await getActiveAIConfig();
+      const aiConfig = await fetchAIConfig();
       const aiSuggester = aiConfig
         ? (type: Parameters<typeof suggestBranchName>[0], desc: string) => suggestBranchName(type, desc, aiConfig)
         : undefined;

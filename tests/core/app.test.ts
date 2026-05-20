@@ -1,30 +1,18 @@
-import { test, expect, mock, spyOn, beforeEach, afterEach } from "bun:test";
+import { test, expect, mock, spyOn } from "bun:test";
 import { app } from "../../src/app";
 import { createGitMock } from "../mocks/git-client.mock";
 import { createUIMock } from "../mocks/ui.mock";
 
+const noAI = () => Promise.resolve(null);
+const noUpdate = () => Promise.resolve(null);
+
 const EXIT_MENU = { askSearchSelect: mock(() => Promise.resolve("exit" as never)) };
-
-beforeEach(() => {
-  mock.module("../../src/config/config", () => ({
-    readConfig: mock(() => Promise.resolve({})),
-    writeConfig: mock(() => Promise.resolve()),
-    getActiveAIConfig: mock(() => Promise.resolve(null)),
-  }));
-  mock.module("../../src/utils/update-checker", () => ({
-    checkForUpdate: mock(() => Promise.resolve(null)),
-  }));
-});
-
-afterEach(() => {
-  mock.restore();
-});
 
 test("shows outro and returns when not a repo and user declines init", async () => {
   const git = createGitMock({ checkIsRepo: mock(() => Promise.resolve(false)) });
   const ui = createUIMock({ askConfirm: mock(() => Promise.resolve(false)) });
 
-  await app(git, ui);
+  await app(git, ui, noAI, noUpdate);
 
   expect(ui.outro).toHaveBeenCalledTimes(1);
   expect(git.initRepo).not.toHaveBeenCalled();
@@ -40,7 +28,7 @@ test("calls initRepo and shows outro when not a repo and user confirms init", as
     askText: mock(() => Promise.resolve("origin")),
   });
 
-  await app(git, ui);
+  await app(git, ui, noAI, noUpdate);
 
   expect(git.initRepo).toHaveBeenCalledTimes(1);
   expect(ui.outro).toHaveBeenCalledTimes(1);
@@ -53,7 +41,7 @@ test("warns and calls process.exit(1) when index lock is present", async () => {
     throw new Error("EXIT");
   }) as never);
 
-  await expect(app(git, ui)).rejects.toThrow("EXIT");
+  await expect(app(git, ui, noAI, noUpdate)).rejects.toThrow("EXIT");
 
   expect(ui.warn).toHaveBeenCalledTimes(1);
   expect(exitSpy).toHaveBeenCalledWith(1);
@@ -64,7 +52,7 @@ test("renders menu and exits cleanly when user picks Exit", async () => {
   const git = createGitMock();
   const ui = createUIMock({ ...EXIT_MENU });
 
-  await app(git, ui);
+  await app(git, ui, noAI, noUpdate);
 
   expect(ui.intro).toHaveBeenCalledTimes(1);
   expect(ui.outro).toHaveBeenCalledTimes(1);
@@ -81,7 +69,7 @@ test("loops back to menu after each action before exit", async () => {
       .mockResolvedValueOnce("exit" as never),
   });
 
-  await app(git, ui);
+  await app(git, ui, noAI, noUpdate);
 
   expect(ui.askSearchSelect).toHaveBeenCalledTimes(2);
   expect(ui.outro).toHaveBeenCalledTimes(1);
@@ -101,7 +89,7 @@ test("dispatches 'branch' choice to BranchCreator", async () => {
     askText: mock(() => Promise.resolve("my feature")),
   });
 
-  await app(git, ui);
+  await app(git, ui, noAI, noUpdate);
 
   expect(git.checkoutNewBranch).toHaveBeenCalledWith("feat/my-feature");
 });
@@ -123,7 +111,7 @@ test("dispatches to remotes handler from more submenu", async () => {
     askText: mock(() => Promise.resolve("origin")),
   });
 
-  await app(git, ui);
+  await app(git, ui, noAI, noUpdate);
 
   expect(git.getRemotes).toHaveBeenCalled();
 });
@@ -138,7 +126,7 @@ test("dispatches to settings handler from more submenu", async () => {
       .mockResolvedValueOnce("disable"),
   });
 
-  await app(createGitMock(), ui);
+  await app(createGitMock(), ui, noAI, noUpdate);
 
   expect(ui.askSelect).toHaveBeenCalledTimes(2);
   expect(ui.askSearchSelect).toHaveBeenCalledTimes(2);
@@ -159,7 +147,7 @@ test("dispatches to amend handler from more submenu", async () => {
     askText: mock(() => Promise.resolve("fix: amended")),
   });
 
-  await app(git, ui);
+  await app(git, ui, noAI, noUpdate);
 
   expect(git.getLastCommit).toHaveBeenCalled();
 });
@@ -176,7 +164,7 @@ test("dispatches to tag handler from more submenu", async () => {
     askSelect: mock().mockResolvedValueOnce("tag"),
   });
 
-  await app(git, ui);
+  await app(git, ui, noAI, noUpdate);
 
   expect(git.getLastTag).toHaveBeenCalled();
 });
@@ -193,7 +181,7 @@ test("dispatches to bisect handler from more submenu", async () => {
     askSelect: mock().mockResolvedValueOnce("bisect"),
   });
 
-  await app(git, ui);
+  await app(git, ui, noAI, noUpdate);
 
   expect(git.getLog).toHaveBeenCalled();
 });
@@ -211,7 +199,7 @@ test("dispatches to worktree handler from more submenu", async () => {
       .mockResolvedValueOnce("list"),
   });
 
-  await app(git, ui);
+  await app(git, ui, noAI, noUpdate);
 
   expect(git.getWorktrees).toHaveBeenCalled();
 });
@@ -225,7 +213,7 @@ test("returns to main menu when ESC pressed in more submenu", async () => {
     askSelect: mock().mockRejectedValueOnce(new GoBackSignal()),
   });
 
-  await app(createGitMock(), ui);
+  await app(createGitMock(), ui, noAI, noUpdate);
 
   expect(ui.outro).toHaveBeenCalledTimes(1);
   expect(ui.askSearchSelect).toHaveBeenCalledTimes(2);
@@ -249,7 +237,7 @@ test("shows diff stats in context header when files are modified", async () => {
   });
   const ui = createUIMock({ askSearchSelect: mock(() => Promise.resolve("exit" as never)) });
 
-  await app(git, ui);
+  await app(git, ui, noAI, noUpdate);
 
   const contextCall = (ui.context as ReturnType<typeof mock>).mock.calls[0]?.[0] as string;
   expect(contextCall).toContain("+47");
@@ -260,7 +248,7 @@ test("shows diff stats in context header when files are modified", async () => {
 test("omits diff stats in context header when working tree is clean", async () => {
   const ui = createUIMock({ askSearchSelect: mock(() => Promise.resolve("exit" as never)) });
 
-  await app(createGitMock(), ui);
+  await app(createGitMock(), ui, noAI, noUpdate);
 
   const contextCall = (ui.context as ReturnType<typeof mock>).mock.calls[0]?.[0] as string;
   expect(contextCall).toBeDefined();
