@@ -1,7 +1,6 @@
 import type { IGitClient } from "./ports/git-client.port";
 import type { IUI, BranchType } from "./ports/ui.port";
-
-export type AIBranchSuggester = (type: BranchType, description: string) => Promise<string | null>;
+import type { AIBranchSuggester } from "./ports/ai.port";
 
 export class BranchCreator {
   constructor(

@@ -309,7 +309,6 @@ export class GitClient implements IGitClient {
       const lines = block.trim().split("\n");
       const pathLine = lines.find((l) => l.startsWith("worktree "));
       const branchLine = lines.find((l) => l.startsWith("branch "));
-      const isMain = lines.some((l) => l === "bare") || entries.length === 0;
       const isLocked = lines.some((l) => l.startsWith("locked"));
       if (!pathLine) continue;
       const path = pathLine.replace("worktree ", "").trim();

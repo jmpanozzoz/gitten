@@ -1,13 +1,12 @@
 import type { IGitClient } from "./ports/git-client.port";
 import type { IUI } from "./ports/ui.port";
+import type { AICommitExplainer } from "./ports/ai.port";
 import { GoBackSignal } from "../ui/go-back";
 import { stdinResolution } from "../utils/stdin-resolution";
 import { renderDiff } from "../ui/diff-renderer";
 import { resolveConflict } from "./conflict-resolver";
 import { PROTECTED_BRANCHES } from "./protected-branches";
 import { readConfig, getLimits } from "../config/config";
-
-export type AICommitExplainer = (diff: string) => Promise<string | null>;
 
 export class CherryPicker {
   constructor(

@@ -1,10 +1,9 @@
 import type { IGitClient, BisectResult } from "./ports/git-client.port";
 import type { IUI } from "./ports/ui.port";
+import type { AICommitExplainer } from "./ports/ai.port";
 import { readConfig, getLimits } from "../config/config";
 
 type VerdictOption = "bad" | "good" | "stop";
-
-export type AICommitExplainer = (diff: string) => Promise<string | null>;
 
 export class BisectWizard {
   constructor(

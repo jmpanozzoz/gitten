@@ -1,5 +1,6 @@
 import type { IGitClient, CommitSummary } from "./ports/git-client.port";
 import type { IUI } from "./ports/ui.port";
+import type { AICommitSummarizer } from "./ports/ai.port";
 
 type BumpType = "major" | "minor" | "patch";
 
@@ -23,8 +24,6 @@ function bumpVersion(base: string | null, bump: BumpType): string {
   if (bump === "minor") return `v${major}.${minor + 1}.0`;
   return `v${major}.${minor}.${patch + 1}`;
 }
-
-export type AICommitSummarizer = (messages: string[]) => Promise<string | null>;
 
 export class TagWizard {
   constructor(

@@ -237,8 +237,9 @@ CI (GitHub Actions) must build four targets on every release tag and publish the
 | macOS x64 (Intel) | `--target=bun-darwin-x64` |
 | Linux x64 | `--target=bun-linux-x64` |
 | Linux ARM64 | `--target=bun-linux-arm64` |
+| Windows x64 | `--target=bun-windows-x64` |
 
-Asset naming convention: `gitten-darwin-arm64`, `gitten-darwin-x64`, `gitten-linux-x64`, `gitten-linux-arm64`.
+Asset naming convention: `gitten-darwin-arm64`, `gitten-darwin-x64`, `gitten-linux-x64`, `gitten-linux-arm64`, `gitten-windows-x64.exe`.
 
 ### Install script (`install.sh`)
 
