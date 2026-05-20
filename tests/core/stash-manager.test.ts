@@ -85,7 +85,7 @@ test("drops selected stashes", async () => {
   });
   const ui = createUIMock({
     askSelect: mock(() => Promise.resolve("drop")),
-    askMultiSelect: mock(() => Promise.resolve([0, 1])),
+    askMultiSelect: mock(() => Promise.resolve(["0", "1"])),
     askConfirm: mock(() => Promise.resolve(true)),
   });
 
@@ -101,7 +101,7 @@ test("drops in reverse index order to preserve stash indices", async () => {
   });
   const ui = createUIMock({
     askSelect: mock(() => Promise.resolve("drop")),
-    askMultiSelect: mock(() => Promise.resolve([0, 1])),
+    askMultiSelect: mock(() => Promise.resolve(["0", "1"])),
     askConfirm: mock(() => Promise.resolve(true)),
   });
 
@@ -118,7 +118,7 @@ test("aborts drop when user declines confirmation", async () => {
   });
   const ui = createUIMock({
     askSelect: mock(() => Promise.resolve("drop")),
-    askMultiSelect: mock(() => Promise.resolve([0])),
+    askMultiSelect: mock(() => Promise.resolve(["0"])),
     askConfirm: mock(() => Promise.resolve(false)),
   });
 
@@ -132,7 +132,7 @@ test("aborts drop when user declines confirmation", async () => {
 test("stashes current changes with optional message", async () => {
   const git = createGitMock({
     getStatus: mock(() =>
-      Promise.resolve({ files: [{ path: "src/app.ts", status: "M" }], isClean: () => false })
+      Promise.resolve({ files: [{ path: "src/app.ts", status: "M" }], isClean: () => false, hasStagedChanges: () => false, commitsAhead: 0, commitsBehind: 0 })
     ),
     stashWithMessage: mock(() => Promise.resolve()),
   });
@@ -148,7 +148,7 @@ test("stashes current changes with optional message", async () => {
 
 test("aborts stash push when working tree is clean", async () => {
   const git = createGitMock({
-    getStatus: mock(() => Promise.resolve({ files: [], isClean: () => true })),
+    getStatus: mock(() => Promise.resolve({ files: [], isClean: () => true, hasStagedChanges: () => false, commitsAhead: 0, commitsBehind: 0 })),
     stashWithMessage: mock(() => Promise.resolve()),
   });
   const ui = createUIMock({ ...selectAction("push") });

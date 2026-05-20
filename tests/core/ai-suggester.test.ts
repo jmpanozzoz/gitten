@@ -4,6 +4,7 @@ import type { AIConfig } from "../../src/config/config";
 
 const CONFIG: AIConfig = {
   enabled: true,
+  provider: "openai",
   baseUrl: "https://api.example.com/v1",
   apiKey: "sk-test",
   model: "gpt-4o-mini",

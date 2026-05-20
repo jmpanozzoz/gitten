@@ -51,7 +51,7 @@ test("prefills the text input with the current commit message", async () => {
 
   await new AmendFlow(git, ui).run();
 
-  const [, , initialValue] = (ui.askText as ReturnType<typeof mock>).mock.calls[0];
+  const [, , initialValue] = (ui.askText as ReturnType<typeof mock>).mock.calls[0]!;
   expect(initialValue).toBe("feat: original message");
 });
 

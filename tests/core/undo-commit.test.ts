@@ -106,7 +106,7 @@ const COMMITS = [
 ];
 
 function makeMultiMocks({
-  selectedHash = COMMITS[2].hash,
+  selectedHash = COMMITS[2]!.hash,
   mode = "soft" as "soft" | "mixed",
   confirmed = true,
 } = {}) {
@@ -132,9 +132,9 @@ test("shows last 10 commits and lets user select how many to undo", async () => 
   expect(ui.askSearchSelect).toHaveBeenCalledWith(
     expect.any(String),
     expect.arrayContaining([
-      expect.objectContaining({ value: COMMITS[0].hash }),
-      expect.objectContaining({ value: COMMITS[1].hash }),
-      expect.objectContaining({ value: COMMITS[2].hash }),
+      expect.objectContaining({ value: COMMITS[0]!.hash }),
+      expect.objectContaining({ value: COMMITS[1]!.hash }),
+      expect.objectContaining({ value: COMMITS[2]!.hash }),
     ])
   );
 });
@@ -145,7 +145,7 @@ test("undoes N commits with soft reset when user selects a commit N steps back",
     resetSoft: mock(() => Promise.resolve()),
   });
   const ui = createUIMock({
-    askSearchSelect: mock(() => Promise.resolve(COMMITS[2].hash as never)),
+    askSearchSelect: mock(() => Promise.resolve(COMMITS[2]!.hash as never)),
     askSelect: mock(() => Promise.resolve("soft" as never)),
     askConfirm: mock(() => Promise.resolve(true)),
   });
@@ -162,7 +162,7 @@ test("undoes N commits with mixed reset when user selects a commit N steps back"
     resetMixed: mock(() => Promise.resolve()),
   });
   const ui = createUIMock({
-    askSearchSelect: mock(() => Promise.resolve(COMMITS[1].hash as never)),
+    askSearchSelect: mock(() => Promise.resolve(COMMITS[1]!.hash as never)),
     askSelect: mock(() => Promise.resolve("mixed" as never)),
     askConfirm: mock(() => Promise.resolve(true)),
   });
@@ -180,7 +180,7 @@ test("confirms with correct commit count before resetting", async () => {
     resetSoft: mock(() => Promise.resolve()),
   });
   const ui = createUIMock({
-    askSearchSelect: mock(() => Promise.resolve(COMMITS[2].hash as never)),
+    askSearchSelect: mock(() => Promise.resolve(COMMITS[2]!.hash as never)),
     askSelect: mock(() => Promise.resolve("soft" as never)),
     askConfirm: mock(() => Promise.resolve(true)),
   });
@@ -199,7 +199,7 @@ test("aborts when user declines confirmation (multi-commit)", async () => {
     resetMixed: mock(() => Promise.resolve()),
   });
   const ui = createUIMock({
-    askSearchSelect: mock(() => Promise.resolve(COMMITS[0].hash as never)),
+    askSearchSelect: mock(() => Promise.resolve(COMMITS[0]!.hash as never)),
     askSelect: mock(() => Promise.resolve("soft" as never)),
     askConfirm: mock(() => Promise.resolve(false)),
   });

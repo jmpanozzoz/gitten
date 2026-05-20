@@ -104,7 +104,7 @@ test("skips removal when user declines confirmation", async () => {
 
 test("warns when no non-main worktrees exist for removal", async () => {
   const git = createGitMock({
-    getWorktrees: mock(() => Promise.resolve([WORKTREES[0]])),
+    getWorktrees: mock(() => Promise.resolve([WORKTREES[0]!])),
     removeWorktree: mock(() => Promise.resolve()),
   });
   const ui = createUIMock({

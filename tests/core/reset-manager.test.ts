@@ -8,7 +8,7 @@ import { GoBackSignal } from "../../src/ui/go-back";
 
 test("shows info and returns when working tree is clean (discard action)", async () => {
   const git = createGitMock({
-    getStatus: mock(() => Promise.resolve({ files: [], isClean: () => true })),
+    getStatus: mock(() => Promise.resolve({ files: [], isClean: () => true, hasStagedChanges: () => false, commitsAhead: 0, commitsBehind: 0 })),
   });
   const ui = createUIMock({
     askSelect: mock(() => Promise.resolve("discard" as never)),
@@ -23,7 +23,7 @@ test("shows info and returns when working tree is clean (discard action)", async
 test("asks confirmation before discarding changes", async () => {
   const git = createGitMock({
     getStatus: mock(() =>
-      Promise.resolve({ files: [{ path: "file.ts", status: "M" }], isClean: () => false })
+      Promise.resolve({ files: [{ path: "file.ts", status: "M" }], isClean: () => false, hasStagedChanges: () => false, commitsAhead: 0, commitsBehind: 0 })
     ),
     discardLocalChanges: mock(() => Promise.resolve()),
   });
@@ -43,7 +43,7 @@ test("asks confirmation before discarding changes", async () => {
 test("discards local changes when user confirms", async () => {
   const git = createGitMock({
     getStatus: mock(() =>
-      Promise.resolve({ files: [{ path: "file.ts", status: "M" }], isClean: () => false })
+      Promise.resolve({ files: [{ path: "file.ts", status: "M" }], isClean: () => false, hasStagedChanges: () => false, commitsAhead: 0, commitsBehind: 0 })
     ),
     discardLocalChanges: mock(() => Promise.resolve()),
   });
@@ -61,7 +61,7 @@ test("discards local changes when user confirms", async () => {
 test("does not discard when user declines confirmation", async () => {
   const git = createGitMock({
     getStatus: mock(() =>
-      Promise.resolve({ files: [{ path: "file.ts", status: "M" }], isClean: () => false })
+      Promise.resolve({ files: [{ path: "file.ts", status: "M" }], isClean: () => false, hasStagedChanges: () => false, commitsAhead: 0, commitsBehind: 0 })
     ),
     discardLocalChanges: mock(() => Promise.resolve()),
   });

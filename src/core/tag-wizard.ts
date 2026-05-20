@@ -18,7 +18,7 @@ function bumpVersion(base: string | null, bump: BumpType): string {
   const clean = base.replace(/^v/, "");
   const parts = clean.split(".").map(Number);
   if (parts.length !== 3 || parts.some(isNaN)) return "v0.1.0";
-  const [major, minor, patch] = parts;
+  const [major, minor, patch] = parts as [number, number, number];
   if (bump === "major") return `v${major + 1}.0.0`;
   if (bump === "minor") return `v${major}.${minor + 1}.0`;
   return `v${major}.${minor}.${patch + 1}`;

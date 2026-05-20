@@ -128,8 +128,8 @@ test("getLog returns commit history for the current branch", async () => {
   const branch = await client.getCurrentBranch();
   const log = await client.getLog(branch, 10);
   expect(log.length).toBeGreaterThan(0);
-  expect(log[0].hash.length).toBe(7);
-  expect(typeof log[0].message).toBe("string");
+  expect(log[0]!.hash.length).toBe(7);
+  expect(typeof log[0]!.message).toBe("string");
 });
 
 test("getLastCommit returns the most recent commit", async () => {
@@ -178,7 +178,7 @@ test("resetSoft(2) undoes last two commits keeping both sets of changes staged",
   const branch = await client.getCurrentBranch();
   const log = await client.getLog(branch, 10);
   expect(log.length).toBe(1);
-  expect(log[0].message).toBe("chore: initial commit");
+  expect(log[0]!.message).toBe("chore: initial commit");
   const git = simpleGit(dir);
   const st = await git.status();
   expect(st.staged.length).toBeGreaterThan(0);
@@ -222,7 +222,7 @@ test("stashWithMessage saves changes and cleans the working tree", async () => {
   expect((await client.getStatus()).isClean()).toBe(true);
   const stashes = await client.getStashes();
   expect(stashes.length).toBe(1);
-  expect(stashes[0].message).toContain("my work");
+  expect(stashes[0]!.message).toContain("my work");
 });
 
 test("stashPop applies stash and removes it from the list", async () => {
@@ -280,7 +280,7 @@ test("amendNoEdit adds staged files to last commit without changing the message"
 
   const branch = await client.getCurrentBranch();
   const log = await client.getLog(branch, 1);
-  expect(log[0].message).toBe("chore: initial commit");
+  expect(log[0]!.message).toBe("chore: initial commit");
   expect((await client.getStatus()).isClean()).toBe(true);
 });
 
@@ -311,7 +311,7 @@ test("getLogSince returns only commits after the given tag", async () => {
 
   const commits = await client.getLogSince("v1.0.0");
   expect(commits.length).toBe(1);
-  expect(commits[0].message).toBe("feat: add new file");
+  expect(commits[0]!.message).toBe("feat: add new file");
 });
 
 test("getLogSince returns empty array when no commits since tag", async () => {
@@ -329,7 +329,7 @@ test("bisectStart, bisectGood, and bisectReset complete without error", async ()
 
   const branch = await client.getCurrentBranch();
   const log = await client.getLog(branch, 10);
-  const goodHash = log[log.length - 1].hash;
+  const goodHash = log[log.length - 1]!.hash;
 
   await client.bisectStart();
   await client.bisectBad(undefined);
@@ -352,7 +352,7 @@ test("bisectReset restores HEAD to original branch", async () => {
   await client.commit("third");
 
   const log = await client.getLog(originalBranch, 10);
-  const goodHash = log[log.length - 1].hash;
+  const goodHash = log[log.length - 1]!.hash;
 
   await client.bisectStart();
   await client.bisectBad(undefined);
@@ -367,8 +367,8 @@ test("bisectReset restores HEAD to original branch", async () => {
 test("getWorktrees returns at least the main worktree", async () => {
   const worktrees = await client.getWorktrees();
   expect(worktrees.length).toBeGreaterThanOrEqual(1);
-  expect(worktrees[0].isMain).toBe(true);
-  expect(worktrees[0].path).toBe(realpathSync(dir));
+  expect(worktrees[0]!.isMain).toBe(true);
+  expect(worktrees[0]!.path).toBe(realpathSync(dir));
 });
 
 test("addWorktree creates a new worktree directory at the given path", async () => {

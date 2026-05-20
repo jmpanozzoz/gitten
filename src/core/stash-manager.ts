@@ -31,13 +31,14 @@ export class StashManager {
       return;
     }
 
-    const index = await this.ui.askSelect<number>(
+    const indexStr = await this.ui.askSelect(
       "Select stash to apply:",
       stashes.map((s) => ({
-        value: s.index,
+        value: String(s.index),
         label: `stash@{${s.index}}  ${s.message}  (${s.date})`,
       }))
     );
+    const index = Number(indexStr);
 
     const stat = await this.git.getStashStat(index);
     this.ui.info(`${stat.filesChanged} file(s) changed — +${stat.insertions} −${stat.deletions}`);
@@ -74,10 +75,10 @@ export class StashManager {
       return;
     }
 
-    const selected = await this.ui.askMultiSelect<number>(
+    const selected = await this.ui.askMultiSelect(
       "Select stashes to drop:",
       stashes.map((s) => ({
-        value: s.index,
+        value: String(s.index),
         label: `stash@{${s.index}}  ${s.message}  (${s.date})`,
       }))
     );
@@ -90,7 +91,7 @@ export class StashManager {
     if (!confirmed) return;
 
     // Drop in reverse order so indices remain valid after each deletion
-    const sorted = [...selected].sort((a, b) => b - a);
+    const sorted = [...selected].map(Number).sort((a, b) => b - a);
     for (const index of sorted) {
       await this.git.stashDrop(index);
     }

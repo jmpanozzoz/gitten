@@ -4,7 +4,7 @@ import { createGitMock } from "../mocks/git-client.mock";
 import { createUIMock } from "../mocks/ui.mock";
 
 const FILES = [{ path: "src/app.ts", status: "M" }];
-const DIRTY_STATUS = { files: FILES, isClean: () => false };
+const DIRTY_STATUS = { files: FILES, isClean: () => false, hasStagedChanges: () => false, commitsAhead: 0, commitsBehind: 0 };
 const SELECT_ALL = { askMultiSelect: mock(() => Promise.resolve(["src/app.ts"])) };
 
 function makeSyncFlow(aiSuggester?: (diff: string) => Promise<string | null>, gitOverrides = {}) {
@@ -32,7 +32,7 @@ test("uses AI suggestion as initialValue when user accepts", async () => {
 
   expect(aiSuggester).toHaveBeenCalledTimes(1);
   expect(git.getStagedDiff).toHaveBeenCalledTimes(2); // once for preview, once for AI suggestion
-  const initialValue = (ui.askText as ReturnType<typeof mock>).mock.calls[0][2];
+  const initialValue = (ui.askText as ReturnType<typeof mock>).mock.calls[0]![2];
   expect(initialValue).toBe("feat: ai suggestion");
 });
 
@@ -44,7 +44,7 @@ test("skips AI and uses default initialValue when user declines AI prompt", asyn
   await flow.run();
 
   expect(aiSuggester).not.toHaveBeenCalled();
-  const initialValue = (ui.askText as ReturnType<typeof mock>).mock.calls[0][2];
+  const initialValue = (ui.askText as ReturnType<typeof mock>).mock.calls[0]![2];
   expect(initialValue).toBe("chore: update");
 });
 
@@ -56,7 +56,7 @@ test("falls back to default initialValue and warns when AI returns null", async 
   await flow.run();
 
   expect(ui.warn).toHaveBeenCalled();
-  const initialValue = (ui.askText as ReturnType<typeof mock>).mock.calls[0][2];
+  const initialValue = (ui.askText as ReturnType<typeof mock>).mock.calls[0]![2];
   expect(initialValue).toBe("chore: update");
 });
 
@@ -67,6 +67,6 @@ test("uses default initialValue and never prompts for AI when no aiSuggester pro
   await flow.run();
 
   expect(aiSuggester).not.toHaveBeenCalled();
-  const initialValue = (ui.askText as ReturnType<typeof mock>).mock.calls[0][2];
+  const initialValue = (ui.askText as ReturnType<typeof mock>).mock.calls[0]![2];
   expect(initialValue).toBe("chore: update");
 });
