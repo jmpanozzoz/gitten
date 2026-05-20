@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.1](https://github.com/jmpanozzoz/gitten/compare/v1.1.0...v1.1.1) (2026-05-20)
+
+
+### Bug Fixes
+
+* complete TypeScript audit — eliminate 184 type errors, strict flags, consolidated AI ports ([#125](https://github.com/jmpanozzoz/gitten/issues/125)) ([65ab3fd](https://github.com/jmpanozzoz/gitten/commit/65ab3fdaf48fe35d0a55230fc70b0986ba8632e6))
+
 ## [1.1.0](https://github.com/jmpanozzoz/gitten/compare/v1.0.1...v1.1.0) (2026-05-18)
 
 
