@@ -1,13 +1,13 @@
 class Gitten < Formula
   desc "Git facilitator CLI — covers the 20% of Git operations that solve 80% of daily friction"
   homepage "https://github.com/jmpanozzoz/gitten"
-  version "1.2.0"
+  version "1.3.0"
   license "MIT"
 
   on_macos do
     on_arm do
       url "https://github.com/jmpanozzoz/gitten/releases/download/v#{version}/gitten-darwin-arm64"
-      sha256 "bce1f061698acd3e4d751f3bd44b4e36a44207231a973455bf70204dc2d0c90b"
+      sha256 "9dc78ab47ccd8b38b8c0f545d58e6bfa822affc0769a34bc51c642ea9523bee1"
 
       def install
         bin.install "gitten-darwin-arm64" => "gitten"
@@ -16,7 +16,7 @@ class Gitten < Formula
 
     on_intel do
       url "https://github.com/jmpanozzoz/gitten/releases/download/v#{version}/gitten-darwin-x64"
-      sha256 "7ed86f108c0775caa06cb9a5b547364db85385f9227b02c77a9ced00a4557713"
+      sha256 "0c060002e1bcbe18470ce06df8a8df50193f88b2814c3f80f3d7f8ce8936c36e"
 
       def install
         bin.install "gitten-darwin-x64" => "gitten"
