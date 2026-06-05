@@ -1,4 +1,6 @@
-export type BranchType = "feat" | "fix" | "hotfix" | "chore" | "docs";
+/** A branch type prefix. Defaults are feat/fix/hotfix/chore/docs, but the set is
+ *  configurable (see config `branchPrefixes`), so this is an open string. */
+export type BranchType = string;
 
 export interface IUI {
   intro(title: string): void;

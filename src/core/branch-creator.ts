@@ -1,6 +1,16 @@
+import { getBranchPrefixes, readConfig } from "../config/config";
 import type { AIBranchSuggester } from "./ports/ai.port";
 import type { IGitClient } from "./ports/git-client.port";
 import type { BranchType, IUI } from "./ports/ui.port";
+
+/** Descriptions shown next to the built-in prefixes; custom prefixes show bare. */
+const PREFIX_DESCRIPTIONS: Record<string, string> = {
+  feat: "new feature",
+  fix: "bug fix",
+  hotfix: "urgent production fix",
+  chore: "maintenance task",
+  docs: "documentation only",
+};
 
 export class BranchCreator {
   constructor(
@@ -10,13 +20,14 @@ export class BranchCreator {
   ) {}
 
   async run(): Promise<void> {
-    const type = await this.ui.askSelect<BranchType>("Branch type:", [
-      { value: "feat", label: "feat — new feature" },
-      { value: "fix", label: "fix — bug fix" },
-      { value: "hotfix", label: "hotfix — urgent production fix" },
-      { value: "chore", label: "chore — maintenance task" },
-      { value: "docs", label: "docs — documentation only" },
-    ]);
+    const prefixes = getBranchPrefixes(await readConfig());
+    const type = await this.ui.askSelect<BranchType>(
+      "Branch type:",
+      prefixes.map((p) => ({
+        value: p,
+        label: PREFIX_DESCRIPTIONS[p] ? `${p} — ${PREFIX_DESCRIPTIONS[p]}` : p,
+      })),
+    );
 
     const description = await this.promptDescription();
     let branchName = await this.resolveBranchName(type, description);
