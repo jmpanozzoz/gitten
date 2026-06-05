@@ -18,7 +18,7 @@ export const AI_PROVIDERS: AIProvider[] = [
     id: "anthropic",
     label: "Anthropic",
     baseUrl: "https://api.anthropic.com/v1",
-    defaultModel: "claude-3-5-haiku-20241022",
+    defaultModel: "claude-haiku-4-5",
     requiresKey: true,
   },
   {
@@ -39,7 +39,7 @@ export const AI_PROVIDERS: AIProvider[] = [
     id: "xai",
     label: "xAI (Grok)",
     baseUrl: "https://api.x.ai/v1",
-    defaultModel: "grok-beta",
+    defaultModel: "grok-4.3",
     requiresKey: true,
   },
   {
