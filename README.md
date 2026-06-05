@@ -187,7 +187,7 @@ The install script is idempotent — running it again fetches the latest release
 ◇  ℹ Already up to date.
 ```
 
-### Clean Branches — protected branches never appear
+### Clean Branches — protected branches are confirmation-gated
 
 ```
 ◆  Select branches to delete  2 selected
@@ -196,7 +196,7 @@ The install script is idempotent — running it again fetches the latest release
 │  ● feat/old-experiment
 │  ❯○ feat/user-profile
 │  ● fix/typo-header
-│       (main, dev, master, current branch never shown)
+│       (current branch never listed; main/dev/master shown but need extra confirm)
 │
 └  Space toggle  ·  Enter confirm  ·  Esc cancel
 ```
@@ -342,7 +342,7 @@ gitten → 🍒 Cherry Pick
 ```
 
 **What gitten handles for you:**
-- Lists the last 15 commits of any branch — no hash hunting.
+- Lists recent commits of any branch (count configurable in Settings, default 30) — no hash hunting.
 - Pauses on conflict with clear instructions instead of leaving you with a broken state.
 - ENTER runs `cherry-pick --continue`, ESC runs `cherry-pick --abort`.
 
@@ -362,7 +362,7 @@ git push origin --delete feat/old-thing   # remote delete (easy to forget)
 **With gitten:**
 ```
 gitten → 🧹 Clean Branches
-  ◆  Select branches to delete  (main, dev, master, current: never shown)
+  ◆  Select branches to delete  (current branch never listed)
   │  ● feat/old-experiment
   │  ● fix/typo-header
   ◇  Also delete from origin?  ● Yes
@@ -370,7 +370,7 @@ gitten → 🧹 Clean Branches
 ```
 
 **What gitten handles for you:**
-- `main`, `master`, `dev`, `develop`, and the current branch are **hard-filtered** — they never appear in the list.
+- The current branch (`HEAD`) is never listed; `main`, `master`, `dev`, and `develop` are listed but require an **explicit extra confirmation** before they can be deleted — so you can't fat-finger `main` away.
 - Multi-select with a search filter — clean 10 branches in one pass.
 - Remote deletion is a single follow-up question, not a separate command per branch.
 - Per-branch errors are warnings, not full aborts — if one remote delete fails (e.g. no permissions), the rest still complete.
@@ -495,8 +495,8 @@ gitten → ⋯ More → ↩ Undo Commit
 | 🌿 **New Branch** | Enforces `type/kebab-case-name`. AI-suggested names. Prevents duplicates. |
 | 🔀 **Switch Branch** | Real-time search filter across all local branches. Stashes uncommitted work if needed. |
 | 📦 **Stash** | Apply, pop, or drop stashes interactively. |
-| 🍒 **Cherry Pick** | Lists last 15 commits of any branch. Guides through conflicts — ENTER continue, ESC abort. |
-| 🧹 **Clean Branches** | Multi-select with search filter. Optionally removes from origin. Protected branches never shown. |
+| 🍒 **Cherry Pick** | Lists recent commits of any branch (count configurable in Settings, default 30). Guides through conflicts — ENTER continue, ESC abort. |
+| 🧹 **Clean Branches** | Multi-select with search filter. Optionally removes from origin. Current branch never listed; protected branches need an extra confirm. |
 
 ### More menu
 
@@ -586,7 +586,7 @@ Choose the source branch, pick one commit from the last 15. If there's a conflic
 gitten → 🧹 Clean Branches
 ```
 
-Multi-select with search filter. `main`, `master`, `dev`, `develop`, and the current branch never appear. Optionally delete from origin too.
+Multi-select with search filter. The current branch is never listed; `main`, `master`, `dev`, and `develop` are listed but require an explicit extra confirmation before deletion. Optionally delete from origin too.
 
 **Best practice:** clean up after every PR merge. One branch per feature.
 
