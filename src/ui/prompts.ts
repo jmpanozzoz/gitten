@@ -1,9 +1,9 @@
 import * as clack from "@clack/prompts";
-import { theme } from "./theme";
-import { GoBackSignal } from "./go-back";
-import { searchSelect, searchMultiSelect } from "./search-select";
-import { getSpinnerMessages } from "./spinner-vocab";
 import type { IUI } from "../core/ports/ui.port";
+import { GoBackSignal } from "./go-back";
+import { searchMultiSelect, searchSelect } from "./search-select";
+import { getSpinnerMessages } from "./spinner-vocab";
+import { theme } from "./theme";
 
 export class UI implements IUI {
   intro(title: string): void {
@@ -20,7 +20,7 @@ export class UI implements IUI {
 
   async askSelect<T extends string>(
     message: string,
-    options: { value: T; label: string }[]
+    options: { value: T; label: string }[],
   ): Promise<T> {
     const result = await clack.select({
       message,
@@ -32,7 +32,7 @@ export class UI implements IUI {
 
   async askMultiSelect<T extends string>(
     message: string,
-    options: { value: T; label: string }[]
+    options: { value: T; label: string }[],
   ): Promise<T[]> {
     const result = await clack.multiselect<T>({
       message,
@@ -46,14 +46,14 @@ export class UI implements IUI {
   async askSearchSelect<T>(
     message: string,
     options: { value: T; label: string; hints?: string[] }[],
-    searchPool?: { value: T; label: string; hints?: string[] }[]
+    searchPool?: { value: T; label: string; hints?: string[] }[],
   ): Promise<T> {
     return searchSelect(message, options, searchPool);
   }
 
   async askSearchMultiSelect<T>(
     message: string,
-    options: { value: T; label: string; hints?: string[] }[]
+    options: { value: T; label: string; hints?: string[] }[],
   ): Promise<T[]> {
     return searchMultiSelect(message, options);
   }

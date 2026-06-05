@@ -1,15 +1,15 @@
+import { getLimits, readConfig } from "../config/config";
+import { stdinResolution } from "../utils/stdin-resolution";
+import { resolveConflict } from "./conflict-resolver";
 import type { IGitClient } from "./ports/git-client.port";
 import type { IUI } from "./ports/ui.port";
 import { PROTECTED_BRANCHES } from "./protected-branches";
-import { resolveConflict } from "./conflict-resolver";
-import { readConfig, getLimits } from "../config/config";
-import { stdinResolution } from "../utils/stdin-resolution";
 
 export class RevertCommit {
   constructor(
     private readonly git: IGitClient,
     private readonly ui: IUI,
-    private readonly waitForResolution: () => Promise<boolean> = stdinResolution
+    private readonly waitForResolution: () => Promise<boolean> = stdinResolution,
   ) {}
 
   async run(): Promise<void> {
@@ -17,7 +17,7 @@ export class RevertCommit {
 
     if (PROTECTED_BRANCHES.has(branch)) {
       const proceed = await this.ui.askConfirm(
-        `⚠️  You are on '${branch}'. Revert a commit on this branch?`
+        `⚠️  You are on '${branch}'. Revert a commit on this branch?`,
       );
       if (!proceed) return;
     }
@@ -32,28 +32,33 @@ export class RevertCommit {
 
     const hash = await this.ui.askSearchSelect(
       "Select a commit to revert:",
-      commits.map((c) => ({ value: c.hash, label: `${c.hash} — ${c.message}` }))
+      commits.map((c) => ({ value: c.hash, label: `${c.hash} — ${c.message}` })),
     );
 
     const commit = commits.find((c) => c.hash === hash)!;
 
     const confirmed = await this.ui.askConfirm(
-      `Revert "${commit.message}"? This creates a new commit that undoes those changes.`
+      `Revert "${commit.message}"? This creates a new commit that undoes those changes.`,
     );
     if (!confirmed) return;
 
     try {
       await this.ui.spin(`Reverting ${hash}...`, () => this.git.revertCommit(hash));
       this.ui.success(`Reverted: a new commit undoing "${commit.message}" was created.`);
-    } catch (e) {
-      await resolveConflict(this.git, this.ui, {
-        label: "Revert",
-        onContinue: async () => {
-          await this.git.addAll();
-          await this.git.revertContinue();
+    } catch (_e) {
+      await resolveConflict(
+        this.git,
+        this.ui,
+        {
+          label: "Revert",
+          onContinue: async () => {
+            await this.git.addAll();
+            await this.git.revertContinue();
+          },
+          onAbort: () => this.git.revertAbort(),
         },
-        onAbort: () => this.git.revertAbort(),
-      }, this.waitForResolution);
+        this.waitForResolution,
+      );
     }
   }
 }

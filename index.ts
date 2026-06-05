@@ -1,5 +1,5 @@
-import { app } from "./src/app";
 import { version } from "./package.json";
+import { app } from "./src/app";
 
 if (process.argv.includes("--version") || process.argv.includes("-v")) {
   console.log(`gitten v${version}`);

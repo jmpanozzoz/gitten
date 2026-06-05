@@ -1,19 +1,19 @@
-import type { IGitClient } from "./ports/git-client.port";
-import type { IUI } from "./ports/ui.port";
-import type { AICommitExplainer } from "./ports/ai.port";
+import { getLimits, readConfig } from "../config/config";
+import { renderDiff } from "../ui/diff-renderer";
 import { GoBackSignal } from "../ui/go-back";
 import { stdinResolution } from "../utils/stdin-resolution";
-import { renderDiff } from "../ui/diff-renderer";
 import { resolveConflict } from "./conflict-resolver";
+import type { AICommitExplainer } from "./ports/ai.port";
+import type { IGitClient } from "./ports/git-client.port";
+import type { IUI } from "./ports/ui.port";
 import { PROTECTED_BRANCHES } from "./protected-branches";
-import { readConfig, getLimits } from "../config/config";
 
 export class CherryPicker {
   constructor(
     private readonly git: IGitClient,
     private readonly ui: IUI,
     private readonly waitForResolution: () => Promise<boolean> = stdinResolution,
-    private readonly aiExplainer?: AICommitExplainer
+    private readonly aiExplainer?: AICommitExplainer,
   ) {}
 
   async run(): Promise<void> {
@@ -21,7 +21,7 @@ export class CherryPicker {
 
     if (PROTECTED_BRANCHES.has(current)) {
       const proceed = await this.ui.askConfirm(
-        `⚠️  You are on '${current}'. Apply a cherry-picked commit here?`
+        `⚠️  You are on '${current}'. Apply a cherry-picked commit here?`,
       );
       if (!proceed) return;
     }
@@ -33,7 +33,10 @@ export class CherryPicker {
 
     const branchOptions = [
       ...localBranches.map((b) => ({ value: b, label: b })),
-      ...remoteOnlyBranches.map((b) => ({ value: `origin/${b}`, label: `origin/${b}  (remote only)` })),
+      ...remoteOnlyBranches.map((b) => ({
+        value: `origin/${b}`,
+        label: `origin/${b}  (remote only)`,
+      })),
     ];
 
     if (branchOptions.length === 0) {
@@ -43,7 +46,7 @@ export class CherryPicker {
 
     const sourceBranch = await this.ui.askSearchSelect(
       "Pick commits from which branch?",
-      branchOptions
+      branchOptions,
     );
 
     const { cherryPickLogLimit } = getLimits(await readConfig());
@@ -56,17 +59,21 @@ export class CherryPicker {
 
     const hash = await this.ui.askSearchSelect(
       "Select a commit to cherry-pick:",
-      commits.map((c) => ({ value: c.hash, label: `${c.hash} — ${c.message}` }))
+      commits.map((c) => ({ value: c.hash, label: `${c.hash} — ${c.message}` })),
     );
 
     if (this.aiExplainer) {
       try {
         const diff = await this.git.getCommitDiff(hash);
         if (diff) {
-          const explanation = await this.ui.spin("Analyzing commit...", () => this.aiExplainer!(diff));
+          const explanation = await this.ui.spin("Analyzing commit...", () =>
+            this.aiExplainer!(diff),
+          );
           if (explanation) this.ui.info(`✨ ${explanation}`);
         }
-      } catch { /* non-blocking */ }
+      } catch {
+        /* non-blocking */
+      }
     }
 
     const preview = await this.ui.askConfirm("Preview this commit's diff before applying?");
@@ -79,17 +86,20 @@ export class CherryPicker {
     }
 
     try {
-      await this.ui.spin(`Applying commit ${hash}...`, () =>
-        this.git.cherryPick(hash)
-      );
+      await this.ui.spin(`Applying commit ${hash}...`, () => this.git.cherryPick(hash));
       this.ui.success("Commit applied successfully.");
     } catch (e) {
       if (e instanceof GoBackSignal) throw e;
-      await resolveConflict(this.git, this.ui, {
-        label: "Cherry-pick",
-        onContinue: () => this.git.cherryPickContinue(),
-        onAbort: () => this.git.cherryPickAbort(),
-      }, this.waitForResolution);
+      await resolveConflict(
+        this.git,
+        this.ui,
+        {
+          label: "Cherry-pick",
+          onContinue: () => this.git.cherryPickContinue(),
+          onAbort: () => this.git.cherryPickAbort(),
+        },
+        this.waitForResolution,
+      );
     }
   }
 }

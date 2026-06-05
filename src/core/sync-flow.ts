@@ -1,7 +1,7 @@
+import { renderDiff } from "../ui/diff-renderer";
+import type { AICommitReviewer, AICommitSuggester } from "./ports/ai.port";
 import type { IGitClient } from "./ports/git-client.port";
 import type { IUI } from "./ports/ui.port";
-import type { AICommitSuggester, AICommitReviewer } from "./ports/ai.port";
-import { renderDiff } from "../ui/diff-renderer";
 import { PROTECTED_BRANCHES } from "./protected-branches";
 
 const DEFAULT_COMMIT_MESSAGE = "chore: update";
@@ -12,7 +12,7 @@ export class SyncFlow {
     private readonly git: IGitClient,
     private readonly ui: IUI,
     private readonly aiSuggester?: AICommitSuggester,
-    private readonly aiReviewer?: AICommitReviewer
+    private readonly aiReviewer?: AICommitReviewer,
   ) {}
 
   async run(): Promise<void> {
@@ -20,7 +20,7 @@ export class SyncFlow {
 
     if (PROTECTED_BRANCHES.has(branch)) {
       const proceed = await this.ui.askConfirm(
-        `⚠️  You are on '${branch}'. Commit directly to this branch?`
+        `⚠️  You are on '${branch}'. Commit directly to this branch?`,
       );
       if (!proceed) return;
     }
@@ -44,7 +44,7 @@ export class SyncFlow {
     } else {
       if (status.commitsBehind > 0) {
         const pullFirst = await this.ui.askConfirm(
-          `⚠️  Remote has ${status.commitsBehind} new commit(s). Pull first to avoid a rejected push?`
+          `⚠️  Remote has ${status.commitsBehind} new commit(s). Pull first to avoid a rejected push?`,
         );
         if (pullFirst) {
           this.ui.info("Go to Pull from the main menu, then come back to Sync.");
@@ -61,12 +61,10 @@ export class SyncFlow {
     await this.safePush();
   }
 
-  private async selectFiles(
-    files: { path: string; status: string }[]
-  ): Promise<string[]> {
+  private async selectFiles(files: { path: string; status: string }[]): Promise<string[]> {
     return this.ui.askMultiSelect(
       "Select files to stage:",
-      files.map((f) => ({ value: f.path, label: `${f.status}  ${f.path}` }))
+      files.map((f) => ({ value: f.path, label: `${f.status}  ${f.path}` })),
     );
   }
 
@@ -155,7 +153,7 @@ export class SyncFlow {
 
       if (message.includes(NO_UPSTREAM_ERROR) || message.includes("has no upstream")) {
         await this.ui.spin("No upstream found — pushing with -u origin...", () =>
-          this.git.push(true)
+          this.git.push(true),
         );
         this.ui.success("Branch pushed and upstream set.");
         return;

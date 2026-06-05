@@ -1,4 +1,4 @@
-import { test, expect } from "bun:test";
+import { expect, test } from "bun:test";
 
 // Test the pure comparison logic by importing the unexported helper via a thin wrapper.
 // We re-implement isNewer here to keep the tests fast and fully offline.

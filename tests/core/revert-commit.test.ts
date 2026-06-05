@@ -1,12 +1,17 @@
-import { test, expect, mock } from "bun:test";
+import { expect, mock, test } from "bun:test";
 import { RevertCommit } from "../../src/core/revert-commit";
+import { GoBackSignal } from "../../src/ui/go-back";
 import { createGitMock } from "../mocks/git-client.mock";
 import { createUIMock } from "../mocks/ui.mock";
-import { GoBackSignal } from "../../src/ui/go-back";
 
 mock.module("../../src/config/config", () => ({
   readConfig: mock(() => Promise.resolve({})),
-  getLimits: mock(() => ({ undoCommitLimit: 10, cherryPickLogLimit: 30, bisectLogLimit: 30, revertLogLimit: 30 })),
+  getLimits: mock(() => ({
+    undoCommitLimit: 10,
+    cherryPickLogLimit: 30,
+    bisectLogLimit: 30,
+    revertLogLimit: 30,
+  })),
 }));
 
 const COMMITS = [

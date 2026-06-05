@@ -1,6 +1,6 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
 import { homedir } from "node:os";
+import { join } from "node:path";
 
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 const REPO = "jmpanozzoz/gitten";

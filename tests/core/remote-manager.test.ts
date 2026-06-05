@@ -1,4 +1,4 @@
-import { test, expect, mock } from "bun:test";
+import { expect, mock, test } from "bun:test";
 import { RemoteManager } from "../../src/core/remote-manager";
 import { createGitMock } from "../mocks/git-client.mock";
 import { createUIMock } from "../mocks/ui.mock";
@@ -89,9 +89,7 @@ test("change-url: calls setRemoteUrl with selected remote and new url", async ()
     getRemotes: mock(() => Promise.resolve(REMOTES)),
     setRemoteUrl: mock(() => Promise.resolve()),
   });
-  const askSelect = mock()
-    .mockResolvedValueOnce("change-url")
-    .mockResolvedValueOnce("origin");
+  const askSelect = mock().mockResolvedValueOnce("change-url").mockResolvedValueOnce("origin");
   const ui = createUIMock({
     askSelect,
     askText: mock(() => Promise.resolve("git@github.com:user/repo.git")),
@@ -123,9 +121,7 @@ test("remove: calls removeRemote after confirmation", async () => {
     getRemotes: mock(() => Promise.resolve(REMOTES)),
     removeRemote: mock(() => Promise.resolve()),
   });
-  const askSelect = mock()
-    .mockResolvedValueOnce("remove")
-    .mockResolvedValueOnce("upstream");
+  const askSelect = mock().mockResolvedValueOnce("remove").mockResolvedValueOnce("upstream");
   const ui = createUIMock({
     askSelect,
     askConfirm: mock(() => Promise.resolve(true)),
@@ -141,9 +137,7 @@ test("remove: aborts when user declines confirmation", async () => {
     getRemotes: mock(() => Promise.resolve(REMOTES)),
     removeRemote: mock(() => Promise.resolve()),
   });
-  const askSelect = mock()
-    .mockResolvedValueOnce("remove")
-    .mockResolvedValueOnce("origin");
+  const askSelect = mock().mockResolvedValueOnce("remove").mockResolvedValueOnce("origin");
   const ui = createUIMock({
     askSelect,
     askConfirm: mock(() => Promise.resolve(false)),

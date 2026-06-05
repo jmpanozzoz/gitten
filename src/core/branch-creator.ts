@@ -1,12 +1,12 @@
-import type { IGitClient } from "./ports/git-client.port";
-import type { IUI, BranchType } from "./ports/ui.port";
 import type { AIBranchSuggester } from "./ports/ai.port";
+import type { IGitClient } from "./ports/git-client.port";
+import type { BranchType, IUI } from "./ports/ui.port";
 
 export class BranchCreator {
   constructor(
     private readonly git: IGitClient,
     private readonly ui: IUI,
-    private readonly aiSuggester?: AIBranchSuggester
+    private readonly aiSuggester?: AIBranchSuggester,
   ) {}
 
   async run(): Promise<void> {
@@ -31,7 +31,7 @@ export class BranchCreator {
     }
 
     await this.ui.spin(`Creating branch ${branchName}...`, () =>
-      this.git.checkoutNewBranch(branchName)
+      this.git.checkoutNewBranch(branchName),
     );
 
     this.ui.success(`You are now on ${branchName}.`);
@@ -51,7 +51,7 @@ export class BranchCreator {
     this.ui.warn(`Branch "${conflicting}" already exists — enter a different name.`);
     while (true) {
       const input = await this.ui.askText("Branch name:", conflicting);
-      if (!await this.git.branchExists(input)) return input;
+      if (!(await this.git.branchExists(input))) return input;
       this.ui.warn(`Branch "${input}" also already exists.`);
     }
   }
@@ -64,7 +64,7 @@ export class BranchCreator {
     if (!suggest) return deterministic;
 
     const slug = await this.ui.spin("Generating suggestion...", () =>
-      this.aiSuggester!(type, description)
+      this.aiSuggester!(type, description),
     );
 
     if (!slug) {

@@ -1,10 +1,16 @@
-import { test, expect, mock } from "bun:test";
+import { expect, mock, test } from "bun:test";
 import { SyncFlow } from "../../src/core/sync-flow";
 import { createGitMock } from "../mocks/git-client.mock";
 import { createUIMock } from "../mocks/ui.mock";
 
 const FILES = [{ path: "src/app.ts", status: "M" }];
-const DIRTY_STATUS = { files: FILES, isClean: () => false, hasStagedChanges: () => false, commitsAhead: 0, commitsBehind: 0 };
+const DIRTY_STATUS = {
+  files: FILES,
+  isClean: () => false,
+  hasStagedChanges: () => false,
+  commitsAhead: 0,
+  commitsBehind: 0,
+};
 const SELECT_ALL = { askMultiSelect: mock(() => Promise.resolve(["src/app.ts"])) };
 
 function makeSyncFlow(aiSuggester?: (diff: string) => Promise<string | null>, gitOverrides = {}) {

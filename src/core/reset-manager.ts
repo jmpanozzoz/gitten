@@ -1,6 +1,6 @@
+import type { AICommitSummarizer } from "./ports/ai.port";
 import type { IGitClient } from "./ports/git-client.port";
 import type { IUI } from "./ports/ui.port";
-import type { AICommitSummarizer } from "./ports/ai.port";
 
 type ResetAction = "discard" | "remote";
 
@@ -8,7 +8,7 @@ export class ResetManager {
   constructor(
     private readonly git: IGitClient,
     private readonly ui: IUI,
-    private readonly aiSummarizer?: AICommitSummarizer
+    private readonly aiSummarizer?: AICommitSummarizer,
   ) {}
 
   async run(): Promise<void> {
@@ -29,7 +29,7 @@ export class ResetManager {
     }
 
     const confirmed = await this.ui.askConfirm(
-      "This will permanently discard all uncommitted changes and untracked files."
+      "This will permanently discard all uncommitted changes and untracked files.",
     );
     if (!confirmed) return;
 
@@ -44,17 +44,21 @@ export class ResetManager {
       await this.git.fetchRemote();
       const commits = await this.git.getLogSince(`origin/${branch}`);
       if (commits.length > 0) {
-        this.ui.warn(`⚠️  ${commits.length} local commit(s) not on remote will be permanently lost:`);
+        this.ui.warn(
+          `⚠️  ${commits.length} local commit(s) not on remote will be permanently lost:`,
+        );
         for (const c of commits) {
           this.ui.warn(`  • ${c.hash} — ${c.message}`);
         }
         if (this.aiSummarizer) {
           try {
             const summary = await this.ui.spin("Summarizing what will be lost...", () =>
-              this.aiSummarizer!(commits.map((c) => c.message))
+              this.aiSummarizer!(commits.map((c) => c.message)),
             );
             if (summary) this.ui.info(`✨ What will be lost:\n${summary}`);
-          } catch { /* non-blocking */ }
+          } catch {
+            /* non-blocking */
+          }
         }
       }
     } catch {
@@ -62,7 +66,7 @@ export class ResetManager {
     }
 
     const confirmed = await this.ui.askConfirm(
-      `Reset branch '${branch}' to origin/${branch}? This cannot be undone.`
+      `Reset branch '${branch}' to origin/${branch}? This cannot be undone.`,
     );
     if (!confirmed) return;
 

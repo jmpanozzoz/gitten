@@ -4,7 +4,7 @@ import type { IUI } from "./ports/ui.port";
 export class BranchSwitcher {
   constructor(
     private readonly git: IGitClient,
-    private readonly ui: IUI
+    private readonly ui: IUI,
   ) {}
 
   async run(): Promise<void> {
@@ -21,8 +21,8 @@ export class BranchSwitcher {
         candidates.map(async (b) => ({
           value: b,
           label: `${b}  (${await this.git.getBranchLastActivity(b)})`,
-        }))
-      )
+        })),
+      ),
     );
 
     const target = await this.ui.askSearchSelect("Switch to branch:", labelled);
@@ -30,7 +30,7 @@ export class BranchSwitcher {
     const status = await this.git.getStatus();
     if (!status.isClean()) {
       const stashAndSwitch = await this.ui.askConfirm(
-        `${status.files.length} uncommitted change(s). Stash them and switch?`
+        `${status.files.length} uncommitted change(s). Stash them and switch?`,
       );
       if (!stashAndSwitch) return;
 
@@ -46,7 +46,7 @@ export class BranchSwitcher {
       const freshStatus = await this.git.getStatus();
       if (freshStatus.commitsBehind > 0) {
         const pullNow = await this.ui.askConfirm(
-          `⚠️  Branch '${target}' is ${freshStatus.commitsBehind} commit(s) behind origin. Pull now?`
+          `⚠️  Branch '${target}' is ${freshStatus.commitsBehind} commit(s) behind origin. Pull now?`,
         );
         if (pullNow) {
           await this.ui.spin("Pulling...", () => this.git.pull());

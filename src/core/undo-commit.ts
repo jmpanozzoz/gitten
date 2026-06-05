@@ -1,13 +1,13 @@
+import { getLimits, readConfig } from "../config/config";
 import type { IGitClient } from "./ports/git-client.port";
 import type { IUI } from "./ports/ui.port";
-import { readConfig, getLimits } from "../config/config";
 
 type ResetMode = "soft" | "mixed";
 
 export class UndoCommit {
   constructor(
     private readonly git: IGitClient,
-    private readonly ui: IUI
+    private readonly ui: IUI,
   ) {}
 
   async run(): Promise<void> {
@@ -25,7 +25,7 @@ export class UndoCommit {
       commits.map((c) => ({
         value: c.hash,
         label: `${c.hash} — ${c.message}`,
-      }))
+      })),
     );
 
     const n = commits.findIndex((c) => c.hash === hash) + 1;
@@ -35,17 +35,15 @@ export class UndoCommit {
       { value: "mixed", label: "↺  Mixed — keep changes unstaged" },
     ]);
 
-    const confirmed = await this.ui.askConfirm(
-      `Undo ${n} commit(s) with ${mode} reset?`
-    );
+    const confirmed = await this.ui.askConfirm(`Undo ${n} commit(s) with ${mode} reset?`);
     if (!confirmed) return;
 
     await this.ui.spin(`Undoing ${n} commit(s)...`, () =>
-      mode === "soft" ? this.git.resetSoft(n) : this.git.resetMixed(n)
+      mode === "soft" ? this.git.resetSoft(n) : this.git.resetMixed(n),
     );
 
     this.ui.success(
-      `${n} commit(s) undone. Changes are ${mode === "soft" ? "staged" : "in your working tree"}.`
+      `${n} commit(s) undone. Changes are ${mode === "soft" ? "staged" : "in your working tree"}.`,
     );
   }
 }

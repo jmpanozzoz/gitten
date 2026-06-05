@@ -1,6 +1,6 @@
+import type { AIGitignoreSuggester } from "./ports/ai.port";
 import type { IGitClient } from "./ports/git-client.port";
 import type { IUI } from "./ports/ui.port";
-import type { AIGitignoreSuggester } from "./ports/ai.port";
 
 type GitignoreAction = "add" | "template" | "ai" | "view";
 
@@ -67,7 +67,7 @@ export class GitignoreManager {
   constructor(
     private readonly git: IGitClient,
     private readonly ui: IUI,
-    private readonly aiSuggester?: AIGitignoreSuggester
+    private readonly aiSuggester?: AIGitignoreSuggester,
   ) {}
 
   async run(): Promise<void> {
@@ -113,7 +113,7 @@ export class GitignoreManager {
     if (matches.length === 0) return;
 
     const confirm = await this.ui.askConfirm(
-      `${matches.length} tracked file(s) match "${pattern}". Remove from Git index (git rm --cached)?`
+      `${matches.length} tracked file(s) match "${pattern}". Remove from Git index (git rm --cached)?`,
     );
     if (!confirm) return;
 
@@ -143,7 +143,7 @@ export class GitignoreManager {
 
     await this.git.writeGitignore([...existing, ...toAdd]);
     this.ui.success(
-      `Added ${toAdd.length} new entr${toAdd.length === 1 ? "y" : "ies"} from ${templateName} template.`
+      `Added ${toAdd.length} new entr${toAdd.length === 1 ? "y" : "ies"} from ${templateName} template.`,
     );
   }
 
@@ -154,7 +154,7 @@ export class GitignoreManager {
     ]);
 
     const suggestions = await this.ui.spin("Asking AI for suggestions...", () =>
-      this.aiSuggester!(tracked, existing)
+      this.aiSuggester!(tracked, existing),
     );
 
     if (suggestions.length === 0) {
@@ -172,7 +172,7 @@ export class GitignoreManager {
 
     const selected = await this.ui.askMultiSelect(
       `AI suggests ${newOnly.length} new pattern(s) — select to add:`,
-      newOnly.map((p) => ({ value: p, label: p }))
+      newOnly.map((p) => ({ value: p, label: p })),
     );
 
     if (selected.length === 0) return;
@@ -191,7 +191,7 @@ export class GitignoreManager {
     }
 
     this.ui.info(
-      `.gitignore — ${entries.length} entr${entries.length === 1 ? "y" : "ies"}:\n${entries.map((e) => `  ${e}`).join("\n")}`
+      `.gitignore — ${entries.length} entr${entries.length === 1 ? "y" : "ies"}:\n${entries.map((e) => `  ${e}`).join("\n")}`,
     );
   }
 }

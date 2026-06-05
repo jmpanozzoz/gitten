@@ -65,35 +65,54 @@ Rules:
 export async function suggestBranchName(
   type: BranchType,
   description: string,
-  config: AIConfig
+  config: AIConfig,
 ): Promise<string | null> {
-  return callAI(BRANCH_SYSTEM_PROMPT, `Type: ${type}\nDescription: ${description}`, config, MAX_TOKENS.branch);
+  return callAI(
+    BRANCH_SYSTEM_PROMPT,
+    `Type: ${type}\nDescription: ${description}`,
+    config,
+    MAX_TOKENS.branch,
+  );
 }
 
-export async function suggestCommitMessage(
-  diff: string,
-  config: AIConfig
-): Promise<string | null> {
-  const truncated = diff.length > MAX_DIFF_CHARS ? diff.slice(0, MAX_DIFF_CHARS) + "\n...(truncated)" : diff;
-  return callAI(COMMIT_SYSTEM_PROMPT, `Staged diff:\n\`\`\`\n${truncated}\n\`\`\``, config, MAX_TOKENS.commit);
+export async function suggestCommitMessage(diff: string, config: AIConfig): Promise<string | null> {
+  const truncated =
+    diff.length > MAX_DIFF_CHARS ? `${diff.slice(0, MAX_DIFF_CHARS)}\n...(truncated)` : diff;
+  return callAI(
+    COMMIT_SYSTEM_PROMPT,
+    `Staged diff:\n\`\`\`\n${truncated}\n\`\`\``,
+    config,
+    MAX_TOKENS.commit,
+  );
 }
 
 export async function suggestAmendMessage(
   currentMessage: string,
-  config: AIConfig
+  config: AIConfig,
 ): Promise<string | null> {
-  return callAI(AMEND_SYSTEM_PROMPT, `Existing message: ${currentMessage}`, config, MAX_TOKENS.amend);
+  return callAI(
+    AMEND_SYSTEM_PROMPT,
+    `Existing message: ${currentMessage}`,
+    config,
+    MAX_TOKENS.amend,
+  );
 }
 
-export async function reviewStagedDiff(
-  diff: string,
-  config: AIConfig
-): Promise<string[]> {
-  const truncated = diff.length > MAX_DIFF_CHARS ? diff.slice(0, MAX_DIFF_CHARS) + "\n...(truncated)" : diff;
+export async function reviewStagedDiff(diff: string, config: AIConfig): Promise<string[]> {
+  const truncated =
+    diff.length > MAX_DIFF_CHARS ? `${diff.slice(0, MAX_DIFF_CHARS)}\n...(truncated)` : diff;
   try {
-    const result = await callAI(REVIEW_SYSTEM_PROMPT, `Staged diff:\n\`\`\`\n${truncated}\n\`\`\``, config, MAX_TOKENS.review);
+    const result = await callAI(
+      REVIEW_SYSTEM_PROMPT,
+      `Staged diff:\n\`\`\`\n${truncated}\n\`\`\``,
+      config,
+      MAX_TOKENS.review,
+    );
     if (!result || result.trim() === "OK") return [];
-    return result.split("\n").map((l) => l.trim()).filter(Boolean);
+    return result
+      .split("\n")
+      .map((l) => l.trim())
+      .filter(Boolean);
   } catch {
     return [];
   }
@@ -102,13 +121,16 @@ export async function reviewStagedDiff(
 export async function suggestGitignorePatterns(
   trackedFiles: string[],
   existingPatterns: string[],
-  config: AIConfig
+  config: AIConfig,
 ): Promise<string[]> {
   const prompt = `Tracked files:\n${trackedFiles.slice(0, 100).join("\n")}\n\nCurrent .gitignore:\n${existingPatterns.join("\n")}`;
   try {
     const result = await callAI(GITIGNORE_SYSTEM_PROMPT, prompt, config, MAX_TOKENS.gitignore);
     if (!result) return [];
-    return result.split("\n").map((l) => l.trim()).filter(Boolean);
+    return result
+      .split("\n")
+      .map((l) => l.trim())
+      .filter(Boolean);
   } catch {
     return [];
   }
@@ -132,13 +154,27 @@ Rules:
 - Output ONLY the bullet points — no headers, no blank lines`;
 
 export async function explainCommitDiff(diff: string, config: AIConfig): Promise<string | null> {
-  const truncated = diff.length > MAX_DIFF_CHARS ? diff.slice(0, MAX_DIFF_CHARS) + "\n...(truncated)" : diff;
-  return callAI(EXPLAIN_COMMIT_SYSTEM_PROMPT, `Commit diff:\n\`\`\`\n${truncated}\n\`\`\``, config, MAX_TOKENS.explain);
+  const truncated =
+    diff.length > MAX_DIFF_CHARS ? `${diff.slice(0, MAX_DIFF_CHARS)}\n...(truncated)` : diff;
+  return callAI(
+    EXPLAIN_COMMIT_SYSTEM_PROMPT,
+    `Commit diff:\n\`\`\`\n${truncated}\n\`\`\``,
+    config,
+    MAX_TOKENS.explain,
+  );
 }
 
-export async function summarizeCommits(messages: string[], config: AIConfig): Promise<string | null> {
+export async function summarizeCommits(
+  messages: string[],
+  config: AIConfig,
+): Promise<string | null> {
   const prompt = messages.map((m, i) => `${i + 1}. ${m}`).join("\n");
-  return callAI(SUMMARIZE_COMMITS_SYSTEM_PROMPT, `Commit messages:\n${prompt}`, config, MAX_TOKENS.summarize);
+  return callAI(
+    SUMMARIZE_COMMITS_SYSTEM_PROMPT,
+    `Commit messages:\n${prompt}`,
+    config,
+    MAX_TOKENS.summarize,
+  );
 }
 
 export async function testAIConnection(config: AIConfig): Promise<void> {
@@ -149,7 +185,7 @@ async function callAI(
   systemPrompt: string,
   userMessage: string,
   config: AIConfig,
-  maxTokens: number
+  maxTokens: number,
 ): Promise<string | null> {
   const url = `${config.baseUrl.replace(/\/$/, "")}/chat/completions`;
 
@@ -177,7 +213,9 @@ async function callAI(
     });
   } catch (err) {
     if (err instanceof Error && err.name === "AbortError") {
-      throw new Error(`Request timed out after ${CALL_TIMEOUT_MS / 1000}s — is ${config.baseUrl} reachable?`);
+      throw new Error(
+        `Request timed out after ${CALL_TIMEOUT_MS / 1000}s — is ${config.baseUrl} reachable?`,
+      );
     }
     throw new Error(`Network error: ${err instanceof Error ? err.message : String(err)}`);
   } finally {
@@ -204,16 +242,24 @@ async function classifyHttpError(response: Response): Promise<string> {
   try {
     const body = (await response.json()) as { error?: { message?: string } };
     if (body.error?.message) return body.error.message;
-  } catch { /* fall through to status-based message */ }
+  } catch {
+    /* fall through to status-based message */
+  }
 
   switch (response.status) {
-    case 401: return "Invalid API key — check your credentials in Settings";
-    case 403: return "Access denied — verify your API key has the right permissions";
-    case 404: return "Model not found — check the model name in Settings";
-    case 429: return "Rate limit hit — wait a moment and try again";
+    case 401:
+      return "Invalid API key — check your credentials in Settings";
+    case 403:
+      return "Access denied — verify your API key has the right permissions";
+    case 404:
+      return "Model not found — check the model name in Settings";
+    case 429:
+      return "Rate limit hit — wait a moment and try again";
     case 500:
     case 502:
-    case 503: return `Provider error (${response.status}) — the AI service may be down`;
-    default:  return `HTTP ${response.status}`;
+    case 503:
+      return `Provider error (${response.status}) — the AI service may be down`;
+    default:
+      return `HTTP ${response.status}`;
   }
 }
