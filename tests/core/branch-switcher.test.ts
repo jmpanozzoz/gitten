@@ -1,11 +1,23 @@
-import { test, expect, mock } from "bun:test";
+import { expect, mock, test } from "bun:test";
 import { BranchSwitcher } from "../../src/core/branch-switcher";
 import { createGitMock } from "../mocks/git-client.mock";
 import { createUIMock } from "../mocks/ui.mock";
 
 const BRANCHES = { all: ["main", "dev", "feat/login", "fix/bug-42"], current: "feat/login" };
-const CLEAN = { files: [], isClean: () => true, hasStagedChanges: () => false, commitsAhead: 0, commitsBehind: 0 };
-const DIRTY = { files: [{ path: "src/app.ts", status: "M" }], isClean: () => false, hasStagedChanges: () => false, commitsAhead: 0, commitsBehind: 0 };
+const CLEAN = {
+  files: [],
+  isClean: () => true,
+  hasStagedChanges: () => false,
+  commitsAhead: 0,
+  commitsBehind: 0,
+};
+const DIRTY = {
+  files: [{ path: "src/app.ts", status: "M" }],
+  isClean: () => false,
+  hasStagedChanges: () => false,
+  commitsAhead: 0,
+  commitsBehind: 0,
+};
 
 // ─── no branches ─────────────────────────────────────────────────────────────
 
@@ -136,7 +148,13 @@ test("shows stash hint after switching from dirty tree", async () => {
 // ─── behind warning after switch ──────────────────────────────────────────────
 
 test("warns and offers pull when branch is behind origin after switching", async () => {
-  const BEHIND = { files: [], isClean: () => true, hasStagedChanges: () => false, commitsAhead: 0, commitsBehind: 5 };
+  const BEHIND = {
+    files: [],
+    isClean: () => true,
+    hasStagedChanges: () => false,
+    commitsAhead: 0,
+    commitsBehind: 5,
+  };
   const git = createGitMock({
     getBranches: mock(() => Promise.resolve(BRANCHES)),
     getStatus: mock(() => Promise.resolve(BEHIND)),
@@ -156,7 +174,13 @@ test("warns and offers pull when branch is behind origin after switching", async
 });
 
 test("skips pull when user declines the behind warning", async () => {
-  const BEHIND = { files: [], isClean: () => true, hasStagedChanges: () => false, commitsAhead: 0, commitsBehind: 2 };
+  const BEHIND = {
+    files: [],
+    isClean: () => true,
+    hasStagedChanges: () => false,
+    commitsAhead: 0,
+    commitsBehind: 2,
+  };
   const git = createGitMock({
     getBranches: mock(() => Promise.resolve(BRANCHES)),
     getStatus: mock(() => Promise.resolve(BEHIND)),
@@ -173,7 +197,13 @@ test("skips pull when user declines the behind warning", async () => {
 });
 
 test("does not warn when branch is up to date after switching", async () => {
-  const UP_TO_DATE = { files: [], isClean: () => true, hasStagedChanges: () => false, commitsAhead: 0, commitsBehind: 0 };
+  const UP_TO_DATE = {
+    files: [],
+    isClean: () => true,
+    hasStagedChanges: () => false,
+    commitsAhead: 0,
+    commitsBehind: 0,
+  };
   const git = createGitMock({
     getBranches: mock(() => Promise.resolve(BRANCHES)),
     getStatus: mock(() => Promise.resolve(UP_TO_DATE)),

@@ -1,4 +1,4 @@
-import { test, expect, mock } from "bun:test";
+import { expect, mock, test } from "bun:test";
 import { StashManager } from "../../src/core/stash-manager";
 import { GoBackSignal } from "../../src/ui/go-back";
 import { createGitMock } from "../mocks/git-client.mock";
@@ -132,7 +132,13 @@ test("aborts drop when user declines confirmation", async () => {
 test("stashes current changes with optional message", async () => {
   const git = createGitMock({
     getStatus: mock(() =>
-      Promise.resolve({ files: [{ path: "src/app.ts", status: "M" }], isClean: () => false, hasStagedChanges: () => false, commitsAhead: 0, commitsBehind: 0 })
+      Promise.resolve({
+        files: [{ path: "src/app.ts", status: "M" }],
+        isClean: () => false,
+        hasStagedChanges: () => false,
+        commitsAhead: 0,
+        commitsBehind: 0,
+      }),
     ),
     stashWithMessage: mock(() => Promise.resolve()),
   });
@@ -148,7 +154,15 @@ test("stashes current changes with optional message", async () => {
 
 test("aborts stash push when working tree is clean", async () => {
   const git = createGitMock({
-    getStatus: mock(() => Promise.resolve({ files: [], isClean: () => true, hasStagedChanges: () => false, commitsAhead: 0, commitsBehind: 0 })),
+    getStatus: mock(() =>
+      Promise.resolve({
+        files: [],
+        isClean: () => true,
+        hasStagedChanges: () => false,
+        commitsAhead: 0,
+        commitsBehind: 0,
+      }),
+    ),
     stashWithMessage: mock(() => Promise.resolve()),
   });
   const ui = createUIMock({ ...selectAction("push") });

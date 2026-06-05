@@ -1,4 +1,4 @@
-import { test, expect, mock } from "bun:test";
+import { expect, mock, test } from "bun:test";
 import { resolveConflict } from "../../src/core/conflict-resolver";
 import { createGitMock } from "../mocks/git-client.mock";
 import { createUIMock } from "../mocks/ui.mock";
@@ -77,7 +77,9 @@ test("calls ui.error and does not propagate when onContinue throws", async () =>
   const onAbort = mock(() => Promise.resolve());
   const actions = { label: "Cherry-pick", onContinue, onAbort };
 
-  await expect(resolveConflict(git, ui, actions, () => Promise.resolve(true))).resolves.toBeUndefined();
+  await expect(
+    resolveConflict(git, ui, actions, () => Promise.resolve(true)),
+  ).resolves.toBeUndefined();
 
   expect(ui.error).toHaveBeenCalled();
 });

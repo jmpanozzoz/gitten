@@ -110,7 +110,9 @@ export interface IGitClient {
   resetHardToRemote(branch: string): Promise<void>;
   getCommitDiff(hash: string): Promise<string>;
   getStashDiff(index: number): Promise<string>;
-  getStashStat(index: number): Promise<{ filesChanged: number; insertions: number; deletions: number }>;
+  getStashStat(
+    index: number,
+  ): Promise<{ filesChanged: number; insertions: number; deletions: number }>;
   pullRebase(): Promise<PullResult>;
   getConflictedFiles(): Promise<string[]>;
 }

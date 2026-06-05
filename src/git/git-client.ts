@@ -1,7 +1,19 @@
-import simpleGit from "simple-git";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import type { IGitClient, BranchSummary, CommitSummary, StatusSummary, Remote, PullResult, DiffStat, StashEntry, WorktreeEntry, BisectResult, RepoContext } from "../core/ports/git-client.port";
+import simpleGit from "simple-git";
+import type {
+  BisectResult,
+  BranchSummary,
+  CommitSummary,
+  DiffStat,
+  IGitClient,
+  PullResult,
+  Remote,
+  RepoContext,
+  StashEntry,
+  StatusSummary,
+  WorktreeEntry,
+} from "../core/ports/git-client.port";
 
 export class GitClient implements IGitClient {
   private readonly git: ReturnType<typeof simpleGit>;
@@ -208,7 +220,7 @@ export class GitClient implements IGitClient {
   }
 
   async writeGitignore(lines: string[]): Promise<void> {
-    await Bun.write(join(this.cwd, ".gitignore"), lines.join("\n") + "\n");
+    await Bun.write(join(this.cwd, ".gitignore"), `${lines.join("\n")}\n`);
   }
 
   async getTrackedFiles(): Promise<string[]> {
@@ -240,7 +252,7 @@ export class GitClient implements IGitClient {
     try {
       const file = Bun.file(join(this.cwd, "package.json"));
       if (!(await file.exists())) return null;
-      const pkg = await file.json() as { version?: string };
+      const pkg = (await file.json()) as { version?: string };
       return pkg.version ?? null;
     } catch {
       return null;
@@ -299,7 +311,6 @@ export class GitClient implements IGitClient {
     }
     return { done: false };
   }
-
 
   async getWorktrees(): Promise<WorktreeEntry[]> {
     const raw = await this.git.raw(["worktree", "list", "--porcelain"]);
@@ -385,15 +396,18 @@ export class GitClient implements IGitClient {
     await this.git.stash(["drop", `stash@{${index}}`]);
   }
 
-  async getStashStat(index: number): Promise<{ filesChanged: number; insertions: number; deletions: number }> {
+  async getStashStat(
+    index: number,
+  ): Promise<{ filesChanged: number; insertions: number; deletions: number }> {
     const raw = await this.git.raw(["stash", "show", "--numstat", `stash@{${index}}`]);
     if (!raw.trim()) return { filesChanged: 0, insertions: 0, deletions: 0 };
     const lines = raw.trim().split("\n").filter(Boolean);
-    let insertions = 0, deletions = 0;
+    let insertions = 0,
+      deletions = 0;
     for (const line of lines) {
       const [ins = NaN, del = NaN] = line.split("\t").map(Number);
-      if (!isNaN(ins)) insertions += ins;
-      if (!isNaN(del)) deletions += del;
+      if (!Number.isNaN(ins)) insertions += ins;
+      if (!Number.isNaN(del)) deletions += del;
     }
     return { filesChanged: lines.length, insertions, deletions };
   }

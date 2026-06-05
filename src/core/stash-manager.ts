@@ -1,6 +1,6 @@
+import { renderDiff } from "../ui/diff-renderer";
 import type { IGitClient } from "./ports/git-client.port";
 import type { IUI } from "./ports/ui.port";
-import { renderDiff } from "../ui/diff-renderer";
 
 type StashAction = "apply" | "drop" | "push";
 type ApplyMode = "pop" | "apply";
@@ -8,7 +8,7 @@ type ApplyMode = "pop" | "apply";
 export class StashManager {
   constructor(
     private readonly git: IGitClient,
-    private readonly ui: IUI
+    private readonly ui: IUI,
   ) {}
 
   async run(): Promise<void> {
@@ -36,7 +36,7 @@ export class StashManager {
       stashes.map((s) => ({
         value: String(s.index),
         label: `stash@{${s.index}}  ${s.message}  (${s.date})`,
-      }))
+      })),
     );
     const index = Number(indexStr);
 
@@ -80,13 +80,13 @@ export class StashManager {
       stashes.map((s) => ({
         value: String(s.index),
         label: `stash@{${s.index}}  ${s.message}  (${s.date})`,
-      }))
+      })),
     );
 
     if (selected.length === 0) return;
 
     const confirmed = await this.ui.askConfirm(
-      `Drop ${selected.length} stash(es)? This cannot be undone.`
+      `Drop ${selected.length} stash(es)? This cannot be undone.`,
     );
     if (!confirmed) return;
 
@@ -107,10 +107,7 @@ export class StashManager {
       return;
     }
 
-    const message = await this.ui.askText(
-      "Stash message (optional):",
-      "WIP: in progress"
-    );
+    const message = await this.ui.askText("Stash message (optional):", "WIP: in progress");
 
     await this.ui.spin("Stashing...", () => this.git.stashWithMessage(message));
     this.ui.success("Changes stashed.");

@@ -1,6 +1,10 @@
-import { test, expect, mock, afterEach, spyOn } from "bun:test";
-import { suggestCommitMessage, suggestGitignorePatterns, testAIConnection } from "../../src/core/ai-suggester";
+import { afterEach, expect, mock, spyOn, test } from "bun:test";
 import type { AIConfig } from "../../src/config/config";
+import {
+  suggestCommitMessage,
+  suggestGitignorePatterns,
+  testAIConnection,
+} from "../../src/core/ai-suggester";
 
 const CONFIG: AIConfig = {
   enabled: true,
@@ -12,10 +16,9 @@ const CONFIG: AIConfig = {
 
 function mockFetch(content: string, ok = true) {
   return spyOn(globalThis, "fetch").mockResolvedValueOnce(
-    new Response(
-      JSON.stringify({ choices: [{ message: { content } }] }),
-      { status: ok ? 200 : 401 }
-    )
+    new Response(JSON.stringify({ choices: [{ message: { content } }] }), {
+      status: ok ? 200 : 401,
+    }),
   );
 }
 
@@ -99,27 +102,22 @@ test("strips blank lines from suggestions", async () => {
 // ─── error classification ─────────────────────────────────────────────────────
 
 test("throws user-friendly message on 401 without response body", async () => {
-  spyOn(globalThis, "fetch").mockResolvedValueOnce(
-    new Response("{}", { status: 401 })
-  );
+  spyOn(globalThis, "fetch").mockResolvedValueOnce(new Response("{}", { status: 401 }));
 
   await expect(suggestCommitMessage("diff", CONFIG)).rejects.toThrow("Invalid API key");
 });
 
 test("throws user-friendly message on 429 rate limit", async () => {
-  spyOn(globalThis, "fetch").mockResolvedValueOnce(
-    new Response("{}", { status: 429 })
-  );
+  spyOn(globalThis, "fetch").mockResolvedValueOnce(new Response("{}", { status: 429 }));
 
   await expect(suggestCommitMessage("diff", CONFIG)).rejects.toThrow("Rate limit");
 });
 
 test("prefers provider error message over status-based fallback", async () => {
   spyOn(globalThis, "fetch").mockResolvedValueOnce(
-    new Response(
-      JSON.stringify({ error: { message: "The model gpt-99 does not exist" } }),
-      { status: 404 }
-    )
+    new Response(JSON.stringify({ error: { message: "The model gpt-99 does not exist" } }), {
+      status: 404,
+    }),
   );
 
   await expect(suggestCommitMessage("diff", CONFIG)).rejects.toThrow("gpt-99 does not exist");
@@ -142,9 +140,7 @@ test("testAIConnection resolves when API returns a valid response", async () => 
 });
 
 test("testAIConnection throws when API responds with error status", async () => {
-  spyOn(globalThis, "fetch").mockResolvedValueOnce(
-    new Response("{}", { status: 401 })
-  );
+  spyOn(globalThis, "fetch").mockResolvedValueOnce(new Response("{}", { status: 401 }));
 
   await expect(testAIConnection(CONFIG)).rejects.toThrow("Invalid API key");
 });

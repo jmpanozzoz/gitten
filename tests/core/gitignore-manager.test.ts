@@ -1,6 +1,6 @@
-import { test, expect, mock } from "bun:test";
-import { GoBackSignal } from "../../src/ui/go-back";
+import { expect, mock, test } from "bun:test";
 import { GitignoreManager } from "../../src/core/gitignore-manager";
+import { GoBackSignal } from "../../src/ui/go-back";
 import { createGitMock } from "../mocks/git-client.mock";
 import { createUIMock } from "../mocks/ui.mock";
 
@@ -120,9 +120,7 @@ test("applyTemplate: writes template lines merged with existing gitignore", asyn
     ...NO_TRACKED,
   });
   const ui = createUIMock({
-    askSelect: mock()
-      .mockResolvedValueOnce("template")
-      .mockResolvedValueOnce("node"),
+    askSelect: mock().mockResolvedValueOnce("template").mockResolvedValueOnce("node"),
     askConfirm: mock(() => Promise.resolve(false)),
   });
 
@@ -141,9 +139,7 @@ test("applyTemplate: deduplicates lines already present in gitignore", async () 
     ...NO_TRACKED,
   });
   const ui = createUIMock({
-    askSelect: mock()
-      .mockResolvedValueOnce("template")
-      .mockResolvedValueOnce("node"),
+    askSelect: mock().mockResolvedValueOnce("template").mockResolvedValueOnce("node"),
     askConfirm: mock(() => Promise.resolve(false)),
   });
 

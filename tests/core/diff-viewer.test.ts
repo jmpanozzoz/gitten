@@ -1,8 +1,8 @@
-import { test, expect, mock } from "bun:test";
+import { expect, mock, test } from "bun:test";
 import { DiffViewer } from "../../src/core/diff-viewer";
+import { GoBackSignal } from "../../src/ui/go-back";
 import { createGitMock } from "../mocks/git-client.mock";
 import { createUIMock } from "../mocks/ui.mock";
-import { GoBackSignal } from "../../src/ui/go-back";
 
 // ─── happy path ───────────────────────────────────────────────────────────────
 

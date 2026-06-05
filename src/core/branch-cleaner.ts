@@ -5,7 +5,7 @@ import { PROTECTED_BRANCHES } from "./protected-branches";
 export class BranchCleaner {
   constructor(
     private readonly git: IGitClient,
-    private readonly ui: IUI
+    private readonly ui: IUI,
   ) {}
 
   async run(): Promise<void> {
@@ -14,9 +14,7 @@ export class BranchCleaner {
 
     const localSet = new Set(local);
     const localCandidates = local.filter((b) => b !== current);
-    const remoteOnlyCandidates = remote.filter(
-      (b) => !localSet.has(b) && b !== current
-    );
+    const remoteOnlyCandidates = remote.filter((b) => !localSet.has(b) && b !== current);
 
     if (localCandidates.length === 0 && remoteOnlyCandidates.length === 0) {
       this.ui.info("No branches available to delete.");
@@ -28,7 +26,7 @@ export class BranchCleaner {
         localCandidates.map(async (b) => ({
           value: b,
           label: `${b}  (${await this.git.getBranchLastActivity(b)})`,
-        }))
+        })),
       );
       const remoteLabels = remoteOnlyCandidates.map((b) => ({
         value: `remote:${b}`,
@@ -46,7 +44,7 @@ export class BranchCleaner {
 
     if (selectedProtected.length > 0) {
       const confirmed = await this.ui.askConfirm(
-        `⚠️  You selected protected branch(es): ${selectedProtected.join(", ")}. Delete anyway?`
+        `⚠️  You selected protected branch(es): ${selectedProtected.join(", ")}. Delete anyway?`,
       );
       if (!confirmed) return;
     }
@@ -67,7 +65,7 @@ export class BranchCleaner {
       if (!isRemoteOnly) {
         try {
           await this.ui.spin(`Removing local "${branch}"...`, () =>
-            this.git.deleteLocalBranchForce(branch)
+            this.git.deleteLocalBranchForce(branch),
           );
           localDeleted++;
         } catch {
@@ -78,7 +76,7 @@ export class BranchCleaner {
       if (isRemoteOnly || deleteRemote) {
         try {
           await this.ui.spin(`Removing remote "${branch}"...`, () =>
-            this.git.deleteRemoteBranch(branch)
+            this.git.deleteRemoteBranch(branch),
           );
           remoteDeleted++;
         } catch {

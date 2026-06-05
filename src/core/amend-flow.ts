@@ -1,6 +1,6 @@
+import type { AIMessageImprover } from "./ports/ai.port";
 import type { IGitClient } from "./ports/git-client.port";
 import type { IUI } from "./ports/ui.port";
-import type { AIMessageImprover } from "./ports/ai.port";
 import { PROTECTED_BRANCHES } from "./protected-branches";
 
 type AmendOption = "message" | "staged" | "both";
@@ -9,14 +9,14 @@ export class AmendFlow {
   constructor(
     private readonly git: IGitClient,
     private readonly ui: IUI,
-    private readonly aiSuggester?: AIMessageImprover
+    private readonly aiSuggester?: AIMessageImprover,
   ) {}
 
   async run(): Promise<void> {
     const branch = await this.git.getCurrentBranch();
     if (PROTECTED_BRANCHES.has(branch)) {
       const proceed = await this.ui.askConfirm(
-        `⚠️  You are on '${branch}'. Amend a commit on this branch?`
+        `⚠️  You are on '${branch}'. Amend a commit on this branch?`,
       );
       if (!proceed) return;
     }
@@ -78,7 +78,7 @@ export class AmendFlow {
     this.ui.success(
       withStagedFiles
         ? `Commit amended with new message and staged files: "${message}"`
-        : `Commit amended: "${message}"`
+        : `Commit amended: "${message}"`,
     );
   }
 }

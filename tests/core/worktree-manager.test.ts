@@ -1,8 +1,8 @@
-import { test, expect, mock } from "bun:test";
+import { expect, mock, test } from "bun:test";
+import type { WorktreeEntry } from "../../src/core/ports/git-client.port";
 import { WorktreeManager } from "../../src/core/worktree-manager";
 import { createGitMock } from "../mocks/git-client.mock";
 import { createUIMock } from "../mocks/ui.mock";
-import type { WorktreeEntry } from "../../src/core/ports/git-client.port";
 
 const WORKTREES: WorktreeEntry[] = [
   { path: "/repo", branch: "main", isMain: true, isLocked: false },
@@ -31,13 +31,13 @@ test("shows list of worktrees on list action", async () => {
 test("adds worktree with existing branch when user selects existing", async () => {
   const git = createGitMock({
     getWorktrees: mock(() => Promise.resolve(WORKTREES)),
-    getBranches: mock(() => Promise.resolve({ all: ["main", "feat/login", "feat/other"], current: "main" })),
+    getBranches: mock(() =>
+      Promise.resolve({ all: ["main", "feat/login", "feat/other"], current: "main" }),
+    ),
     addWorktree: mock(() => Promise.resolve()),
   });
   const ui = createUIMock({
-    askSelect: mock()
-      .mockResolvedValueOnce("add")
-      .mockResolvedValueOnce("existing"),
+    askSelect: mock().mockResolvedValueOnce("add").mockResolvedValueOnce("existing"),
     askText: mock(() => Promise.resolve("../repo-other")),
     askSearchSelect: mock(() => Promise.resolve("feat/other")),
   });
@@ -54,12 +54,8 @@ test("adds worktree with new branch when user selects new", async () => {
     addWorktree: mock(() => Promise.resolve()),
   });
   const ui = createUIMock({
-    askSelect: mock()
-      .mockResolvedValueOnce("add")
-      .mockResolvedValueOnce("new"),
-    askText: mock()
-      .mockResolvedValueOnce("../repo-hotfix")
-      .mockResolvedValueOnce("hotfix/payment"),
+    askSelect: mock().mockResolvedValueOnce("add").mockResolvedValueOnce("new"),
+    askText: mock().mockResolvedValueOnce("../repo-hotfix").mockResolvedValueOnce("hotfix/payment"),
   });
 
   await new WorktreeManager(git, ui).run();
@@ -121,14 +117,14 @@ test("warns when no non-main worktrees exist for removal", async () => {
 
 test("shows error and returns when addWorktree fails", async () => {
   const git = createGitMock({
-    getWorktrees: mock(() => Promise.resolve([{ path: "/repo", branch: "main", isMain: true, isLocked: false }])),
+    getWorktrees: mock(() =>
+      Promise.resolve([{ path: "/repo", branch: "main", isMain: true, isLocked: false }]),
+    ),
     getBranches: mock(() => Promise.resolve({ all: ["main", "feat/other"], current: "main" })),
     addWorktree: mock(() => Promise.reject(new Error("destination path already exists"))),
   });
   const ui = createUIMock({
-    askSelect: mock()
-      .mockResolvedValueOnce("add")
-      .mockResolvedValueOnce("existing"),
+    askSelect: mock().mockResolvedValueOnce("add").mockResolvedValueOnce("existing"),
     askText: mock(() => Promise.resolve("../repo-other")),
     askSearchSelect: mock(() => Promise.resolve("feat/other")),
   });

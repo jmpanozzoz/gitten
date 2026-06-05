@@ -6,7 +6,7 @@ type RemoteAction = "add" | "change-url" | "remove";
 export class RemoteManager {
   constructor(
     private readonly git: IGitClient,
-    private readonly ui: IUI
+    private readonly ui: IUI,
   ) {}
 
   async runInit(): Promise<void> {
@@ -48,7 +48,7 @@ export class RemoteManager {
 
     const name = await this.ui.askSelect(
       "Which remote?",
-      remoteNames.map((r) => ({ value: r, label: r }))
+      remoteNames.map((r) => ({ value: r, label: r })),
     );
     const url = await this.promptUrl();
 
@@ -64,7 +64,7 @@ export class RemoteManager {
 
     const name = await this.ui.askSelect(
       "Which remote do you want to remove?",
-      remoteNames.map((r) => ({ value: r, label: r }))
+      remoteNames.map((r) => ({ value: r, label: r })),
     );
 
     const confirmed = await this.ui.askConfirm(`Remove remote "${name}"?`);

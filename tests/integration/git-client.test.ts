@@ -1,5 +1,5 @@
-import { test, expect, beforeEach, afterEach } from "bun:test";
-import { mkdtempSync, rmSync, writeFileSync, realpathSync } from "node:fs";
+import { afterEach, beforeEach, expect, test } from "bun:test";
+import { mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import simpleGit from "simple-git";
@@ -394,7 +394,9 @@ test("removeWorktree removes the worktree from the list", async () => {
   try {
     await client.checkoutNewBranch("feat/wt-remove");
     const branch = await client.getCurrentBranch();
-    await client.checkoutBranch((await client.getBranches()).all.find(b => b !== branch) ?? branch);
+    await client.checkoutBranch(
+      (await client.getBranches()).all.find((b) => b !== branch) ?? branch,
+    );
 
     await client.addWorktree(wtDir, "feat/wt-remove", false).catch(async () => {
       await client.checkoutBranch(branch);

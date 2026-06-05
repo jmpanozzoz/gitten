@@ -1,5 +1,17 @@
 import { mock } from "bun:test";
-import type { IGitClient, BranchSummary, CommitSummary, StatusSummary, Remote, PullResult, DiffStat, StashEntry, WorktreeEntry, BisectResult, RepoContext } from "../../src/core/ports/git-client.port";
+import type {
+  BisectResult,
+  BranchSummary,
+  CommitSummary,
+  DiffStat,
+  IGitClient,
+  PullResult,
+  Remote,
+  RepoContext,
+  StashEntry,
+  StatusSummary,
+  WorktreeEntry,
+} from "../../src/core/ports/git-client.port";
 
 export function createGitMock(overrides: Partial<IGitClient> = {}): IGitClient {
   return {
@@ -12,7 +24,14 @@ export function createGitMock(overrides: Partial<IGitClient> = {}): IGitClient {
     setRemoteUrl: mock(() => Promise.resolve()),
     getCurrentBranch: mock(() => Promise.resolve("feat/test")),
     getRepoContext: mock(() =>
-      Promise.resolve({ branch: "main", modifiedCount: 0, commitsAhead: 0, commitsBehind: 0, insertions: 0, deletions: 0 } satisfies RepoContext)
+      Promise.resolve({
+        branch: "main",
+        modifiedCount: 0,
+        commitsAhead: 0,
+        commitsBehind: 0,
+        insertions: 0,
+        deletions: 0,
+      } satisfies RepoContext),
     ),
     getBranches: mock(() => Promise.resolve({ all: [], current: "main" } satisfies BranchSummary)),
     getRemoteBranches: mock(() => Promise.resolve([] as string[])),
@@ -35,7 +54,13 @@ export function createGitMock(overrides: Partial<IGitClient> = {}): IGitClient {
     mergeAbort: mock(() => Promise.resolve()),
     mergeContinue: mock(() => Promise.resolve()),
     getStatus: mock(() =>
-      Promise.resolve({ files: [], isClean: () => true, hasStagedChanges: () => false, commitsAhead: 0, commitsBehind: 0 } satisfies StatusSummary)
+      Promise.resolve({
+        files: [],
+        isClean: () => true,
+        hasStagedChanges: () => false,
+        commitsAhead: 0,
+        commitsBehind: 0,
+      } satisfies StatusSummary),
     ),
     addAll: mock(() => Promise.resolve()),
     addFiles: mock(() => Promise.resolve()),
