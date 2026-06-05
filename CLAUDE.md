@@ -142,10 +142,10 @@ The main menu uses a custom **searchable** select (`ui/search-select.ts`) — ty
 
 ## Features — Scope, Limits & Guardrails
 
-The app ships **23 core flows**, each a class in `core/` wired into the menu in `app.ts`:
+The app ships **25 core flows**, each a class in `core/` wired into the menu in `app.ts`:
 Sync, Pull, New Branch, Switch Branch, Stash, Cherry Pick, Clean Branches (main menu) and
-Amend, Revert, Tag, Bisect, Diff, Worktrees, Undo, Reset, Remotes, .gitignore, Purge,
-Settings (under "More"), plus shared infrastructure (conflict-resolver, ai-suggester).
+Amend, Revert, Tag, Bisect, Diff, Log, Squash, Worktrees, Undo, Reset, Remotes, .gitignore,
+Purge, Settings (under "More"), plus shared infrastructure (conflict-resolver, ai-suggester).
 The four flows documented in detail below are representative — they carry the canonical
 guardrail patterns every other flow follows; see each module + its test for the rest.
 
