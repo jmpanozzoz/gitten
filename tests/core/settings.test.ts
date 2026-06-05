@@ -8,15 +8,18 @@ const MOCK_WRITE = mock(() => Promise.resolve());
 const MOCK_TEST_CONNECTION = mock(() => Promise.resolve());
 
 mock.module("../../src/config/config", () => ({
-  readConfig: MOCK_READ,
+  readGlobalConfig: MOCK_READ,
   writeConfig: MOCK_WRITE,
   getActiveAIConfig: mock(() => Promise.resolve(null)),
-  getLimits: mock(() => ({
+  // Faithful to the real getLimits (defaults ⊕ config.limits) so this module mock,
+  // which Bun applies process-wide, doesn't corrupt other suites' real assertions.
+  getLimits: (config: { limits?: Record<string, number> }) => ({
     undoCommitLimit: 10,
     cherryPickLogLimit: 30,
     bisectLogLimit: 30,
     revertLogLimit: 30,
-  })),
+    ...(config?.limits ?? {}),
+  }),
   DEFAULT_LIMITS: {
     undoCommitLimit: 10,
     cherryPickLogLimit: 30,
