@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.0](https://github.com/jmpanozzoz/gitten/compare/v1.2.0...v1.3.0) (2026-06-05)
+
+
+### Features
+
+* history browser, multi-commit cherry-pick, squash, per-repo config, AI profiles, and AI conflict explain ([#143](https://github.com/jmpanozzoz/gitten/issues/143)) ([c12bf20](https://github.com/jmpanozzoz/gitten/commit/c12bf209504f827fcbeb6ce5fd22aba3d920581e))
+
 ## [1.2.0](https://github.com/jmpanozzoz/gitten/compare/v1.1.2...v1.2.0) (2026-06-05)
 
 
