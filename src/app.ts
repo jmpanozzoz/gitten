@@ -19,6 +19,7 @@ import { CherryPicker } from "./core/cherry-picker";
 import { DiffViewer } from "./core/diff-viewer";
 import { GitignoreManager } from "./core/gitignore-manager";
 import { HistoryPurge } from "./core/history-purge";
+import { LogBrowser } from "./core/log-browser";
 import type { IGitClient } from "./core/ports/git-client.port";
 import type { IUI } from "./core/ports/ui.port";
 import { PullFlow } from "./core/pull-flow";
@@ -59,7 +60,8 @@ type MoreOption =
   | "tag"
   | "bisect"
   | "revert"
-  | "diff";
+  | "diff"
+  | "log";
 
 export async function app(
   git: IGitClient = new GitClient(),
@@ -157,6 +159,12 @@ export async function app(
     return new ResetManager(git, ui, aiSummarizer).run();
   };
 
+  const buildLogBrowser = async () => {
+    const aiConfig = await fetchAIConfig();
+    const aiExplainer = aiConfig ? (diff: string) => explainCommitDiff(diff, aiConfig) : undefined;
+    return new LogBrowser(git, ui, aiExplainer).run();
+  };
+
   const moreHandlers: Record<MoreOption, () => Promise<void>> = {
     amend: () => buildAmendFlow(),
     tag: () => buildTagWizard(),
@@ -170,6 +178,7 @@ export async function app(
     reset: () => buildResetManager(),
     revert: () => new RevertCommit(git, ui).run(),
     diff: () => new DiffViewer(git, ui).run(),
+    log: () => buildLogBrowser(),
   };
 
   const mainHandlers: Record<Exclude<MainOption, "exit" | "more">, () => Promise<void>> = {
@@ -227,6 +236,11 @@ export async function app(
         value: "diff",
         label: "🔍 Diff",
         hints: ["compare", "branch", "changes", "difference", "versus", "vs"],
+      },
+      {
+        value: "log",
+        label: "📜 Log",
+        hints: ["history", "commits", "browse", "show", "explore", "inspect", "view"],
       },
       {
         value: "worktree",
