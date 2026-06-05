@@ -166,7 +166,7 @@ off or errors, the flow proceeds with its non-AI default.
 ### 🌿 New Branch (`branch-creator.ts`)
 
 **Does:**
-1. Ask branch type: `feat | fix | hotfix | chore | docs`
+1. Ask branch type: `feat | fix | hotfix | chore | docs` by default, or a custom set from config (`branchPrefixes`)
 2. Ask short description (free text)
 3. Build name: lowercase, spaces→hyphens, prefix with `type/`
 4. `git checkout -b <name>`
@@ -488,6 +488,9 @@ Reality has moved past the original v1 list — keep these notes accurate:
   *active* config is simply whatever is in `ai`; Settings can save the current `ai` as a named profile,
   switch (load a profile into `ai` + enable), or remove profiles. `getActiveAIConfig()` is unchanged —
   it still resolves from `ai`.
+- **Custom branch prefixes:** `branchPrefixes` (config) replaces the default New Branch types
+  (`feat/fix/hotfix/chore/docs`) when set; resolved via `getBranchPrefixes()`. `BranchType` is an open
+  `string` accordingly.
 - **Multi-commit cherry-pick is supported** — select multiple commits; they apply oldest-first, conflicts handled per commit.
 - **File-level staging exists** in Sync (multi-select), but not hunk-level.
 

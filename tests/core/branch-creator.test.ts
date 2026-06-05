@@ -18,6 +18,22 @@ test("strips special characters from branch name", () => {
   expect(creator.buildBranchName("feat", "auth (OAuth2.0)!")).toBe("feat/auth-oauth20");
 });
 
+// ─── branch prefixes ──────────────────────────────────────────────────────────
+
+test("offers the default branch prefixes when none are configured", async () => {
+  const askSelect = mock(() => Promise.resolve("feat"));
+  const git = createGitMock({ branchExists: mock(() => Promise.resolve(false)) });
+  const ui = createUIMock({
+    askSelect,
+    askText: mock(() => Promise.resolve("my feature")),
+  });
+
+  await new BranchCreator(git, ui).run();
+
+  const offered = (askSelect.mock.calls[0] as unknown[])[1] as { value: string }[];
+  expect(offered.map((o) => o.value)).toEqual(["feat", "fix", "hotfix", "chore", "docs"]);
+});
+
 // ─── without AI ─────────────────────────────────────────────────────────────
 
 test("calls checkoutNewBranch with sanitized name when no AI configured", async () => {

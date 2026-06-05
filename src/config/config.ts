@@ -33,15 +33,25 @@ export const DEFAULT_LIMITS: LimitsConfig = {
   revertLogLimit: 30,
 };
 
+/** Branch type prefixes offered by New Branch when none are configured. */
+export const DEFAULT_BRANCH_PREFIXES = ["feat", "fix", "hotfix", "chore", "docs"];
+
 export interface GittenConfig {
   ai?: Partial<AIConfig>;
   /** Named, saved AI connection profiles. The active one is whatever is in `ai`. */
   aiProfiles?: Record<string, AIConfig>;
   limits?: Partial<LimitsConfig>;
+  /** Custom branch type prefixes for New Branch (replaces the defaults when set). */
+  branchPrefixes?: string[];
 }
 
 export function getLimits(config: GittenConfig): LimitsConfig {
   return { ...DEFAULT_LIMITS, ...config.limits };
+}
+
+/** Resolve the branch prefixes to offer: configured ones if any, else the defaults. */
+export function getBranchPrefixes(config: GittenConfig): string[] {
+  return config.branchPrefixes?.length ? config.branchPrefixes : [...DEFAULT_BRANCH_PREFIXES];
 }
 
 /** Shallow-merge two configs; the override's `ai`/`limits` keys win per-field. */
@@ -52,6 +62,9 @@ export function mergeConfig(base: GittenConfig, override: GittenConfig): GittenC
   if (base.aiProfiles || override.aiProfiles) {
     merged.aiProfiles = { ...base.aiProfiles, ...override.aiProfiles };
   }
+  // Prefixes are a full set, not per-key — the override replaces the base when present.
+  const branchPrefixes = override.branchPrefixes ?? base.branchPrefixes;
+  if (branchPrefixes) merged.branchPrefixes = branchPrefixes;
   return merged;
 }
 

@@ -1,5 +1,10 @@
 import { expect, test } from "bun:test";
-import { type GittenConfig, getLimits, mergeConfig } from "../../src/config/config";
+import {
+  type GittenConfig,
+  getBranchPrefixes,
+  getLimits,
+  mergeConfig,
+} from "../../src/config/config";
 
 test("mergeConfig returns an empty config when both sides are empty", () => {
   expect(mergeConfig({}, {})).toEqual({});
@@ -51,6 +56,42 @@ test("mergeConfig keeps the base when the override is empty", () => {
 test("mergeConfig uses the override when the base is empty", () => {
   const repo: GittenConfig = { ai: { enabled: false } };
   expect(mergeConfig({}, repo)).toEqual({ ai: { enabled: false } });
+});
+
+// ─── branch prefixes ──────────────────────────────────────────────────────────
+
+test("getBranchPrefixes returns the defaults when none are configured", () => {
+  expect(getBranchPrefixes({})).toEqual(["feat", "fix", "hotfix", "chore", "docs"]);
+});
+
+test("getBranchPrefixes returns the configured prefixes when set", () => {
+  expect(getBranchPrefixes({ branchPrefixes: ["feat", "release", "spike"] })).toEqual([
+    "feat",
+    "release",
+    "spike",
+  ]);
+});
+
+test("getBranchPrefixes ignores an empty configured list", () => {
+  expect(getBranchPrefixes({ branchPrefixes: [] })).toEqual([
+    "feat",
+    "fix",
+    "hotfix",
+    "chore",
+    "docs",
+  ]);
+});
+
+test("mergeConfig replaces branchPrefixes with the override's set", () => {
+  const merged = mergeConfig({ branchPrefixes: ["feat", "fix"] }, { branchPrefixes: ["release"] });
+  expect(merged.branchPrefixes).toEqual(["release"]);
+});
+
+test("mergeConfig keeps base branchPrefixes when the override has none", () => {
+  expect(mergeConfig({ branchPrefixes: ["feat", "fix"] }, {}).branchPrefixes).toEqual([
+    "feat",
+    "fix",
+  ]);
 });
 
 test("getLimits fills defaults under a merged repo override", () => {
