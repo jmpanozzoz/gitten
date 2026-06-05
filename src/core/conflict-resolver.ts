@@ -8,12 +8,18 @@ interface ConflictActions {
   onAbort: () => Promise<void>;
 }
 
+/**
+ * Drive the user through a conflict pause (resolve in IDE → ENTER continue / ESC abort).
+ * Returns `true` when the operation was continued and completed, `false` when it was
+ * aborted or the continue failed — callers running a sequence use this to decide
+ * whether to keep going.
+ */
 export async function resolveConflict(
   git: IGitClient,
   ui: IUI,
   actions: ConflictActions,
   waitForResolution: () => Promise<boolean> = stdinResolution,
-): Promise<void> {
+): Promise<boolean> {
   const conflicted = await git.getConflictedFiles();
 
   if (conflicted.length > 0) {
@@ -32,11 +38,14 @@ export async function resolveConflict(
     try {
       await actions.onContinue();
       ui.success(`${actions.label} completed.`);
+      return true;
     } catch {
       ui.error(`Failed to complete ${actions.label.toLowerCase()}. Check your working tree.`);
+      return false;
     }
-  } else {
-    await actions.onAbort();
-    ui.info(`${actions.label} aborted. Working tree is clean.`);
   }
+
+  await actions.onAbort();
+  ui.info(`${actions.label} aborted. Working tree is clean.`);
+  return false;
 }

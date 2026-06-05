@@ -213,15 +213,15 @@ off or errors, the flow proceeds with its non-AI default.
 1. Ask source branch.
 2. Show the recent commits of that branch (short hash + subject). The count is configurable via
    Settings (`cherryPickLogLimit`, default 30).
-3. User picks one.
-4. Execute `git cherry-pick <hash>`.
-5. On conflict: hand off to the shared `conflict-resolver.ts` — pause, wait for ENTER (continue) or ESC (abort).
-   - ENTER → `git cherry-pick --continue`
-   - ESC → `git cherry-pick --abort`
+3. User selects one or more commits (multiselect).
+4. Confirm the apply plan, then `git cherry-pick` each selected commit **oldest-first** (so original order is preserved).
+5. On conflict (per commit): hand off to the shared `conflict-resolver.ts` — pause, wait for ENTER (continue) or ESC (abort).
+   - ENTER → `git cherry-pick --continue`, then proceed to the next commit.
+   - ESC → `git cherry-pick --abort`, and the remaining commits are skipped.
 
 **Does NOT:**
 - Implement an in-terminal conflict resolver (it pauses for the user's editor, it does not merge for them).
-- Allow multi-commit selection (single commit only — Pareto). *(Multi-commit is on the roadmap, not yet built.)*
+- Reorder or edit commits — they are applied in their original (chronological) order only.
 
 ---
 
@@ -482,7 +482,7 @@ Still firmly out of scope:
 Reality has moved past the original v1 list — keep these notes accurate:
 - **Config file exists:** global config lives in `~/.gitten.json` (AI provider + limits), managed via
   Settings. A **per-repo `.gittenrc` is roadmap, not yet built** — do not assume it exists.
-- **Multi-commit cherry-pick is roadmap, not yet built** — Cherry Pick is single-commit today.
+- **Multi-commit cherry-pick is supported** — select multiple commits; they apply oldest-first, conflicts handled per commit.
 - **File-level staging exists** in Sync (multi-select), but not hunk-level.
 
 Keep it sharp. The moment a feature requires more than ~100 lines in a single function, it's out of scope.

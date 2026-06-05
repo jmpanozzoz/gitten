@@ -45,8 +45,9 @@ test("calls onContinue and shows success when user presses ENTER", async () => {
   const onAbort = mock(() => Promise.resolve());
   const actions = { label: "Cherry-pick", onContinue, onAbort };
 
-  await resolveConflict(git, ui, actions, () => Promise.resolve(true));
+  const result = await resolveConflict(git, ui, actions, () => Promise.resolve(true));
 
+  expect(result).toBe(true);
   expect(onContinue).toHaveBeenCalledTimes(1);
   expect(onAbort).not.toHaveBeenCalled();
   expect(ui.success).toHaveBeenCalled();
@@ -61,8 +62,9 @@ test("calls onAbort and shows info message when user presses ESC", async () => {
   const onAbort = mock(() => Promise.resolve());
   const actions = { label: "Cherry-pick", onContinue, onAbort };
 
-  await resolveConflict(git, ui, actions, () => Promise.resolve(false));
+  const result = await resolveConflict(git, ui, actions, () => Promise.resolve(false));
 
+  expect(result).toBe(false);
   expect(onAbort).toHaveBeenCalledTimes(1);
   expect(onContinue).not.toHaveBeenCalled();
   expect(ui.info).toHaveBeenCalledWith(expect.stringContaining("aborted"));
@@ -77,9 +79,8 @@ test("calls ui.error and does not propagate when onContinue throws", async () =>
   const onAbort = mock(() => Promise.resolve());
   const actions = { label: "Cherry-pick", onContinue, onAbort };
 
-  await expect(
-    resolveConflict(git, ui, actions, () => Promise.resolve(true)),
-  ).resolves.toBeUndefined();
+  // Continue failed → resolves to false (does not reject/propagate).
+  await expect(resolveConflict(git, ui, actions, () => Promise.resolve(true))).resolves.toBe(false);
 
   expect(ui.error).toHaveBeenCalled();
 });
