@@ -35,6 +35,8 @@ export const DEFAULT_LIMITS: LimitsConfig = {
 
 export interface GittenConfig {
   ai?: Partial<AIConfig>;
+  /** Named, saved AI connection profiles. The active one is whatever is in `ai`. */
+  aiProfiles?: Record<string, AIConfig>;
   limits?: Partial<LimitsConfig>;
 }
 
@@ -47,6 +49,9 @@ export function mergeConfig(base: GittenConfig, override: GittenConfig): GittenC
   const merged: GittenConfig = {};
   if (base.ai || override.ai) merged.ai = { ...base.ai, ...override.ai };
   if (base.limits || override.limits) merged.limits = { ...base.limits, ...override.limits };
+  if (base.aiProfiles || override.aiProfiles) {
+    merged.aiProfiles = { ...base.aiProfiles, ...override.aiProfiles };
+  }
   return merged;
 }
 

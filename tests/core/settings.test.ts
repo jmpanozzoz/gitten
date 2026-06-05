@@ -381,3 +381,89 @@ test("rejects values above 500 and keeps current limit", async () => {
     }),
   );
 });
+
+// ─── AI profiles ────────────────────────────────────────────────────────────
+
+const FULL_AI = {
+  enabled: true,
+  provider: "openai",
+  baseUrl: "https://api.openai.com/v1",
+  apiKey: "sk-test",
+  model: "gpt-4o-mini",
+};
+
+test("saves the current AI config as a named profile", async () => {
+  MOCK_WRITE.mockClear();
+  MOCK_READ.mockResolvedValueOnce({ ai: FULL_AI });
+  const ui = createUIMock({
+    askSelect: mock().mockResolvedValueOnce("ai").mockResolvedValueOnce("save"),
+    askText: mock(() => Promise.resolve("work")),
+  });
+
+  await new Settings(ui).run();
+
+  expect(MOCK_WRITE).toHaveBeenCalledWith(
+    expect.objectContaining({
+      aiProfiles: expect.objectContaining({
+        work: expect.objectContaining({ model: "gpt-4o-mini", provider: "openai" }),
+      }),
+    }),
+  );
+});
+
+test("switching a profile loads it into the active config and enables AI", async () => {
+  MOCK_WRITE.mockClear();
+  MOCK_READ.mockResolvedValueOnce({
+    ai: { ...FULL_AI, enabled: false },
+    aiProfiles: {
+      groq: {
+        enabled: false,
+        provider: "groq",
+        baseUrl: "https://api.groq.com/openai/v1",
+        apiKey: "gk",
+        model: "llama-3.3-70b-versatile",
+      },
+    },
+  });
+  const ui = createUIMock({
+    askSelect: mock()
+      .mockResolvedValueOnce("ai")
+      .mockResolvedValueOnce("switch")
+      .mockResolvedValueOnce("groq"),
+  });
+
+  await new Settings(ui).run();
+
+  expect(MOCK_WRITE).toHaveBeenCalledWith(
+    expect.objectContaining({
+      ai: expect.objectContaining({
+        provider: "groq",
+        model: "llama-3.3-70b-versatile",
+        enabled: true,
+      }),
+    }),
+  );
+});
+
+test("removes the selected profile(s)", async () => {
+  MOCK_WRITE.mockClear();
+  MOCK_READ.mockResolvedValueOnce({
+    ai: FULL_AI,
+    aiProfiles: {
+      work: FULL_AI,
+      home: { ...FULL_AI, provider: "groq", model: "llama-3.3-70b-versatile" },
+    },
+  });
+  const ui = createUIMock({
+    askSelect: mock().mockResolvedValueOnce("ai").mockResolvedValueOnce("remove"),
+    askMultiSelect: mock(() => Promise.resolve(["work"])),
+  });
+
+  await new Settings(ui).run();
+
+  expect(MOCK_WRITE).toHaveBeenCalledWith(
+    expect.objectContaining({
+      aiProfiles: { home: expect.objectContaining({ provider: "groq" }) },
+    }),
+  );
+});

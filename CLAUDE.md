@@ -480,10 +480,14 @@ Still firmly out of scope:
 - No plugin system.
 
 Reality has moved past the original v1 list — keep these notes accurate:
-- **Config files:** global config lives in `~/.gitten.json` (AI provider + limits), managed via
-  Settings. A **per-repo `.gittenrc`** (hand-authored JSON in the repo root) is layered *over* the
-  global config at runtime — `readConfig()` returns the merged result; `readGlobalConfig()` reads only
-  the global file (Settings edits/writes that one). gitten never writes `.gittenrc`.
+- **Config files:** global config lives in `~/.gitten.json` (AI provider + limits + saved AI
+  profiles), managed via Settings. A **per-repo `.gittenrc`** (hand-authored JSON in the repo root) is
+  layered *over* the global config at runtime — `readConfig()` returns the merged result;
+  `readGlobalConfig()` reads only the global file (Settings edits/writes that one). gitten never writes `.gittenrc`.
+- **Named AI profiles:** `aiProfiles` (in the global config) is a library of saved `AIConfig`s. The
+  *active* config is simply whatever is in `ai`; Settings can save the current `ai` as a named profile,
+  switch (load a profile into `ai` + enable), or remove profiles. `getActiveAIConfig()` is unchanged —
+  it still resolves from `ai`.
 - **Multi-commit cherry-pick is supported** — select multiple commits; they apply oldest-first, conflicts handled per commit.
 - **File-level staging exists** in Sync (multi-select), but not hunk-level.
 

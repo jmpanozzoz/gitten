@@ -28,6 +28,21 @@ test("mergeConfig layers repo ai over global per field", () => {
   });
 });
 
+test("mergeConfig unions aiProfiles from both sides", () => {
+  const global: GittenConfig = {
+    aiProfiles: {
+      work: { enabled: true, provider: "openai", baseUrl: "u", apiKey: "k", model: "gpt-4o-mini" },
+    },
+  };
+  const repo: GittenConfig = {
+    aiProfiles: {
+      local: { enabled: true, provider: "ollama", baseUrl: "u2", apiKey: "", model: "llama3.2" },
+    },
+  };
+
+  expect(Object.keys(mergeConfig(global, repo).aiProfiles ?? {}).sort()).toEqual(["local", "work"]);
+});
+
 test("mergeConfig keeps the base when the override is empty", () => {
   const global: GittenConfig = { limits: { bisectLogLimit: 99 } };
   expect(mergeConfig(global, {})).toEqual({ limits: { bisectLogLimit: 99 } });
