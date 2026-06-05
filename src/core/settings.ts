@@ -1,5 +1,5 @@
-import type { AIConfig } from "../config/config";
-import { DEFAULT_LIMITS, getLimits, readConfig, writeConfig } from "../config/config";
+import type { AIConfig, GittenConfig } from "../config/config";
+import { DEFAULT_LIMITS, getLimits, readGlobalConfig, writeConfig } from "../config/config";
 import { AI_PROVIDERS } from "../config/providers";
 import { testAIConnection } from "./ai-suggester";
 import type { IUI } from "./ports/ui.port";
@@ -27,7 +27,7 @@ export class Settings {
   }
 
   private async runAI(): Promise<void> {
-    const config = await readConfig();
+    const config = await readGlobalConfig();
     const ai = config.ai;
     const isEnabled = ai?.enabled ?? false;
     const hasConfig = !!(ai?.baseUrl && ai?.model);
@@ -60,7 +60,7 @@ export class Settings {
   }
 
   private async runLimits(): Promise<void> {
-    const config = await readConfig();
+    const config = await readGlobalConfig();
     const current = getLimits(config);
 
     this.ui.info(
@@ -106,7 +106,7 @@ export class Settings {
     );
   }
 
-  private async configure(config: Awaited<ReturnType<typeof readConfig>>): Promise<void> {
+  private async configure(config: GittenConfig): Promise<void> {
     const existing = config.ai;
 
     const providerId = await this.ui.askSelect<string>(
@@ -166,12 +166,12 @@ export class Settings {
     }
   }
 
-  private async enable(config: Awaited<ReturnType<typeof readConfig>>): Promise<void> {
+  private async enable(config: GittenConfig): Promise<void> {
     await writeConfig({ ...config, ai: { ...config.ai, enabled: true } });
     this.ui.success("AI enabled.");
   }
 
-  private async disable(config: Awaited<ReturnType<typeof readConfig>>): Promise<void> {
+  private async disable(config: GittenConfig): Promise<void> {
     await writeConfig({ ...config, ai: { ...config.ai, enabled: false } });
     this.ui.success("AI disabled.");
   }
