@@ -1,4 +1,4 @@
-import pc from "picocolors";
+import { theme } from "./theme";
 import { GoBackSignal } from "./go-back";
 
 const K = {
@@ -25,16 +25,16 @@ function applyFilter<T>(options: Opt<T>[], query: string): Opt<T>[] {
 }
 
 function highlightMatch(label: string, query: string, isCursor: boolean): string {
-  if (!query) return isCursor ? pc.bold(pc.white(label)) : pc.dim(label);
+  if (!query) return isCursor ? theme.bold(theme.bright(label)) : theme.dim(label);
   const lower = label.toLowerCase();
   const idx = lower.indexOf(query.toLowerCase());
-  if (idx === -1) return pc.dim(label);
+  if (idx === -1) return theme.dim(label);
   const pre = label.slice(0, idx);
   const match = label.slice(idx, idx + query.length);
   const post = label.slice(idx + query.length);
   return isCursor
-    ? pc.dim(pre) + pc.bold(pc.white(match)) + pc.dim(post)
-    : pc.dim(pre) + pc.white(match) + pc.dim(post);
+    ? theme.dim(pre) + theme.bold(theme.bright(match)) + theme.dim(post)
+    : theme.dim(pre) + theme.bright(match) + theme.dim(post);
 }
 
 function visibleWindow<T>(
@@ -60,35 +60,35 @@ function buildSelectLines<T>(
   const { start, end } = visibleWindow(f, clamped);
   const lines: string[] = [];
 
-  lines.push(`${pc.cyan("◆")}  ${pc.bold(message)}`);
+  lines.push(`${theme.accent("◆")}  ${theme.bold(message)}`);
 
   const searchBar = query
-    ? `${pc.gray("/")} ${pc.white(query)}${pc.dim("_")}`
-    : `${pc.gray("/")} ${pc.dim("type to filter...")}`;
-  lines.push(`${pc.cyan("│")}  ${searchBar}`);
-  lines.push(`${pc.cyan("│")}`);
+    ? `${theme.muted("/")} ${theme.bright(query)}${theme.dim("_")}`
+    : `${theme.muted("/")} ${theme.dim("type to filter...")}`;
+  lines.push(`${theme.accent("│")}  ${searchBar}`);
+  lines.push(`${theme.accent("│")}`);
 
   if (f.length === 0) {
-    lines.push(`${pc.cyan("│")}  ${pc.dim("No matches")}`);
+    lines.push(`${theme.accent("│")}  ${theme.dim("No matches")}`);
   } else {
-    if (start > 0) lines.push(`${pc.cyan("│")}     ${pc.dim(`↑ ${start} more`)}`);
+    if (start > 0) lines.push(`${theme.accent("│")}     ${theme.dim(`↑ ${start} more`)}`);
 
     for (let i = start; i < end; i++) {
       const isCursor = i === clamped;
       const text = highlightMatch(f[i]!.label, query, isCursor);
       lines.push(
         isCursor
-          ? `${pc.cyan("│")}  ${pc.cyan("❯")} ${text}`
-          : `${pc.cyan("│")}    ${text}`
+          ? `${theme.accent("│")}  ${theme.accent("❯")} ${text}`
+          : `${theme.accent("│")}    ${text}`
       );
     }
 
     const below = f.length - end;
-    if (below > 0) lines.push(`${pc.cyan("│")}     ${pc.dim(`↓ ${below} more`)}`);
+    if (below > 0) lines.push(`${theme.accent("│")}     ${theme.dim(`↓ ${below} more`)}`);
   }
 
-  lines.push(`${pc.cyan("│")}`);
-  lines.push(`${pc.cyan("└")}  ${pc.dim("↑↓ navigate  ·  Enter select  ·  Esc cancel")}`);
+  lines.push(`${theme.accent("│")}`);
+  lines.push(`${theme.accent("└")}  ${theme.dim("↑↓ navigate  ·  Enter select  ·  Esc cancel")}`);
 
   return lines;
 }
@@ -105,36 +105,36 @@ function buildMultiSelectLines<T>(
   const { start, end } = visibleWindow(f, clamped);
   const lines: string[] = [];
 
-  const countHint = checked.size > 0 ? pc.green(`  ${checked.size} selected`) : "";
-  lines.push(`${pc.cyan("◆")}  ${pc.bold(message)}${countHint}`);
+  const countHint = checked.size > 0 ? theme.success(`  ${checked.size} selected`) : "";
+  lines.push(`${theme.accent("◆")}  ${theme.bold(message)}${countHint}`);
 
   const searchBar = query
-    ? `${pc.gray("/")} ${pc.white(query)}${pc.dim("_")}`
-    : `${pc.gray("/")} ${pc.dim("type to filter...")}`;
-  lines.push(`${pc.cyan("│")}  ${searchBar}`);
-  lines.push(`${pc.cyan("│")}`);
+    ? `${theme.muted("/")} ${theme.bright(query)}${theme.dim("_")}`
+    : `${theme.muted("/")} ${theme.dim("type to filter...")}`;
+  lines.push(`${theme.accent("│")}  ${searchBar}`);
+  lines.push(`${theme.accent("│")}`);
 
   if (f.length === 0) {
-    lines.push(`${pc.cyan("│")}  ${pc.dim("No matches")}`);
+    lines.push(`${theme.accent("│")}  ${theme.dim("No matches")}`);
   } else {
-    if (start > 0) lines.push(`${pc.cyan("│")}     ${pc.dim(`↑ ${start} more`)}`);
+    if (start > 0) lines.push(`${theme.accent("│")}     ${theme.dim(`↑ ${start} more`)}`);
 
     for (let i = start; i < end; i++) {
       const opt = f[i]!;
       const isCursor = i === clamped;
       const isChecked = checked.has(opt.value);
-      const checkbox = isChecked ? pc.green("◼") : pc.dim("◻");
+      const checkbox = isChecked ? theme.success("◼") : theme.dim("◻");
       const text = highlightMatch(opt.label, query, isCursor);
-      const prefix = isCursor ? pc.cyan("❯") : " ";
-      lines.push(`${pc.cyan("│")}  ${prefix} ${checkbox} ${text}`);
+      const prefix = isCursor ? theme.accent("❯") : " ";
+      lines.push(`${theme.accent("│")}  ${prefix} ${checkbox} ${text}`);
     }
 
     const below = f.length - end;
-    if (below > 0) lines.push(`${pc.cyan("│")}     ${pc.dim(`↓ ${below} more`)}`);
+    if (below > 0) lines.push(`${theme.accent("│")}     ${theme.dim(`↓ ${below} more`)}`);
   }
 
-  lines.push(`${pc.cyan("│")}`);
-  lines.push(`${pc.cyan("└")}  ${pc.dim("Space toggle  ·  ↑↓ navigate  ·  Enter confirm  ·  Esc cancel")}`);
+  lines.push(`${theme.accent("│")}`);
+  lines.push(`${theme.accent("└")}  ${theme.dim("Space toggle  ·  ↑↓ navigate  ·  Enter confirm  ·  Esc cancel")}`);
 
   return lines;
 }
@@ -182,9 +182,9 @@ export async function searchSelect<T>(
       teardownStdin(onData);
       if (lastLineCount > 0) process.stdout.write(`\x1b[${lastLineCount}A\x1b[J`);
       if (selected) {
-        process.stdout.write(`${pc.cyan("◇")}  ${pc.bold(message)}\n`);
-        process.stdout.write(`${pc.cyan("│")}  ${pc.green(selected.label)}\n`);
-        process.stdout.write(`${pc.cyan("│")}\n`);
+        process.stdout.write(`${theme.accent("◇")}  ${theme.bold(message)}\n`);
+        process.stdout.write(`${theme.accent("│")}  ${theme.success(selected.label)}\n`);
+        process.stdout.write(`${theme.accent("│")}\n`);
         resolve(selected.value);
       } else {
         reject(new GoBackSignal());
@@ -250,11 +250,11 @@ export async function searchMultiSelect<T>(
       if (lastLineCount > 0) process.stdout.write(`\x1b[${lastLineCount}A\x1b[J`);
       if (confirmed) {
         const count = checked.size;
-        process.stdout.write(`${pc.cyan("◇")}  ${pc.bold(message)}\n`);
+        process.stdout.write(`${theme.accent("◇")}  ${theme.bold(message)}\n`);
         process.stdout.write(
-          `${pc.cyan("│")}  ${count > 0 ? pc.green(`${count} item(s) selected`) : pc.dim("none selected")}\n`
+          `${theme.accent("│")}  ${count > 0 ? theme.success(`${count} item(s) selected`) : theme.dim("none selected")}\n`
         );
-        process.stdout.write(`${pc.cyan("│")}\n`);
+        process.stdout.write(`${theme.accent("│")}\n`);
         resolve([...checked]);
       } else {
         reject(new GoBackSignal());
