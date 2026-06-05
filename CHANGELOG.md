@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.0](https://github.com/jmpanozzoz/gitten/compare/v1.1.2...v1.2.0) (2026-06-05)
+
+
+### Features
+
+* add linting, harden API key handling, and improve release CI ([#133](https://github.com/jmpanozzoz/gitten/issues/133)) ([c33b77e](https://github.com/jmpanozzoz/gitten/commit/c33b77ee6ca4fa13a8617885243e0289d05ad94d))
+
 ## [1.1.2](https://github.com/jmpanozzoz/gitten/compare/v1.1.1...v1.1.2) (2026-06-05)
 
 
