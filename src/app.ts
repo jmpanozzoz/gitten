@@ -3,6 +3,7 @@ import type { AIConfig } from "./config/config";
 import { getActiveAIConfig } from "./config/config";
 import {
   explainCommitDiff,
+  explainConflict,
   reviewStagedDiff,
   suggestAmendMessage,
   suggestBranchName,
@@ -128,7 +129,10 @@ export async function app(
   const buildCherryPicker = async () => {
     const aiConfig = await fetchAIConfig();
     const aiExplainer = aiConfig ? (diff: string) => explainCommitDiff(diff, aiConfig) : undefined;
-    return new CherryPicker(git, ui, undefined, aiExplainer).run();
+    const aiConflictExplainer = aiConfig
+      ? (diff: string) => explainConflict(diff, aiConfig)
+      : undefined;
+    return new CherryPicker(git, ui, undefined, aiExplainer, aiConflictExplainer).run();
   };
 
   const buildPullFlow = async () => {
@@ -136,7 +140,18 @@ export async function app(
     const aiSummarizer = aiConfig
       ? (msgs: string[]) => summarizeCommits(msgs, aiConfig)
       : undefined;
-    return new PullFlow(git, ui, undefined, aiSummarizer).run();
+    const aiConflictExplainer = aiConfig
+      ? (diff: string) => explainConflict(diff, aiConfig)
+      : undefined;
+    return new PullFlow(git, ui, undefined, aiSummarizer, aiConflictExplainer).run();
+  };
+
+  const buildRevertCommit = async () => {
+    const aiConfig = await fetchAIConfig();
+    const aiConflictExplainer = aiConfig
+      ? (diff: string) => explainConflict(diff, aiConfig)
+      : undefined;
+    return new RevertCommit(git, ui, undefined, aiConflictExplainer).run();
   };
 
   const buildBisectWizard = async () => {
@@ -186,7 +201,7 @@ export async function app(
     purge: () => new HistoryPurge(git, ui).run(),
     settings: () => new Settings(ui).run(),
     reset: () => buildResetManager(),
-    revert: () => new RevertCommit(git, ui).run(),
+    revert: () => buildRevertCommit(),
     diff: () => new DiffViewer(git, ui).run(),
     log: () => buildLogBrowser(),
     squash: () => buildSquashFlow(),

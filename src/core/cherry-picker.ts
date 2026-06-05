@@ -2,7 +2,7 @@ import { getLimits, readConfig } from "../config/config";
 import { GoBackSignal } from "../ui/go-back";
 import { stdinResolution } from "../utils/stdin-resolution";
 import { resolveConflict } from "./conflict-resolver";
-import type { AICommitExplainer } from "./ports/ai.port";
+import type { AICommitExplainer, AIConflictExplainer } from "./ports/ai.port";
 import type { IGitClient } from "./ports/git-client.port";
 import type { IUI } from "./ports/ui.port";
 import { PROTECTED_BRANCHES } from "./protected-branches";
@@ -13,6 +13,7 @@ export class CherryPicker {
     private readonly ui: IUI,
     private readonly waitForResolution: () => Promise<boolean> = stdinResolution,
     private readonly aiExplainer?: AICommitExplainer,
+    private readonly aiConflictExplainer?: AIConflictExplainer,
   ) {}
 
   async run(): Promise<void> {
@@ -101,6 +102,7 @@ export class CherryPicker {
             label: "Cherry-pick",
             onContinue: () => this.git.cherryPickContinue(),
             onAbort: () => this.git.cherryPickAbort(),
+            explain: this.aiConflictExplainer,
           },
           this.waitForResolution,
         );

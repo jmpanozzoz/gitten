@@ -1,6 +1,6 @@
 import { stdinResolution } from "../utils/stdin-resolution";
 import { resolveConflict } from "./conflict-resolver";
-import type { AICommitSummarizer } from "./ports/ai.port";
+import type { AICommitSummarizer, AIConflictExplainer } from "./ports/ai.port";
 import type { IGitClient } from "./ports/git-client.port";
 import type { IUI } from "./ports/ui.port";
 
@@ -10,6 +10,7 @@ export class PullFlow {
     private readonly ui: IUI,
     private readonly waitForResolution: () => Promise<boolean> = stdinResolution,
     private readonly aiSummarizer?: AICommitSummarizer,
+    private readonly aiConflictExplainer?: AIConflictExplainer,
   ) {}
 
   async run(): Promise<void> {
@@ -78,6 +79,7 @@ export class PullFlow {
               await this.git.mergeContinue();
             },
             onAbort: () => this.git.mergeAbort(),
+            explain: this.aiConflictExplainer,
           },
           this.waitForResolution,
         );

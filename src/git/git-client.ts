@@ -442,4 +442,10 @@ export class GitClient implements IGitClient {
     const status = await this.git.status();
     return status.conflicted;
   }
+
+  async getConflictDiff(): Promise<string> {
+    // During a merge/cherry-pick/revert conflict the working tree holds the
+    // conflict markers; a bare diff surfaces them.
+    return this.git.diff();
+  }
 }

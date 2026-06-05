@@ -115,6 +115,8 @@ export interface IGitClient {
   ): Promise<{ filesChanged: number; insertions: number; deletions: number }>;
   pullRebase(): Promise<PullResult>;
   getConflictedFiles(): Promise<string[]>;
+  /** Working-tree diff including conflict markers, for explaining an in-progress conflict. */
+  getConflictDiff(): Promise<string>;
 }
 
 export interface BisectResult {
