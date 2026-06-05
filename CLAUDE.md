@@ -142,10 +142,10 @@ The main menu uses a custom **searchable** select (`ui/search-select.ts`) — ty
 
 ## Features — Scope, Limits & Guardrails
 
-The app ships **23 core flows**, each a class in `core/` wired into the menu in `app.ts`:
+The app ships **25 core flows**, each a class in `core/` wired into the menu in `app.ts`:
 Sync, Pull, New Branch, Switch Branch, Stash, Cherry Pick, Clean Branches (main menu) and
-Amend, Revert, Tag, Bisect, Diff, Worktrees, Undo, Reset, Remotes, .gitignore, Purge,
-Settings (under "More"), plus shared infrastructure (conflict-resolver, ai-suggester).
+Amend, Revert, Tag, Bisect, Diff, Log, Squash, Worktrees, Undo, Reset, Remotes, .gitignore,
+Purge, Settings (under "More"), plus shared infrastructure (conflict-resolver, ai-suggester).
 The four flows documented in detail below are representative — they carry the canonical
 guardrail patterns every other flow follows; see each module + its test for the rest.
 
@@ -166,7 +166,7 @@ off or errors, the flow proceeds with its non-AI default.
 ### 🌿 New Branch (`branch-creator.ts`)
 
 **Does:**
-1. Ask branch type: `feat | fix | hotfix | chore | docs`
+1. Ask branch type: `feat | fix | hotfix | chore | docs` by default, or a custom set from config (`branchPrefixes`)
 2. Ask short description (free text)
 3. Build name: lowercase, spaces→hyphens, prefix with `type/`
 4. `git checkout -b <name>`
@@ -213,15 +213,15 @@ off or errors, the flow proceeds with its non-AI default.
 1. Ask source branch.
 2. Show the recent commits of that branch (short hash + subject). The count is configurable via
    Settings (`cherryPickLogLimit`, default 30).
-3. User picks one.
-4. Execute `git cherry-pick <hash>`.
-5. On conflict: hand off to the shared `conflict-resolver.ts` — pause, wait for ENTER (continue) or ESC (abort).
-   - ENTER → `git cherry-pick --continue`
-   - ESC → `git cherry-pick --abort`
+3. User selects one or more commits (multiselect).
+4. Confirm the apply plan, then `git cherry-pick` each selected commit **oldest-first** (so original order is preserved).
+5. On conflict (per commit): hand off to the shared `conflict-resolver.ts` — pause, wait for ENTER (continue) or ESC (abort).
+   - ENTER → `git cherry-pick --continue`, then proceed to the next commit.
+   - ESC → `git cherry-pick --abort`, and the remaining commits are skipped.
 
 **Does NOT:**
 - Implement an in-terminal conflict resolver (it pauses for the user's editor, it does not merge for them).
-- Allow multi-commit selection (single commit only — Pareto). *(Multi-commit is on the roadmap, not yet built.)*
+- Reorder or edit commits — they are applied in their original (chronological) order only.
 
 ---
 
@@ -473,16 +473,27 @@ Everything is in English — no exceptions.
 
 Still firmly out of scope:
 - No interactive conflict resolver inside the terminal. `conflict-resolver.ts` only pauses for the
-  user's editor and then continues/aborts — it never merges hunks for them.
+  user's editor and then continues/aborts — it never merges hunks for them. With AI enabled it can
+  optionally *explain* a conflict (via `getConflictDiff()` + `explainConflict`), but it still never
+  resolves it.
 - No `git rebase -i` interactive flows. (Pull offers a rebase *strategy*; that is the limit.)
 - **No GitHub/GitLab API integration (no PRs, no issues).** This is a deliberate product boundary.
 - No hunk-level staging (Sync does file-level multi-select; hunks are for Lazygit/Sublime Merge).
 - No plugin system.
 
 Reality has moved past the original v1 list — keep these notes accurate:
-- **Config file exists:** global config lives in `~/.gitten.json` (AI provider + limits), managed via
-  Settings. A **per-repo `.gittenrc` is roadmap, not yet built** — do not assume it exists.
-- **Multi-commit cherry-pick is roadmap, not yet built** — Cherry Pick is single-commit today.
+- **Config files:** global config lives in `~/.gitten.json` (AI provider + limits + saved AI
+  profiles), managed via Settings. A **per-repo `.gittenrc`** (hand-authored JSON in the repo root) is
+  layered *over* the global config at runtime — `readConfig()` returns the merged result;
+  `readGlobalConfig()` reads only the global file (Settings edits/writes that one). gitten never writes `.gittenrc`.
+- **Named AI profiles:** `aiProfiles` (in the global config) is a library of saved `AIConfig`s. The
+  *active* config is simply whatever is in `ai`; Settings can save the current `ai` as a named profile,
+  switch (load a profile into `ai` + enable), or remove profiles. `getActiveAIConfig()` is unchanged —
+  it still resolves from `ai`.
+- **Custom branch prefixes:** `branchPrefixes` (config) replaces the default New Branch types
+  (`feat/fix/hotfix/chore/docs`) when set; resolved via `getBranchPrefixes()`. `BranchType` is an open
+  `string` accordingly.
+- **Multi-commit cherry-pick is supported** — select multiple commits; they apply oldest-first, conflicts handled per commit.
 - **File-level staging exists** in Sync (multi-select), but not hunk-level.
 
 Keep it sharp. The moment a feature requires more than ~100 lines in a single function, it's out of scope.

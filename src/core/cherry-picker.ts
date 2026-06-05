@@ -1,9 +1,8 @@
 import { getLimits, readConfig } from "../config/config";
-import { renderDiff } from "../ui/diff-renderer";
 import { GoBackSignal } from "../ui/go-back";
 import { stdinResolution } from "../utils/stdin-resolution";
 import { resolveConflict } from "./conflict-resolver";
-import type { AICommitExplainer } from "./ports/ai.port";
+import type { AICommitExplainer, AIConflictExplainer } from "./ports/ai.port";
 import type { IGitClient } from "./ports/git-client.port";
 import type { IUI } from "./ports/ui.port";
 import { PROTECTED_BRANCHES } from "./protected-branches";
@@ -14,6 +13,7 @@ export class CherryPicker {
     private readonly ui: IUI,
     private readonly waitForResolution: () => Promise<boolean> = stdinResolution,
     private readonly aiExplainer?: AICommitExplainer,
+    private readonly aiConflictExplainer?: AIConflictExplainer,
   ) {}
 
   async run(): Promise<void> {
@@ -57,14 +57,20 @@ export class CherryPicker {
       return;
     }
 
-    const hash = await this.ui.askSearchSelect(
-      "Select a commit to cherry-pick:",
+    const selected = await this.ui.askSearchMultiSelect(
+      "Select commits to cherry-pick:",
       commits.map((c) => ({ value: c.hash, label: `${c.hash} — ${c.message}` })),
     );
 
-    if (this.aiExplainer) {
+    if (selected.length === 0) return;
+
+    // getLog is newest-first; apply oldest-first so the original order is preserved.
+    const ordered = commits.filter((c) => selected.includes(c.hash)).reverse();
+
+    // AI explanation stays a single-commit nicety; the Log browser covers inspecting the rest.
+    if (ordered.length === 1 && this.aiExplainer) {
       try {
-        const diff = await this.git.getCommitDiff(hash);
+        const diff = await this.git.getCommitDiff(ordered[0]!.hash);
         if (diff) {
           const explanation = await this.ui.spin("Analyzing commit...", () =>
             this.aiExplainer!(diff),
@@ -76,30 +82,40 @@ export class CherryPicker {
       }
     }
 
-    const preview = await this.ui.askConfirm("Preview this commit's diff before applying?");
-    if (preview) {
-      const diff = await this.git.getCommitDiff(hash);
-      if (diff) this.ui.info(renderDiff(diff));
+    const plan = ordered.map((c) => `${c.hash} — ${c.message}`).join("\n  ");
+    const proceed = await this.ui.askConfirm(
+      `Apply ${ordered.length} commit(s) in this order?\n  ${plan}`,
+    );
+    if (!proceed) return;
 
-      const proceed = await this.ui.askConfirm("Apply this commit?");
-      if (!proceed) return;
+    let applied = 0;
+    for (const commit of ordered) {
+      try {
+        await this.ui.spin(`Applying ${commit.hash}...`, () => this.git.cherryPick(commit.hash));
+        applied++;
+      } catch (e) {
+        if (e instanceof GoBackSignal) throw e;
+        const continued = await resolveConflict(
+          this.git,
+          this.ui,
+          {
+            label: "Cherry-pick",
+            onContinue: () => this.git.cherryPickContinue(),
+            onAbort: () => this.git.cherryPickAbort(),
+            explain: this.aiConflictExplainer,
+          },
+          this.waitForResolution,
+        );
+        if (!continued) {
+          this.ui.warn(
+            `Stopped after ${applied} of ${ordered.length} commit(s) due to an unresolved conflict.`,
+          );
+          return;
+        }
+        applied++;
+      }
     }
 
-    try {
-      await this.ui.spin(`Applying commit ${hash}...`, () => this.git.cherryPick(hash));
-      this.ui.success("Commit applied successfully.");
-    } catch (e) {
-      if (e instanceof GoBackSignal) throw e;
-      await resolveConflict(
-        this.git,
-        this.ui,
-        {
-          label: "Cherry-pick",
-          onContinue: () => this.git.cherryPickContinue(),
-          onAbort: () => this.git.cherryPickAbort(),
-        },
-        this.waitForResolution,
-      );
-    }
+    this.ui.success(`Applied ${applied} commit(s) successfully.`);
   }
 }

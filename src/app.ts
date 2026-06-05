@@ -3,6 +3,7 @@ import type { AIConfig } from "./config/config";
 import { getActiveAIConfig } from "./config/config";
 import {
   explainCommitDiff,
+  explainConflict,
   reviewStagedDiff,
   suggestAmendMessage,
   suggestBranchName,
@@ -19,6 +20,7 @@ import { CherryPicker } from "./core/cherry-picker";
 import { DiffViewer } from "./core/diff-viewer";
 import { GitignoreManager } from "./core/gitignore-manager";
 import { HistoryPurge } from "./core/history-purge";
+import { LogBrowser } from "./core/log-browser";
 import type { IGitClient } from "./core/ports/git-client.port";
 import type { IUI } from "./core/ports/ui.port";
 import { PullFlow } from "./core/pull-flow";
@@ -26,6 +28,7 @@ import { RemoteManager } from "./core/remote-manager";
 import { ResetManager } from "./core/reset-manager";
 import { RevertCommit } from "./core/revert-commit";
 import { Settings } from "./core/settings";
+import { SquashFlow } from "./core/squash-flow";
 import { StashManager } from "./core/stash-manager";
 import { SyncFlow } from "./core/sync-flow";
 import { TagWizard } from "./core/tag-wizard";
@@ -59,7 +62,9 @@ type MoreOption =
   | "tag"
   | "bisect"
   | "revert"
-  | "diff";
+  | "diff"
+  | "log"
+  | "squash";
 
 export async function app(
   git: IGitClient = new GitClient(),
@@ -124,7 +129,10 @@ export async function app(
   const buildCherryPicker = async () => {
     const aiConfig = await fetchAIConfig();
     const aiExplainer = aiConfig ? (diff: string) => explainCommitDiff(diff, aiConfig) : undefined;
-    return new CherryPicker(git, ui, undefined, aiExplainer).run();
+    const aiConflictExplainer = aiConfig
+      ? (diff: string) => explainConflict(diff, aiConfig)
+      : undefined;
+    return new CherryPicker(git, ui, undefined, aiExplainer, aiConflictExplainer).run();
   };
 
   const buildPullFlow = async () => {
@@ -132,7 +140,18 @@ export async function app(
     const aiSummarizer = aiConfig
       ? (msgs: string[]) => summarizeCommits(msgs, aiConfig)
       : undefined;
-    return new PullFlow(git, ui, undefined, aiSummarizer).run();
+    const aiConflictExplainer = aiConfig
+      ? (diff: string) => explainConflict(diff, aiConfig)
+      : undefined;
+    return new PullFlow(git, ui, undefined, aiSummarizer, aiConflictExplainer).run();
+  };
+
+  const buildRevertCommit = async () => {
+    const aiConfig = await fetchAIConfig();
+    const aiConflictExplainer = aiConfig
+      ? (diff: string) => explainConflict(diff, aiConfig)
+      : undefined;
+    return new RevertCommit(git, ui, undefined, aiConflictExplainer).run();
   };
 
   const buildBisectWizard = async () => {
@@ -157,6 +176,20 @@ export async function app(
     return new ResetManager(git, ui, aiSummarizer).run();
   };
 
+  const buildLogBrowser = async () => {
+    const aiConfig = await fetchAIConfig();
+    const aiExplainer = aiConfig ? (diff: string) => explainCommitDiff(diff, aiConfig) : undefined;
+    return new LogBrowser(git, ui, aiExplainer).run();
+  };
+
+  const buildSquashFlow = async () => {
+    const aiConfig = await fetchAIConfig();
+    const aiSummarizer = aiConfig
+      ? (msgs: string[]) => summarizeCommits(msgs, aiConfig)
+      : undefined;
+    return new SquashFlow(git, ui, aiSummarizer).run();
+  };
+
   const moreHandlers: Record<MoreOption, () => Promise<void>> = {
     amend: () => buildAmendFlow(),
     tag: () => buildTagWizard(),
@@ -168,8 +201,10 @@ export async function app(
     purge: () => new HistoryPurge(git, ui).run(),
     settings: () => new Settings(ui).run(),
     reset: () => buildResetManager(),
-    revert: () => new RevertCommit(git, ui).run(),
+    revert: () => buildRevertCommit(),
     diff: () => new DiffViewer(git, ui).run(),
+    log: () => buildLogBrowser(),
+    squash: () => buildSquashFlow(),
   };
 
   const mainHandlers: Record<Exclude<MainOption, "exit" | "more">, () => Promise<void>> = {
@@ -227,6 +262,16 @@ export async function app(
         value: "diff",
         label: "🔍 Diff",
         hints: ["compare", "branch", "changes", "difference", "versus", "vs"],
+      },
+      {
+        value: "log",
+        label: "📜 Log",
+        hints: ["history", "commits", "browse", "show", "explore", "inspect", "view"],
+      },
+      {
+        value: "squash",
+        label: "🗜️  Squash",
+        hints: ["combine", "fold", "collapse", "merge commits", "fixup", "rewrite", "tidy"],
       },
       {
         value: "worktree",

@@ -45,8 +45,9 @@ test("calls onContinue and shows success when user presses ENTER", async () => {
   const onAbort = mock(() => Promise.resolve());
   const actions = { label: "Cherry-pick", onContinue, onAbort };
 
-  await resolveConflict(git, ui, actions, () => Promise.resolve(true));
+  const result = await resolveConflict(git, ui, actions, () => Promise.resolve(true));
 
+  expect(result).toBe(true);
   expect(onContinue).toHaveBeenCalledTimes(1);
   expect(onAbort).not.toHaveBeenCalled();
   expect(ui.success).toHaveBeenCalled();
@@ -61,8 +62,9 @@ test("calls onAbort and shows info message when user presses ESC", async () => {
   const onAbort = mock(() => Promise.resolve());
   const actions = { label: "Cherry-pick", onContinue, onAbort };
 
-  await resolveConflict(git, ui, actions, () => Promise.resolve(false));
+  const result = await resolveConflict(git, ui, actions, () => Promise.resolve(false));
 
+  expect(result).toBe(false);
   expect(onAbort).toHaveBeenCalledTimes(1);
   expect(onContinue).not.toHaveBeenCalled();
   expect(ui.info).toHaveBeenCalledWith(expect.stringContaining("aborted"));
@@ -77,9 +79,48 @@ test("calls ui.error and does not propagate when onContinue throws", async () =>
   const onAbort = mock(() => Promise.resolve());
   const actions = { label: "Cherry-pick", onContinue, onAbort };
 
-  await expect(
-    resolveConflict(git, ui, actions, () => Promise.resolve(true)),
-  ).resolves.toBeUndefined();
+  // Continue failed → resolves to false (does not reject/propagate).
+  await expect(resolveConflict(git, ui, actions, () => Promise.resolve(true))).resolves.toBe(false);
 
   expect(ui.error).toHaveBeenCalled();
+});
+
+// ─── AI conflict explanation ──────────────────────────────────────────────────
+
+test("offers an AI explanation of the conflict when an explainer is provided", async () => {
+  const conflictDiff = "<<<<<<< HEAD\na\n=======\nb\n>>>>>>>";
+  const explain = mock(() => Promise.resolve("auth.ts: both sides changed the login guard"));
+  const git = createGitMock({
+    getConflictedFiles: mock(() => Promise.resolve(["src/auth.ts"])),
+    getConflictDiff: mock(() => Promise.resolve(conflictDiff)),
+  });
+  const ui = createUIMock({ askConfirm: mock(() => Promise.resolve(true)) });
+  const actions = {
+    label: "Merge",
+    onContinue: mock(() => Promise.resolve()),
+    onAbort: mock(() => Promise.resolve()),
+    explain,
+  };
+
+  await resolveConflict(git, ui, actions, () => Promise.resolve(true));
+
+  expect(explain).toHaveBeenCalledWith(conflictDiff);
+  const infoCalls = (ui.info as ReturnType<typeof mock>).mock.calls.map((c) => String(c[0]));
+  expect(infoCalls.some((m) => m.includes("both sides changed"))).toBe(true);
+});
+
+test("does not call the AI explainer when the user declines", async () => {
+  const explain = mock(() => Promise.resolve("should not run"));
+  const git = createGitMock({ getConflictedFiles: mock(() => Promise.resolve([])) });
+  const ui = createUIMock({ askConfirm: mock(() => Promise.resolve(false)) });
+  const actions = {
+    label: "Merge",
+    onContinue: mock(() => Promise.resolve()),
+    onAbort: mock(() => Promise.resolve()),
+    explain,
+  };
+
+  await resolveConflict(git, ui, actions, () => Promise.resolve(true));
+
+  expect(explain).not.toHaveBeenCalled();
 });

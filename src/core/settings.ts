@@ -1,11 +1,11 @@
-import type { AIConfig } from "../config/config";
-import { DEFAULT_LIMITS, getLimits, readConfig, writeConfig } from "../config/config";
+import type { AIConfig, GittenConfig } from "../config/config";
+import { DEFAULT_LIMITS, getLimits, readGlobalConfig, writeConfig } from "../config/config";
 import { AI_PROVIDERS } from "../config/providers";
 import { testAIConnection } from "./ai-suggester";
 import type { IUI } from "./ports/ui.port";
 
 type SettingsAction = "ai" | "limits";
-type AIAction = "configure" | "enable" | "disable";
+type AIAction = "configure" | "enable" | "disable" | "save" | "switch" | "remove";
 
 /** Mask a secret for display: keep a short head/tail, hide the middle. */
 function maskKey(key: string): string {
@@ -27,10 +27,11 @@ export class Settings {
   }
 
   private async runAI(): Promise<void> {
-    const config = await readConfig();
+    const config = await readGlobalConfig();
     const ai = config.ai;
     const isEnabled = ai?.enabled ?? false;
     const hasConfig = !!(ai?.baseUrl && ai?.model);
+    const profileCount = Object.keys(config.aiProfiles ?? {}).length;
 
     const providerLabel =
       AI_PROVIDERS.find((p) => p.id === ai?.provider)?.label ?? ai?.baseUrl ?? "—";
@@ -39,7 +40,8 @@ export class Settings {
       : hasConfig
         ? `AI disabled (${providerLabel} / ${ai!.model})`
         : "AI not configured";
-    this.ui.info(`Current: ${statusLabel}`);
+    const profileSuffix = profileCount > 0 ? `  ·  ${profileCount} saved profile(s)` : "";
+    this.ui.info(`Current: ${statusLabel}${profileSuffix}`);
 
     const toggleOption = hasConfig
       ? isEnabled
@@ -50,6 +52,9 @@ export class Settings {
     const options: { value: AIAction; label: string }[] = [
       { value: "configure", label: "✨ Configure AI provider" },
       ...(toggleOption ? [toggleOption] : []),
+      ...(hasConfig ? [{ value: "save" as AIAction, label: "💾 Save current as profile" }] : []),
+      ...(profileCount > 0 ? [{ value: "switch" as AIAction, label: "🔀 Switch profile" }] : []),
+      ...(profileCount > 0 ? [{ value: "remove" as AIAction, label: "🗑️  Remove profile" }] : []),
     ];
 
     const aiAction = await this.ui.askSelect<AIAction>("AI Assistant settings:", options);
@@ -57,10 +62,13 @@ export class Settings {
     if (aiAction === "disable") return this.disable(config);
     if (aiAction === "enable") return this.enable(config);
     if (aiAction === "configure") return this.configure(config);
+    if (aiAction === "save") return this.saveProfile(config);
+    if (aiAction === "switch") return this.switchProfile(config);
+    if (aiAction === "remove") return this.removeProfile(config);
   }
 
   private async runLimits(): Promise<void> {
-    const config = await readConfig();
+    const config = await readGlobalConfig();
     const current = getLimits(config);
 
     this.ui.info(
@@ -106,7 +114,7 @@ export class Settings {
     );
   }
 
-  private async configure(config: Awaited<ReturnType<typeof readConfig>>): Promise<void> {
+  private async configure(config: GittenConfig): Promise<void> {
     const existing = config.ai;
 
     const providerId = await this.ui.askSelect<string>(
@@ -166,13 +174,50 @@ export class Settings {
     }
   }
 
-  private async enable(config: Awaited<ReturnType<typeof readConfig>>): Promise<void> {
+  private async enable(config: GittenConfig): Promise<void> {
     await writeConfig({ ...config, ai: { ...config.ai, enabled: true } });
     this.ui.success("AI enabled.");
   }
 
-  private async disable(config: Awaited<ReturnType<typeof readConfig>>): Promise<void> {
+  private async disable(config: GittenConfig): Promise<void> {
     await writeConfig({ ...config, ai: { ...config.ai, enabled: false } });
     this.ui.success("AI disabled.");
+  }
+
+  private async saveProfile(config: GittenConfig): Promise<void> {
+    if (!config.ai?.baseUrl || !config.ai?.model) {
+      this.ui.warn("Configure an AI provider before saving it as a profile.");
+      return;
+    }
+    const name = (await this.ui.askText("Profile name:", "work")).trim();
+    if (!name) return;
+    const profiles = { ...config.aiProfiles, [name]: config.ai as AIConfig };
+    await writeConfig({ ...config, aiProfiles: profiles });
+    this.ui.success(`Saved profile '${name}'.`);
+  }
+
+  private async switchProfile(config: GittenConfig): Promise<void> {
+    const profiles = config.aiProfiles ?? {};
+    const name = await this.ui.askSelect<string>(
+      "Switch to which profile?",
+      Object.keys(profiles).map((n) => ({ value: n, label: n })),
+    );
+    const profile = profiles[name];
+    if (!profile) return;
+    // The active profile is simply whatever lives in `ai`; switching loads it and turns AI on.
+    await writeConfig({ ...config, ai: { ...profile, enabled: true } });
+    this.ui.success(`Switched to '${name}' — ${profile.model} via ${profile.provider}.`);
+  }
+
+  private async removeProfile(config: GittenConfig): Promise<void> {
+    const profiles = { ...(config.aiProfiles ?? {}) };
+    const selected = await this.ui.askMultiSelect<string>(
+      "Remove which profile(s)?",
+      Object.keys(profiles).map((n) => ({ value: n, label: n })),
+    );
+    if (selected.length === 0) return;
+    for (const n of selected) delete profiles[n];
+    await writeConfig({ ...config, aiProfiles: profiles });
+    this.ui.success(`Removed ${selected.length} profile(s).`);
   }
 }

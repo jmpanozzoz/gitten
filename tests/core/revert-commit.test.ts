@@ -6,12 +6,15 @@ import { createUIMock } from "../mocks/ui.mock";
 
 mock.module("../../src/config/config", () => ({
   readConfig: mock(() => Promise.resolve({})),
-  getLimits: mock(() => ({
+  // Faithful to the real getLimits (defaults ⊕ config.limits) — Bun applies this
+  // module mock process-wide, so a fixed stub would corrupt other suites.
+  getLimits: (config: { limits?: Record<string, number> }) => ({
     undoCommitLimit: 10,
     cherryPickLogLimit: 30,
     bisectLogLimit: 30,
     revertLogLimit: 30,
-  })),
+    ...(config?.limits ?? {}),
+  }),
 }));
 
 const COMMITS = [

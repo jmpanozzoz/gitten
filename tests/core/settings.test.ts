@@ -8,15 +8,18 @@ const MOCK_WRITE = mock(() => Promise.resolve());
 const MOCK_TEST_CONNECTION = mock(() => Promise.resolve());
 
 mock.module("../../src/config/config", () => ({
-  readConfig: MOCK_READ,
+  readGlobalConfig: MOCK_READ,
   writeConfig: MOCK_WRITE,
   getActiveAIConfig: mock(() => Promise.resolve(null)),
-  getLimits: mock(() => ({
+  // Faithful to the real getLimits (defaults ⊕ config.limits) so this module mock,
+  // which Bun applies process-wide, doesn't corrupt other suites' real assertions.
+  getLimits: (config: { limits?: Record<string, number> }) => ({
     undoCommitLimit: 10,
     cherryPickLogLimit: 30,
     bisectLogLimit: 30,
     revertLogLimit: 30,
-  })),
+    ...(config?.limits ?? {}),
+  }),
   DEFAULT_LIMITS: {
     undoCommitLimit: 10,
     cherryPickLogLimit: 30,
@@ -375,6 +378,92 @@ test("rejects values above 500 and keeps current limit", async () => {
   expect(MOCK_WRITE).toHaveBeenCalledWith(
     expect.objectContaining({
       limits: expect.objectContaining({ undoCommitLimit: 10 }),
+    }),
+  );
+});
+
+// ─── AI profiles ────────────────────────────────────────────────────────────
+
+const FULL_AI = {
+  enabled: true,
+  provider: "openai",
+  baseUrl: "https://api.openai.com/v1",
+  apiKey: "sk-test",
+  model: "gpt-4o-mini",
+};
+
+test("saves the current AI config as a named profile", async () => {
+  MOCK_WRITE.mockClear();
+  MOCK_READ.mockResolvedValueOnce({ ai: FULL_AI });
+  const ui = createUIMock({
+    askSelect: mock().mockResolvedValueOnce("ai").mockResolvedValueOnce("save"),
+    askText: mock(() => Promise.resolve("work")),
+  });
+
+  await new Settings(ui).run();
+
+  expect(MOCK_WRITE).toHaveBeenCalledWith(
+    expect.objectContaining({
+      aiProfiles: expect.objectContaining({
+        work: expect.objectContaining({ model: "gpt-4o-mini", provider: "openai" }),
+      }),
+    }),
+  );
+});
+
+test("switching a profile loads it into the active config and enables AI", async () => {
+  MOCK_WRITE.mockClear();
+  MOCK_READ.mockResolvedValueOnce({
+    ai: { ...FULL_AI, enabled: false },
+    aiProfiles: {
+      groq: {
+        enabled: false,
+        provider: "groq",
+        baseUrl: "https://api.groq.com/openai/v1",
+        apiKey: "gk",
+        model: "llama-3.3-70b-versatile",
+      },
+    },
+  });
+  const ui = createUIMock({
+    askSelect: mock()
+      .mockResolvedValueOnce("ai")
+      .mockResolvedValueOnce("switch")
+      .mockResolvedValueOnce("groq"),
+  });
+
+  await new Settings(ui).run();
+
+  expect(MOCK_WRITE).toHaveBeenCalledWith(
+    expect.objectContaining({
+      ai: expect.objectContaining({
+        provider: "groq",
+        model: "llama-3.3-70b-versatile",
+        enabled: true,
+      }),
+    }),
+  );
+});
+
+test("removes the selected profile(s)", async () => {
+  MOCK_WRITE.mockClear();
+  MOCK_READ.mockResolvedValueOnce({
+    ai: FULL_AI,
+    aiProfiles: {
+      work: FULL_AI,
+      home: { ...FULL_AI, provider: "groq", model: "llama-3.3-70b-versatile" },
+    },
+  });
+  const ui = createUIMock({
+    askSelect: mock().mockResolvedValueOnce("ai").mockResolvedValueOnce("remove"),
+    askMultiSelect: mock(() => Promise.resolve(["work"])),
+  });
+
+  await new Settings(ui).run();
+
+  expect(MOCK_WRITE).toHaveBeenCalledWith(
+    expect.objectContaining({
+      aiProfiles: { home: expect.objectContaining({ provider: "groq" }) },
     }),
   );
 });

@@ -1,6 +1,7 @@
 import { getLimits, readConfig } from "../config/config";
 import { stdinResolution } from "../utils/stdin-resolution";
 import { resolveConflict } from "./conflict-resolver";
+import type { AIConflictExplainer } from "./ports/ai.port";
 import type { IGitClient } from "./ports/git-client.port";
 import type { IUI } from "./ports/ui.port";
 import { PROTECTED_BRANCHES } from "./protected-branches";
@@ -10,6 +11,7 @@ export class RevertCommit {
     private readonly git: IGitClient,
     private readonly ui: IUI,
     private readonly waitForResolution: () => Promise<boolean> = stdinResolution,
+    private readonly aiConflictExplainer?: AIConflictExplainer,
   ) {}
 
   async run(): Promise<void> {
@@ -56,6 +58,7 @@ export class RevertCommit {
             await this.git.revertContinue();
           },
           onAbort: () => this.git.revertAbort(),
+          explain: this.aiConflictExplainer,
         },
         this.waitForResolution,
       );
