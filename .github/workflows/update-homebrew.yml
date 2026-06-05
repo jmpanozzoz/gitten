@@ -22,12 +22,34 @@ jobs:
         env:
           TAG: ${{ github.event.release.tag_name }}
         run: |
+          set -euo pipefail
           VERSION="${TAG#v}"
-          ARM64_URL="https://github.com/jmpanozzoz/gitten/releases/download/${TAG}/gitten-darwin-arm64"
-          X64_URL="https://github.com/jmpanozzoz/gitten/releases/download/${TAG}/gitten-darwin-x64"
 
-          ARM64_SHA=$(curl -fsSL "$ARM64_URL" | sha256sum | cut -d' ' -f1)
-          X64_SHA=$(curl -fsSL "$X64_URL" | sha256sum | cut -d' ' -f1)
+          # SHA256 of an empty input — the value produced when curl fails but the
+          # pipe still succeeds. Guard against committing it as a real checksum.
+          EMPTY_SHA="e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+          sha_of_asset() {
+            local asset="$1"
+            local url="https://github.com/jmpanozzoz/gitten/releases/download/${TAG}/${asset}"
+            local out="${asset}"
+            # Retry to absorb the race between "release published" and asset upload.
+            curl -fSL --retry 5 --retry-delay 5 --retry-all-errors -o "$out" "$url"
+            if [ ! -s "$out" ]; then
+              echo "::error::Downloaded asset ${asset} is missing or empty" >&2
+              exit 1
+            fi
+            local sum
+            sum=$(sha256sum "$out" | cut -d' ' -f1)
+            if [ -z "$sum" ] || [ "$sum" = "$EMPTY_SHA" ]; then
+              echo "::error::Computed empty/placeholder SHA256 for ${asset}" >&2
+              exit 1
+            fi
+            echo "$sum"
+          }
+
+          ARM64_SHA=$(sha_of_asset "gitten-darwin-arm64")
+          X64_SHA=$(sha_of_asset "gitten-darwin-x64")
 
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "arm64_sha=$ARM64_SHA" >> "$GITHUB_OUTPUT"
