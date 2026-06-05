@@ -1,4 +1,5 @@
 import { stdinResolution } from "../utils/stdin-resolution";
+import type { AIConflictExplainer } from "./ports/ai.port";
 import type { IGitClient } from "./ports/git-client.port";
 import type { IUI } from "./ports/ui.port";
 
@@ -6,6 +7,8 @@ interface ConflictActions {
   label: string;
   onContinue: () => Promise<void>;
   onAbort: () => Promise<void>;
+  /** Optional AI explainer; when set, the user is offered an explanation of the conflict. */
+  explain?: AIConflictExplainer;
 }
 
 /**
@@ -30,6 +33,22 @@ export async function resolveConflict(
   } else {
     ui.warn(`🚨 ${actions.label} conflict detected.`);
   }
+
+  if (actions.explain) {
+    const wantExplain = await ui.askConfirm("✨ Explain this conflict with AI?");
+    if (wantExplain) {
+      try {
+        const diff = await git.getConflictDiff();
+        if (diff) {
+          const explanation = await ui.spin("Analyzing conflict...", () => actions.explain!(diff));
+          if (explanation) ui.info(`✨ ${explanation}`);
+        }
+      } catch {
+        // AI is optional — never block conflict resolution on it.
+      }
+    }
+  }
+
   ui.warn("Resolve in your IDE, then press ENTER to continue or ESC to abort.");
 
   const confirmed = await waitForResolution();

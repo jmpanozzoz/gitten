@@ -473,7 +473,9 @@ Everything is in English — no exceptions.
 
 Still firmly out of scope:
 - No interactive conflict resolver inside the terminal. `conflict-resolver.ts` only pauses for the
-  user's editor and then continues/aborts — it never merges hunks for them.
+  user's editor and then continues/aborts — it never merges hunks for them. With AI enabled it can
+  optionally *explain* a conflict (via `getConflictDiff()` + `explainConflict`), but it still never
+  resolves it.
 - No `git rebase -i` interactive flows. (Pull offers a rebase *strategy*; that is the limit.)
 - **No GitHub/GitLab API integration (no PRs, no issues).** This is a deliberate product boundary.
 - No hunk-level staging (Sync does file-level multi-select; hunks are for Lazygit/Sublime Merge).

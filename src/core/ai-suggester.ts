@@ -12,6 +12,7 @@ const MAX_TOKENS = {
   gitignore: 300,
   explain: 80,
   summarize: 200,
+  conflict: 200,
   test: 5,
 } as const;
 
@@ -161,6 +162,26 @@ export async function explainCommitDiff(diff: string, config: AIConfig): Promise
     `Commit diff:\n\`\`\`\n${truncated}\n\`\`\``,
     config,
     MAX_TOKENS.explain,
+  );
+}
+
+const EXPLAIN_CONFLICT_SYSTEM_PROMPT = `You are a git merge-conflict assistant. Given a diff containing conflict markers (<<<<<<<, =======, >>>>>>>), explain the conflict so the user can resolve it themselves.
+
+Rules:
+- Do NOT output resolved code or pick a side for the user
+- For each conflicted area: one line on what each side changed
+- End with one short line suggesting how to reconcile them
+- Max 6 lines total, plain text, no code blocks
+- Be concise and concrete`;
+
+export async function explainConflict(diff: string, config: AIConfig): Promise<string | null> {
+  const truncated =
+    diff.length > MAX_DIFF_CHARS ? `${diff.slice(0, MAX_DIFF_CHARS)}\n...(truncated)` : diff;
+  return callAI(
+    EXPLAIN_CONFLICT_SYSTEM_PROMPT,
+    `Conflict diff:\n\`\`\`\n${truncated}\n\`\`\``,
+    config,
+    MAX_TOKENS.conflict,
   );
 }
 
