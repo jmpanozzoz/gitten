@@ -33,8 +33,11 @@ jobs:
             local asset="$1"
             local url="https://github.com/jmpanozzoz/gitten/releases/download/${TAG}/${asset}"
             local out="${asset}"
-            # Retry to absorb the race between "release published" and asset upload.
-            curl -fSL --retry 5 --retry-delay 5 --retry-all-errors -o "$out" "$url"
+            # Absorb the race between "release published" and asset upload: the
+            # release event can fire before binaries finish uploading, so retry
+            # 404s for up to ~5 minutes instead of failing the run (and needing
+            # a manual re-run, as happened on v1.1.2).
+            curl -fSL --retry 20 --retry-delay 10 --retry-max-time 300 --retry-all-errors -o "$out" "$url"
             if [ ! -s "$out" ]; then
               echo "::error::Downloaded asset ${asset} is missing or empty" >&2
               exit 1

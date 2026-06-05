@@ -1,11 +1,11 @@
+import { renderDiff } from "../ui/diff-renderer";
 import type { IGitClient } from "./ports/git-client.port";
 import type { IUI } from "./ports/ui.port";
-import { renderDiff } from "../ui/diff-renderer";
 
 export class DiffViewer {
   constructor(
     private readonly git: IGitClient,
-    private readonly ui: IUI
+    private readonly ui: IUI,
   ) {}
 
   async run(): Promise<void> {
@@ -23,14 +23,10 @@ export class DiffViewer {
       return;
     }
 
-    const target = await this.ui.askSearchSelect(
-      `Compare '${current}' against:`,
-      options
-    );
+    const target = await this.ui.askSearchSelect(`Compare '${current}' against:`, options);
 
-    const diff = await this.ui.spin(
-      `Comparing with ${target}...`,
-      () => this.git.getBranchDiff(target)
+    const diff = await this.ui.spin(`Comparing with ${target}...`, () =>
+      this.git.getBranchDiff(target),
     );
 
     if (!diff) {

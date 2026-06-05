@@ -1,10 +1,16 @@
-import { test, expect, mock } from "bun:test";
+import { expect, mock, test } from "bun:test";
 import { SyncFlow } from "../../src/core/sync-flow";
 import { createGitMock } from "../mocks/git-client.mock";
 import { createUIMock } from "../mocks/ui.mock";
 
 const FILES = [{ path: "src/app.ts", status: "M" }];
-const DIRTY_STATUS = { files: FILES, isClean: () => false, hasStagedChanges: () => false, commitsAhead: 0, commitsBehind: 0 };
+const DIRTY_STATUS = {
+  files: FILES,
+  isClean: () => false,
+  hasStagedChanges: () => false,
+  commitsAhead: 0,
+  commitsBehind: 0,
+};
 const SELECT_ALL = { askMultiSelect: mock(() => Promise.resolve(["src/app.ts"])) };
 
 function makeFlow(aiReviewer?: (diff: string) => Promise<string[]>) {
@@ -30,14 +36,18 @@ test("never asks for AI review when no aiReviewer is provided", async () => {
 
   await flow.run();
 
-  const confirmCalls = (ui.askConfirm as ReturnType<typeof mock>).mock.calls.map((c) => c[0] as string);
+  const confirmCalls = (ui.askConfirm as ReturnType<typeof mock>).mock.calls.map(
+    (c) => c[0] as string,
+  );
   expect(confirmCalls.every((msg) => !msg.toLowerCase().includes("review"))).toBe(true);
 });
 
 // ─── review offered and accepted ──────────────────────────────────────────────
 
 test("offers AI review when aiReviewer is provided and shows findings as warnings", async () => {
-  const aiReviewer = mock(() => Promise.resolve(["Hardcoded value found", "Missing error handling"]));
+  const aiReviewer = mock(() =>
+    Promise.resolve(["Hardcoded value found", "Missing error handling"]),
+  );
   const { flow, ui } = makeFlow(aiReviewer);
   (ui.askConfirm as ReturnType<typeof mock>)
     .mockResolvedValueOnce(true)

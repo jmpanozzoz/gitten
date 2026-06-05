@@ -1,4 +1,4 @@
-import { test, expect, mock, describe } from "bun:test";
+import { describe, expect, mock, test } from "bun:test";
 import { TagWizard } from "../../src/core/tag-wizard";
 import { createGitMock } from "../mocks/git-client.mock";
 import { createUIMock } from "../mocks/ui.mock";
@@ -20,9 +20,7 @@ describe("version bump suggestion", () => {
       createAnnotatedTag: mock(() => Promise.resolve()),
     });
     const ui = createUIMock({
-      askText: mock()
-        .mockResolvedValueOnce("v1.3.0")
-        .mockResolvedValueOnce("release v1.3.0"),
+      askText: mock().mockResolvedValueOnce("v1.3.0").mockResolvedValueOnce("release v1.3.0"),
       askConfirm: mock(() => Promise.resolve(false)),
     });
 
@@ -39,9 +37,7 @@ describe("version bump suggestion", () => {
       createAnnotatedTag: mock(() => Promise.resolve()),
     });
     const ui = createUIMock({
-      askText: mock()
-        .mockResolvedValueOnce("v1.2.4")
-        .mockResolvedValueOnce("release v1.2.4"),
+      askText: mock().mockResolvedValueOnce("v1.2.4").mockResolvedValueOnce("release v1.2.4"),
       askConfirm: mock(() => Promise.resolve(false)),
     });
 
@@ -58,9 +54,7 @@ describe("version bump suggestion", () => {
       createAnnotatedTag: mock(() => Promise.resolve()),
     });
     const ui = createUIMock({
-      askText: mock()
-        .mockResolvedValueOnce("v2.0.0")
-        .mockResolvedValueOnce("release v2.0.0"),
+      askText: mock().mockResolvedValueOnce("v2.0.0").mockResolvedValueOnce("release v2.0.0"),
       askConfirm: mock(() => Promise.resolve(false)),
     });
 
@@ -77,9 +71,7 @@ describe("version bump suggestion", () => {
       createAnnotatedTag: mock(() => Promise.resolve()),
     });
     const ui = createUIMock({
-      askText: mock()
-        .mockResolvedValueOnce("v0.1.0")
-        .mockResolvedValueOnce("initial release"),
+      askText: mock().mockResolvedValueOnce("v0.1.0").mockResolvedValueOnce("initial release"),
       askConfirm: mock(() => Promise.resolve(false)),
     });
 
@@ -99,9 +91,7 @@ test("creates annotated tag with user-provided version and message", async () =>
     createAnnotatedTag: mock(() => Promise.resolve()),
   });
   const ui = createUIMock({
-    askText: mock()
-      .mockResolvedValueOnce("v1.1.0")
-      .mockResolvedValueOnce("release v1.1.0"),
+    askText: mock().mockResolvedValueOnce("v1.1.0").mockResolvedValueOnce("release v1.1.0"),
     askConfirm: mock(() => Promise.resolve(false)),
   });
 
@@ -118,9 +108,7 @@ test("pushes tag when user confirms", async () => {
     pushTag: mock(() => Promise.resolve()),
   });
   const ui = createUIMock({
-    askText: mock()
-      .mockResolvedValueOnce("v1.1.0")
-      .mockResolvedValueOnce("release v1.1.0"),
+    askText: mock().mockResolvedValueOnce("v1.1.0").mockResolvedValueOnce("release v1.1.0"),
     askConfirm: mock(() => Promise.resolve(true)),
   });
 
@@ -137,9 +125,7 @@ test("skips pushing tag when user declines", async () => {
     pushTag: mock(() => Promise.resolve()),
   });
   const ui = createUIMock({
-    askText: mock()
-      .mockResolvedValueOnce("v1.1.0")
-      .mockResolvedValueOnce("release v1.1.0"),
+    askText: mock().mockResolvedValueOnce("v1.1.0").mockResolvedValueOnce("release v1.1.0"),
     askConfirm: mock(() => Promise.resolve(false)),
   });
 
@@ -157,9 +143,7 @@ test("shows commit count and last tag in summary before prompting", async () => 
     createAnnotatedTag: mock(() => Promise.resolve()),
   });
   const ui = createUIMock({
-    askText: mock()
-      .mockResolvedValueOnce("v1.1.0")
-      .mockResolvedValueOnce("release"),
+    askText: mock().mockResolvedValueOnce("v1.1.0").mockResolvedValueOnce("release"),
     askConfirm: mock(() => Promise.resolve(false)),
   });
 
@@ -193,9 +177,7 @@ test("shows error and aborts when user enters invalid semver tag name", async ()
     createAnnotatedTag: mock(() => Promise.resolve()),
   });
   const ui = createUIMock({
-    askText: mock()
-      .mockResolvedValueOnce("not-a-version")
-      .mockResolvedValueOnce("release"),
+    askText: mock().mockResolvedValueOnce("not-a-version").mockResolvedValueOnce("release"),
     askConfirm: mock(() => Promise.resolve(false)),
   });
 
@@ -213,9 +195,7 @@ test("shows error and keeps local tag when pushTag fails", async () => {
     pushTag: mock(() => Promise.reject(new Error("Connection refused"))),
   });
   const ui = createUIMock({
-    askText: mock()
-      .mockResolvedValueOnce("v1.1.0")
-      .mockResolvedValueOnce("release v1.1.0"),
+    askText: mock().mockResolvedValueOnce("v1.1.0").mockResolvedValueOnce("release v1.1.0"),
     askConfirm: mock(() => Promise.resolve(true)),
   });
 
@@ -237,9 +217,7 @@ describe("package.json version as base", () => {
       createAnnotatedTag: mock(() => Promise.resolve()),
     });
     const ui = createUIMock({
-      askText: mock()
-        .mockResolvedValueOnce("v0.8.1")
-        .mockResolvedValueOnce("release v0.8.1"),
+      askText: mock().mockResolvedValueOnce("v0.8.1").mockResolvedValueOnce("release v0.8.1"),
       askConfirm: mock(() => Promise.resolve(false)),
     });
 
@@ -257,9 +235,7 @@ describe("package.json version as base", () => {
       createAnnotatedTag: mock(() => Promise.resolve()),
     });
     const ui = createUIMock({
-      askText: mock()
-        .mockResolvedValueOnce("v0.9.0")
-        .mockResolvedValueOnce("release"),
+      askText: mock().mockResolvedValueOnce("v0.9.0").mockResolvedValueOnce("release"),
       askConfirm: mock(() => Promise.resolve(false)),
     });
 
@@ -277,9 +253,7 @@ describe("package.json version as base", () => {
       createAnnotatedTag: mock(() => Promise.resolve()),
     });
     const ui = createUIMock({
-      askText: mock()
-        .mockResolvedValueOnce("v1.0.1")
-        .mockResolvedValueOnce("release"),
+      askText: mock().mockResolvedValueOnce("v1.0.1").mockResolvedValueOnce("release"),
       askConfirm: mock(() => Promise.resolve(false)),
     });
 
@@ -297,9 +271,7 @@ describe("package.json version as base", () => {
       createAnnotatedTag: mock(() => Promise.resolve()),
     });
     const ui = createUIMock({
-      askText: mock()
-        .mockResolvedValueOnce("v0.8.1")
-        .mockResolvedValueOnce("release"),
+      askText: mock().mockResolvedValueOnce("v0.8.1").mockResolvedValueOnce("release"),
       askConfirm: mock(() => Promise.resolve(false)),
     });
 
@@ -316,10 +288,12 @@ test("generates release notes with AI and shows them before asking for tag name"
   const git = createGitMock({
     getPackageVersion: mock(() => Promise.resolve("1.0.0")),
     getLastTag: mock(() => Promise.resolve("v1.0.0")),
-    getLogSince: mock(() => Promise.resolve([
-      { hash: "abc", message: "feat: add dark mode" },
-      { hash: "def", message: "fix: crash on startup" },
-    ])),
+    getLogSince: mock(() =>
+      Promise.resolve([
+        { hash: "abc", message: "feat: add dark mode" },
+        { hash: "def", message: "fix: crash on startup" },
+      ]),
+    ),
     createAnnotatedTag: mock(() => Promise.resolve()),
   });
   const aiSummarizer = mock(() => Promise.resolve("• Added dark mode\n• Fixed crash on startup"));

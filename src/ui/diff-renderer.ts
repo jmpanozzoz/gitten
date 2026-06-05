@@ -15,7 +15,5 @@ export function renderDiff(diff: string, maxLines = DEFAULT_MAX_LINES): string {
     })
     .join("\n");
 
-  return remaining > 0
-    ? `${colored}\n${theme.muted(`...and ${remaining} more lines`)}`
-    : colored;
+  return remaining > 0 ? `${colored}\n${theme.muted(`...and ${remaining} more lines`)}` : colored;
 }

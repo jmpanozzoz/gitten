@@ -4,8 +4,15 @@ import type { IUI } from "../../src/core/ports/ui.port";
 type LooseUI = {
   askSelect(message: string, options: { value: string; label: string }[]): Promise<string>;
   askMultiSelect(message: string, options: { value: string; label: string }[]): Promise<string[]>;
-  askSearchSelect(message: string, options: { value: unknown; label: string; hints?: string[] }[], searchPool?: { value: unknown; label: string; hints?: string[] }[]): Promise<unknown>;
-  askSearchMultiSelect(message: string, options: { value: unknown; label: string; hints?: string[] }[]): Promise<unknown[]>;
+  askSearchSelect(
+    message: string,
+    options: { value: unknown; label: string; hints?: string[] }[],
+    searchPool?: { value: unknown; label: string; hints?: string[] }[],
+  ): Promise<unknown>;
+  askSearchMultiSelect(
+    message: string,
+    options: { value: unknown; label: string; hints?: string[] }[],
+  ): Promise<unknown[]>;
 };
 
 type IUIMockOverrides = Partial<Omit<IUI, keyof LooseUI> & LooseUI>;

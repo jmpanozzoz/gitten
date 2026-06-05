@@ -1,4 +1,4 @@
-import { test, expect, mock, spyOn } from "bun:test";
+import { expect, mock, spyOn, test } from "bun:test";
 import { app } from "../../src/app";
 import { createGitMock } from "../mocks/git-client.mock";
 import { createUIMock } from "../mocks/ui.mock";
@@ -104,9 +104,7 @@ test("dispatches to remotes handler from more submenu", async () => {
     askSearchSelect: mock()
       .mockResolvedValueOnce("more" as never)
       .mockResolvedValueOnce("exit" as never),
-    askSelect: mock()
-      .mockResolvedValueOnce("remotes")
-      .mockResolvedValueOnce("add"),
+    askSelect: mock().mockResolvedValueOnce("remotes").mockResolvedValueOnce("add"),
     askConfirm: mock(() => Promise.resolve(false)),
     askText: mock(() => Promise.resolve("origin")),
   });
@@ -121,9 +119,7 @@ test("dispatches to settings handler from more submenu", async () => {
     askSearchSelect: mock()
       .mockResolvedValueOnce("more" as never)
       .mockResolvedValueOnce("exit" as never),
-    askSelect: mock()
-      .mockResolvedValueOnce("settings")
-      .mockResolvedValueOnce("disable"),
+    askSelect: mock().mockResolvedValueOnce("settings").mockResolvedValueOnce("disable"),
   });
 
   await app(createGitMock(), ui, noAI, noUpdate);
@@ -135,15 +131,21 @@ test("dispatches to settings handler from more submenu", async () => {
 test("dispatches to amend handler from more submenu", async () => {
   const git = createGitMock({
     getLastCommit: mock(() => Promise.resolve({ hash: "abc1234", message: "chore: update" })),
-    getStatus: mock(() => Promise.resolve({ files: [], isClean: () => true, hasStagedChanges: () => false, commitsAhead: 0, commitsBehind: 0 })),
+    getStatus: mock(() =>
+      Promise.resolve({
+        files: [],
+        isClean: () => true,
+        hasStagedChanges: () => false,
+        commitsAhead: 0,
+        commitsBehind: 0,
+      }),
+    ),
   });
   const ui = createUIMock({
     askSearchSelect: mock()
       .mockResolvedValueOnce("more" as never)
       .mockResolvedValueOnce("exit" as never),
-    askSelect: mock()
-      .mockResolvedValueOnce("amend")
-      .mockResolvedValueOnce("message"),
+    askSelect: mock().mockResolvedValueOnce("amend").mockResolvedValueOnce("message"),
     askText: mock(() => Promise.resolve("fix: amended")),
   });
 
@@ -194,9 +196,7 @@ test("dispatches to worktree handler from more submenu", async () => {
     askSearchSelect: mock()
       .mockResolvedValueOnce("more" as never)
       .mockResolvedValueOnce("exit" as never),
-    askSelect: mock()
-      .mockResolvedValueOnce("worktree")
-      .mockResolvedValueOnce("list"),
+    askSelect: mock().mockResolvedValueOnce("worktree").mockResolvedValueOnce("list"),
   });
 
   await app(git, ui, noAI, noUpdate);
@@ -232,7 +232,7 @@ test("shows diff stats in context header when files are modified", async () => {
         commitsBehind: 0,
         insertions: 47,
         deletions: 12,
-      })
+      }),
     ),
   });
   const ui = createUIMock({ askSearchSelect: mock(() => Promise.resolve("exit" as never)) });

@@ -1,6 +1,6 @@
+import { stdinResolution } from "../utils/stdin-resolution";
 import type { IGitClient } from "./ports/git-client.port";
 import type { IUI } from "./ports/ui.port";
-import { stdinResolution } from "../utils/stdin-resolution";
 
 interface ConflictActions {
   label: string;
@@ -12,7 +12,7 @@ export async function resolveConflict(
   git: IGitClient,
   ui: IUI,
   actions: ConflictActions,
-  waitForResolution: () => Promise<boolean> = stdinResolution
+  waitForResolution: () => Promise<boolean> = stdinResolution,
 ): Promise<void> {
   const conflicted = await git.getConflictedFiles();
 

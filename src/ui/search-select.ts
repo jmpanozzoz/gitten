@@ -1,5 +1,5 @@
-import { theme } from "./theme";
 import { GoBackSignal } from "./go-back";
+import { theme } from "./theme";
 
 const K = {
   UP: "\x1b[A",
@@ -18,9 +18,10 @@ type Opt<T> = { value: T; label: string; hints?: string[] };
 function applyFilter<T>(options: Opt<T>[], query: string): Opt<T>[] {
   const q = query.trim().toLowerCase();
   if (!q) return options;
-  return options.filter((o) =>
-    o.label.toLowerCase().includes(q) ||
-    (o.hints?.some((h) => h.toLowerCase().includes(q)) ?? false)
+  return options.filter(
+    (o) =>
+      o.label.toLowerCase().includes(q) ||
+      (o.hints?.some((h) => h.toLowerCase().includes(q)) ?? false),
   );
 }
 
@@ -37,10 +38,7 @@ function highlightMatch(label: string, query: string, isCursor: boolean): string
     : theme.dim(pre) + theme.bright(match) + theme.dim(post);
 }
 
-function visibleWindow<T>(
-  filtered: Opt<T>[],
-  cursor: number
-): { start: number; end: number } {
+function visibleWindow<T>(filtered: Opt<T>[], cursor: number): { start: number; end: number } {
   const half = Math.floor(MAX_VISIBLE / 2);
   const start = Math.max(0, Math.min(cursor - half, filtered.length - MAX_VISIBLE));
   const end = Math.min(filtered.length, start + MAX_VISIBLE);
@@ -52,7 +50,7 @@ function buildSelectLines<T>(
   query: string,
   options: Opt<T>[],
   cursor: number,
-  searchPool?: Opt<T>[]
+  searchPool?: Opt<T>[],
 ): string[] {
   const pool = query.trim() && searchPool ? [...options, ...searchPool] : options;
   const f = applyFilter(pool, query);
@@ -79,7 +77,7 @@ function buildSelectLines<T>(
       lines.push(
         isCursor
           ? `${theme.accent("│")}  ${theme.accent("❯")} ${text}`
-          : `${theme.accent("│")}    ${text}`
+          : `${theme.accent("│")}    ${text}`,
       );
     }
 
@@ -98,7 +96,7 @@ function buildMultiSelectLines<T>(
   query: string,
   options: Opt<T>[],
   cursor: number,
-  checked: Set<T>
+  checked: Set<T>,
 ): string[] {
   const f = applyFilter(options, query);
   const clamped = Math.min(cursor, Math.max(0, f.length - 1));
@@ -134,14 +132,16 @@ function buildMultiSelectLines<T>(
   }
 
   lines.push(`${theme.accent("│")}`);
-  lines.push(`${theme.accent("└")}  ${theme.dim("Space toggle  ·  ↑↓ navigate  ·  Enter confirm  ·  Esc cancel")}`);
+  lines.push(
+    `${theme.accent("└")}  ${theme.dim("Space toggle  ·  ↑↓ navigate  ·  Enter confirm  ·  Esc cancel")}`,
+  );
 
   return lines;
 }
 
 function redraw(lines: string[], lastCount: number): void {
   if (lastCount > 0) process.stdout.write(`\x1b[${lastCount}A\x1b[J`);
-  process.stdout.write(lines.join("\n") + "\n");
+  process.stdout.write(`${lines.join("\n")}\n`);
 }
 
 function setupStdin(): void {
@@ -165,7 +165,7 @@ function teardownStdin(listener: (data: string) => void): void {
 export async function searchSelect<T>(
   message: string,
   options: Opt<T>[],
-  searchPool?: Opt<T>[]
+  searchPool?: Opt<T>[],
 ): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     let query = "";
@@ -201,18 +201,33 @@ export async function searchSelect<T>(
       const f = applyFilter(pool, query);
       const maxCursor = Math.max(0, f.length - 1);
 
-      if (data === K.UP) { if (cursor > 0) cursor--; draw(); return; }
-      if (data === K.DOWN) { if (cursor < maxCursor) cursor++; draw(); return; }
+      if (data === K.UP) {
+        if (cursor > 0) cursor--;
+        draw();
+        return;
+      }
+      if (data === K.DOWN) {
+        if (cursor < maxCursor) cursor++;
+        draw();
+        return;
+      }
 
       if (data === K.ENTER) {
         if (f.length > 0) done(f[Math.min(cursor, f.length - 1)] ?? null);
         return;
       }
 
-      if (data === K.ESC) { done(null); return; }
+      if (data === K.ESC) {
+        done(null);
+        return;
+      }
 
       if (data === K.BACKSPACE) {
-        if (query.length > 0) { query = query.slice(0, -1); cursor = 0; draw(); }
+        if (query.length > 0) {
+          query = query.slice(0, -1);
+          cursor = 0;
+          draw();
+        }
         return;
       }
 
@@ -229,10 +244,7 @@ export async function searchSelect<T>(
   });
 }
 
-export async function searchMultiSelect<T>(
-  message: string,
-  options: Opt<T>[]
-): Promise<T[]> {
+export async function searchMultiSelect<T>(message: string, options: Opt<T>[]): Promise<T[]> {
   return new Promise<T[]>((resolve, reject) => {
     let query = "";
     let cursor = 0;
@@ -252,7 +264,7 @@ export async function searchMultiSelect<T>(
         const count = checked.size;
         process.stdout.write(`${theme.accent("◇")}  ${theme.bold(message)}\n`);
         process.stdout.write(
-          `${theme.accent("│")}  ${count > 0 ? theme.success(`${count} item(s) selected`) : theme.dim("none selected")}\n`
+          `${theme.accent("│")}  ${count > 0 ? theme.success(`${count} item(s) selected`) : theme.dim("none selected")}\n`,
         );
         process.stdout.write(`${theme.accent("│")}\n`);
         resolve([...checked]);
@@ -271,8 +283,16 @@ export async function searchMultiSelect<T>(
       const maxCursor = Math.max(0, f.length - 1);
       const current = f[Math.min(cursor, f.length - 1)];
 
-      if (data === K.UP) { if (cursor > 0) cursor--; draw(); return; }
-      if (data === K.DOWN) { if (cursor < maxCursor) cursor++; draw(); return; }
+      if (data === K.UP) {
+        if (cursor > 0) cursor--;
+        draw();
+        return;
+      }
+      if (data === K.DOWN) {
+        if (cursor < maxCursor) cursor++;
+        draw();
+        return;
+      }
 
       if (data === K.SPACE && current) {
         if (checked.has(current.value)) checked.delete(current.value);
@@ -281,11 +301,21 @@ export async function searchMultiSelect<T>(
         return;
       }
 
-      if (data === K.ENTER) { done(true); return; }
-      if (data === K.ESC) { done(false); return; }
+      if (data === K.ENTER) {
+        done(true);
+        return;
+      }
+      if (data === K.ESC) {
+        done(false);
+        return;
+      }
 
       if (data === K.BACKSPACE) {
-        if (query.length > 0) { query = query.slice(0, -1); cursor = 0; draw(); }
+        if (query.length > 0) {
+          query = query.slice(0, -1);
+          cursor = 0;
+          draw();
+        }
         return;
       }
 

@@ -1,8 +1,8 @@
-import { test, expect, mock } from "bun:test";
+import { expect, mock, test } from "bun:test";
 import { UndoCommit } from "../../src/core/undo-commit";
+import { GoBackSignal } from "../../src/ui/go-back";
 import { createGitMock } from "../mocks/git-client.mock";
 import { createUIMock } from "../mocks/ui.mock";
-import { GoBackSignal } from "../../src/ui/go-back";
 
 const LAST_COMMIT = { hash: "abc1234", message: "feat: add login page" };
 
@@ -50,7 +50,7 @@ test("shows last commit info in the commit selection prompt", async () => {
     expect.any(String),
     expect.arrayContaining([
       expect.objectContaining({ value: "abc1234", label: expect.stringContaining("abc1234") }),
-    ])
+    ]),
   );
 });
 
@@ -135,7 +135,7 @@ test("shows last 10 commits and lets user select how many to undo", async () => 
       expect.objectContaining({ value: COMMITS[0]!.hash }),
       expect.objectContaining({ value: COMMITS[1]!.hash }),
       expect.objectContaining({ value: COMMITS[2]!.hash }),
-    ])
+    ]),
   );
 });
 

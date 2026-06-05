@@ -1,4 +1,4 @@
-import { test, expect, mock } from "bun:test";
+import { expect, mock, test } from "bun:test";
 import { HistoryPurge } from "../../src/core/history-purge";
 import { createGitMock } from "../mocks/git-client.mock";
 import { createUIMock } from "../mocks/ui.mock";
@@ -7,9 +7,7 @@ const TRACKED = ["src/app.ts", ".env", "secrets.json"];
 
 function confirmTwice() {
   return {
-    askConfirm: mock()
-      .mockResolvedValueOnce(true)
-      .mockResolvedValueOnce(true),
+    askConfirm: mock().mockResolvedValueOnce(true).mockResolvedValueOnce(true),
   };
 }
 
@@ -31,7 +29,13 @@ test("aborts when working tree has uncommitted changes", async () => {
   const git = createGitMock({
     filterRepoAvailable: mock(() => Promise.resolve(true)),
     getStatus: mock(() =>
-      Promise.resolve({ files: [{ path: ".env", status: "?" }], isClean: () => false, hasStagedChanges: () => false, commitsAhead: 0, commitsBehind: 0 })
+      Promise.resolve({
+        files: [{ path: ".env", status: "?" }],
+        isClean: () => false,
+        hasStagedChanges: () => false,
+        commitsAhead: 0,
+        commitsBehind: 0,
+      }),
     ),
   });
   const ui = createUIMock();
@@ -83,9 +87,7 @@ test("aborts without purging when user declines second confirmation", async () =
   });
   const ui = createUIMock({
     askSearchMultiSelect: mock(() => Promise.resolve([".env"])),
-    askConfirm: mock()
-      .mockResolvedValueOnce(true)
-      .mockResolvedValueOnce(false),
+    askConfirm: mock().mockResolvedValueOnce(true).mockResolvedValueOnce(false),
   });
 
   await new HistoryPurge(git, ui).run();

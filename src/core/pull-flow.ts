@@ -1,15 +1,15 @@
-import type { IGitClient } from "./ports/git-client.port";
-import type { IUI } from "./ports/ui.port";
-import type { AICommitSummarizer } from "./ports/ai.port";
 import { stdinResolution } from "../utils/stdin-resolution";
 import { resolveConflict } from "./conflict-resolver";
+import type { AICommitSummarizer } from "./ports/ai.port";
+import type { IGitClient } from "./ports/git-client.port";
+import type { IUI } from "./ports/ui.port";
 
 export class PullFlow {
   constructor(
     private readonly git: IGitClient,
     private readonly ui: IUI,
     private readonly waitForResolution: () => Promise<boolean> = stdinResolution,
-    private readonly aiSummarizer?: AICommitSummarizer
+    private readonly aiSummarizer?: AICommitSummarizer,
   ) {}
 
   async run(): Promise<void> {
@@ -24,13 +24,15 @@ export class PullFlow {
       { value: "rebase", label: "Rebase — keeps history linear, avoids merge commits" },
     ]);
 
-    const doPull = strategy === "rebase"
-      ? () => this.git.pullRebase()
-      : () => this.git.pull();
+    const doPull = strategy === "rebase" ? () => this.git.pullRebase() : () => this.git.pull();
 
     let beforeHash: string | null = null;
     if (this.aiSummarizer) {
-      try { beforeHash = (await this.git.getLastCommit()).hash; } catch { /* empty repo */ }
+      try {
+        beforeHash = (await this.git.getLastCommit()).hash;
+      } catch {
+        /* empty repo */
+      }
     }
 
     try {
@@ -44,30 +46,41 @@ export class PullFlow {
             const newCommits = await this.git.getLogSince(beforeHash);
             if (newCommits.length > 0) {
               const summary = await this.ui.spin("Summarizing changes...", () =>
-                this.aiSummarizer!(newCommits.map((c) => c.message))
+                this.aiSummarizer!(newCommits.map((c) => c.message)),
               );
               if (summary) this.ui.info(`✨ What changed:\n${summary}`);
             }
-          } catch { /* non-blocking */ }
+          } catch {
+            /* non-blocking */
+          }
         }
       }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message.toLowerCase() : "";
 
-      if (message.includes("no tracking") || message.includes("no upstream") || message.includes("has no upstream")) {
+      if (
+        message.includes("no tracking") ||
+        message.includes("no upstream") ||
+        message.includes("has no upstream")
+      ) {
         this.ui.error("This branch has no upstream. Push it first with Sync.");
         return;
       }
 
       if (message.includes("conflict")) {
-        await resolveConflict(this.git, this.ui, {
-          label: "Merge",
-          onContinue: async () => {
-            await this.git.addAll();
-            await this.git.mergeContinue();
+        await resolveConflict(
+          this.git,
+          this.ui,
+          {
+            label: "Merge",
+            onContinue: async () => {
+              await this.git.addAll();
+              await this.git.mergeContinue();
+            },
+            onAbort: () => this.git.mergeAbort(),
           },
-          onAbort: () => this.git.mergeAbort(),
-        }, this.waitForResolution);
+          this.waitForResolution,
+        );
         return;
       }
 

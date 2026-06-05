@@ -1,22 +1,28 @@
-import type { IUI } from "./ports/ui.port";
-import { readConfig, writeConfig, getLimits, DEFAULT_LIMITS } from "../config/config";
+import type { AIConfig } from "../config/config";
+import { DEFAULT_LIMITS, getLimits, readConfig, writeConfig } from "../config/config";
 import { AI_PROVIDERS } from "../config/providers";
 import { testAIConnection } from "./ai-suggester";
-import type { AIConfig } from "../config/config";
+import type { IUI } from "./ports/ui.port";
 
 type SettingsAction = "ai" | "limits";
 type AIAction = "configure" | "enable" | "disable";
+
+/** Mask a secret for display: keep a short head/tail, hide the middle. */
+function maskKey(key: string): string {
+  if (key.length <= 8) return "•".repeat(Math.max(key.length, 4));
+  return `${key.slice(0, 3)}…${key.slice(-4)}`;
+}
 
 export class Settings {
   constructor(private readonly ui: IUI) {}
 
   async run(): Promise<void> {
     const action = await this.ui.askSelect<SettingsAction>("Settings:", [
-      { value: "ai",     label: "✨ AI Assistant" },
+      { value: "ai", label: "✨ AI Assistant" },
       { value: "limits", label: "🔢 Limits" },
     ]);
 
-    if (action === "ai")     return this.runAI();
+    if (action === "ai") return this.runAI();
     if (action === "limits") return this.runLimits();
   }
 
@@ -26,7 +32,8 @@ export class Settings {
     const isEnabled = ai?.enabled ?? false;
     const hasConfig = !!(ai?.baseUrl && ai?.model);
 
-    const providerLabel = AI_PROVIDERS.find((p) => p.id === ai?.provider)?.label ?? ai?.baseUrl ?? "—";
+    const providerLabel =
+      AI_PROVIDERS.find((p) => p.id === ai?.provider)?.label ?? ai?.baseUrl ?? "—";
     const statusLabel = isEnabled
       ? `✨ AI enabled — ${ai!.model} via ${providerLabel}`
       : hasConfig
@@ -37,7 +44,7 @@ export class Settings {
     const toggleOption = hasConfig
       ? isEnabled
         ? { value: "disable" as AIAction, label: "○  Disable AI" }
-        : { value: "enable"  as AIAction, label: "✓  Enable AI" }
+        : { value: "enable" as AIAction, label: "✓  Enable AI" }
       : null;
 
     const options: { value: AIAction; label: string }[] = [
@@ -47,8 +54,8 @@ export class Settings {
 
     const aiAction = await this.ui.askSelect<AIAction>("AI Assistant settings:", options);
 
-    if (aiAction === "disable")   return this.disable(config);
-    if (aiAction === "enable")    return this.enable(config);
+    if (aiAction === "disable") return this.disable(config);
+    if (aiAction === "enable") return this.enable(config);
     if (aiAction === "configure") return this.configure(config);
   }
 
@@ -57,7 +64,7 @@ export class Settings {
     const current = getLimits(config);
 
     this.ui.info(
-      `Current limits — undo: ${current.undoCommitLimit}  ·  cherry-pick: ${current.cherryPickLogLimit}  ·  bisect: ${current.bisectLogLimit}  ·  revert: ${current.revertLogLimit}`
+      `Current limits — undo: ${current.undoCommitLimit}  ·  cherry-pick: ${current.cherryPickLogLimit}  ·  bisect: ${current.bisectLogLimit}  ·  revert: ${current.revertLogLimit}`,
     );
 
     const parseLimit = (raw: string, fallback: number): number => {
@@ -68,34 +75,34 @@ export class Settings {
     const undoRaw = await this.ui.askText(
       "Undo commit history depth:",
       String(DEFAULT_LIMITS.undoCommitLimit),
-      String(current.undoCommitLimit)
+      String(current.undoCommitLimit),
     );
     const cherryRaw = await this.ui.askText(
       "Cherry-pick commit history depth:",
       String(DEFAULT_LIMITS.cherryPickLogLimit),
-      String(current.cherryPickLogLimit)
+      String(current.cherryPickLogLimit),
     );
     const bisectRaw = await this.ui.askText(
       "Bisect commit history depth:",
       String(DEFAULT_LIMITS.bisectLogLimit),
-      String(current.bisectLogLimit)
+      String(current.bisectLogLimit),
     );
     const revertRaw = await this.ui.askText(
       "Revert commit history depth:",
       String(DEFAULT_LIMITS.revertLogLimit),
-      String(current.revertLogLimit)
+      String(current.revertLogLimit),
     );
 
     const limits = {
-      undoCommitLimit:    parseLimit(undoRaw,    current.undoCommitLimit),
-      cherryPickLogLimit: parseLimit(cherryRaw,  current.cherryPickLogLimit),
-      bisectLogLimit:     parseLimit(bisectRaw,  current.bisectLogLimit),
-      revertLogLimit:     parseLimit(revertRaw,  current.revertLogLimit),
+      undoCommitLimit: parseLimit(undoRaw, current.undoCommitLimit),
+      cherryPickLogLimit: parseLimit(cherryRaw, current.cherryPickLogLimit),
+      bisectLogLimit: parseLimit(bisectRaw, current.bisectLogLimit),
+      revertLogLimit: parseLimit(revertRaw, current.revertLogLimit),
     };
 
     await writeConfig({ ...config, limits });
     this.ui.success(
-      `Limits saved — undo: ${limits.undoCommitLimit}  ·  cherry-pick: ${limits.cherryPickLogLimit}  ·  bisect: ${limits.bisectLogLimit}  ·  revert: ${limits.revertLogLimit}`
+      `Limits saved — undo: ${limits.undoCommitLimit}  ·  cherry-pick: ${limits.cherryPickLogLimit}  ·  bisect: ${limits.bisectLogLimit}  ·  revert: ${limits.revertLogLimit}`,
     );
   }
 
@@ -104,7 +111,7 @@ export class Settings {
 
     const providerId = await this.ui.askSelect<string>(
       "AI provider:",
-      AI_PROVIDERS.map((p) => ({ value: p.id, label: p.label }))
+      AI_PROVIDERS.map((p) => ({ value: p.id, label: p.label })),
     );
 
     const provider = AI_PROVIDERS.find((p) => p.id === providerId)!;
@@ -120,12 +127,22 @@ export class Settings {
     const model = await this.ui.askText(
       "Model:",
       provider.defaultModel || "gpt-4o-mini",
-      existing?.provider === providerId ? existing?.model : provider.defaultModel || undefined
+      existing?.provider === providerId ? existing?.model : provider.defaultModel || undefined,
     );
 
     let apiKey = existing?.apiKey ?? "";
     if (provider.requiresKey) {
-      apiKey = await this.ui.askText("API key:", "sk-...", existing?.apiKey);
+      const reusable = !!existing?.apiKey && existing.provider === providerId;
+      if (reusable) {
+        this.ui.info(`Current key: ${maskKey(existing!.apiKey!)}`);
+      }
+      // Never pre-fill the secret into the input — show a masked hint instead and
+      // keep the stored key when the user leaves it blank.
+      const entered = await this.ui.askText(
+        reusable ? "API key (leave blank to keep current):" : "API key:",
+        "sk-...",
+      );
+      if (entered.trim()) apiKey = entered.trim();
     }
 
     const enable = await this.ui.askConfirm("Enable AI suggestions?");
@@ -133,7 +150,9 @@ export class Settings {
     const savedAi: AIConfig = { provider: providerId, baseUrl, apiKey, model, enabled: enable };
     await writeConfig({ ...config, ai: savedAi });
 
-    this.ui.success(enable ? `AI enabled — ${provider.label} / ${model}` : "AI configured but disabled.");
+    this.ui.success(
+      enable ? `AI enabled — ${provider.label} / ${model}` : "AI configured but disabled.",
+    );
 
     const shouldTest = await this.ui.askConfirm("Test the connection now?");
     if (shouldTest) {

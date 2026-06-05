@@ -7,7 +7,7 @@ type BranchSource = "existing" | "new";
 export class WorktreeManager {
   constructor(
     private readonly git: IGitClient,
-    private readonly ui: IUI
+    private readonly ui: IUI,
   ) {}
 
   async run(): Promise<void> {
@@ -46,24 +46,28 @@ export class WorktreeManager {
       const { all } = await this.git.getBranches();
       const branch = await this.ui.askSearchSelect(
         "Select branch:",
-        all.map((b) => ({ value: b, label: b }))
+        all.map((b) => ({ value: b, label: b })),
       );
       try {
         await this.ui.spin(`Adding worktree at ${path}...`, () =>
-          this.git.addWorktree(path, branch as string, false)
+          this.git.addWorktree(path, branch as string, false),
         );
       } catch (err) {
-        this.ui.error(`Failed to add worktree: ${err instanceof Error ? err.message : String(err)}`);
+        this.ui.error(
+          `Failed to add worktree: ${err instanceof Error ? err.message : String(err)}`,
+        );
         return;
       }
     } else {
       const branch = await this.ui.askText("New branch name:");
       try {
         await this.ui.spin(`Adding worktree with new branch ${branch}...`, () =>
-          this.git.addWorktree(path, branch, true)
+          this.git.addWorktree(path, branch, true),
         );
       } catch (err) {
-        this.ui.error(`Failed to add worktree: ${err instanceof Error ? err.message : String(err)}`);
+        this.ui.error(
+          `Failed to add worktree: ${err instanceof Error ? err.message : String(err)}`,
+        );
         return;
       }
     }
@@ -82,7 +86,7 @@ export class WorktreeManager {
 
     const path = await this.ui.askSearchSelect(
       "Select worktree to remove:",
-      removable.map((wt) => ({ value: wt.path, label: `${wt.branch}  →  ${wt.path}` }))
+      removable.map((wt) => ({ value: wt.path, label: `${wt.branch}  →  ${wt.path}` })),
     );
 
     const confirm = await this.ui.askConfirm(`Remove worktree at ${path}?`);
@@ -90,10 +94,12 @@ export class WorktreeManager {
 
     try {
       await this.ui.spin(`Removing worktree at ${path}...`, () =>
-        this.git.removeWorktree(path as string)
+        this.git.removeWorktree(path as string),
       );
     } catch (err) {
-      this.ui.error(`Failed to remove worktree: ${err instanceof Error ? err.message : String(err)}`);
+      this.ui.error(
+        `Failed to remove worktree: ${err instanceof Error ? err.message : String(err)}`,
+      );
       return;
     }
     this.ui.success(`Worktree at ${path} removed.`);

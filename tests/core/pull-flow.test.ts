@@ -1,4 +1,4 @@
-import { test, expect, mock } from "bun:test";
+import { expect, mock, test } from "bun:test";
 import { PullFlow } from "../../src/core/pull-flow";
 import { createGitMock } from "../mocks/git-client.mock";
 import { createUIMock } from "../mocks/ui.mock";
@@ -178,10 +178,12 @@ test("summarizes incoming commits with AI after successful pull", async () => {
     getRemotes: mock(() => Promise.resolve([{ name: "origin", url: "https://github.com/x/y" }])),
     getLastCommit: mock(() => Promise.resolve({ hash: "before123", message: "chore: old" })),
     pull: mock(() => Promise.resolve({ filesChanged: 3 })),
-    getLogSince: mock(() => Promise.resolve([
-      { hash: "abc", message: "feat: add login" },
-      { hash: "def", message: "fix: typo" },
-    ])),
+    getLogSince: mock(() =>
+      Promise.resolve([
+        { hash: "abc", message: "feat: add login" },
+        { hash: "def", message: "fix: typo" },
+      ]),
+    ),
   });
   const aiSummarizer = mock(() => Promise.resolve("• Added login feature\n• Fixed typo in header"));
   const ui = createUIMock({

@@ -1,4 +1,4 @@
-import { test, expect, mock } from "bun:test";
+import { expect, mock, test } from "bun:test";
 import { BranchCleaner } from "../../src/core/branch-cleaner";
 import { createGitMock } from "../mocks/git-client.mock";
 import { createUIMock } from "../mocks/ui.mock";
@@ -9,10 +9,7 @@ const PROTECTED = ["main", "master", "dev", "develop"];
 
 test("includes protected branches in candidates (shown with extra confirm)", () => {
   const cleaner = new BranchCleaner(createGitMock(), createUIMock());
-  const candidates = cleaner.filterCandidates(
-    [...PROTECTED, "feat/some-feature"],
-    "feat/other"
-  );
+  const candidates = cleaner.filterCandidates([...PROTECTED, "feat/some-feature"], "feat/other");
   for (const branch of PROTECTED) {
     expect(candidates).toContain(branch);
   }
@@ -21,10 +18,7 @@ test("includes protected branches in candidates (shown with extra confirm)", () 
 
 test("never includes current branch in candidates", () => {
   const cleaner = new BranchCleaner(createGitMock(), createUIMock());
-  const candidates = cleaner.filterCandidates(
-    ["feat/a", "feat/b", "fix/c"],
-    "feat/a"
-  );
+  const candidates = cleaner.filterCandidates(["feat/a", "feat/b", "fix/c"], "feat/a");
   expect(candidates).not.toContain("feat/a");
   expect(candidates).toContain("feat/b");
   expect(candidates).toContain("fix/c");
@@ -34,9 +28,7 @@ test("never includes current branch in candidates", () => {
 
 test("uses force delete for local branches", async () => {
   const git = createGitMock({
-    getBranches: mock(() =>
-      Promise.resolve({ all: ["feat/old", "fix/typo"], current: "main" })
-    ),
+    getBranches: mock(() => Promise.resolve({ all: ["feat/old", "fix/typo"], current: "main" })),
     deleteLocalBranchForce: mock(() => Promise.resolve()),
   });
   const ui = createUIMock({
@@ -53,9 +45,7 @@ test("uses force delete for local branches", async () => {
 
 test("also deletes remote branches when confirmed", async () => {
   const git = createGitMock({
-    getBranches: mock(() =>
-      Promise.resolve({ all: ["feat/old"], current: "main" })
-    ),
+    getBranches: mock(() => Promise.resolve({ all: ["feat/old"], current: "main" })),
     deleteLocalBranchForce: mock(() => Promise.resolve()),
     deleteRemoteBranch: mock(() => Promise.resolve()),
   });
@@ -71,9 +61,7 @@ test("also deletes remote branches when confirmed", async () => {
 
 test("continues deleting remaining branches after a single local failure", async () => {
   const git = createGitMock({
-    getBranches: mock(() =>
-      Promise.resolve({ all: ["feat/a", "feat/b"], current: "main" })
-    ),
+    getBranches: mock(() => Promise.resolve({ all: ["feat/a", "feat/b"], current: "main" })),
     deleteLocalBranchForce: mock()
       .mockRejectedValueOnce(new Error("not found"))
       .mockResolvedValueOnce(undefined),
@@ -93,9 +81,7 @@ test("continues deleting remaining branches after a single local failure", async
 
 test("shows remote-only branches with [remote only] label", async () => {
   const git = createGitMock({
-    getBranches: mock(() =>
-      Promise.resolve({ all: ["feat/local"], current: "main" })
-    ),
+    getBranches: mock(() => Promise.resolve({ all: ["feat/local"], current: "main" })),
     getRemoteBranches: mock(() => Promise.resolve(["feat/local", "feat/remote-only"])),
   });
   const ui = createUIMock({
@@ -112,9 +98,7 @@ test("shows remote-only branches with [remote only] label", async () => {
 
 test("deletes remote-only branch from origin without asking", async () => {
   const git = createGitMock({
-    getBranches: mock(() =>
-      Promise.resolve({ all: [], current: "main" })
-    ),
+    getBranches: mock(() => Promise.resolve({ all: [], current: "main" })),
     getRemoteBranches: mock(() => Promise.resolve(["feat/orphan"])),
     deleteRemoteBranch: mock(() => Promise.resolve()),
   });
@@ -131,12 +115,8 @@ test("deletes remote-only branch from origin without asking", async () => {
 
 test("shows protected branches in remote-only list (no longer filtered out)", async () => {
   const git = createGitMock({
-    getBranches: mock(() =>
-      Promise.resolve({ all: [], current: "dev" })
-    ),
-    getRemoteBranches: mock(() =>
-      Promise.resolve(["main", "master", "feat/ok"])
-    ),
+    getBranches: mock(() => Promise.resolve({ all: [], current: "dev" })),
+    getRemoteBranches: mock(() => Promise.resolve(["main", "master", "feat/ok"])),
   });
   const ui = createUIMock({
     askSearchMultiSelect: mock((_, options: { value: string; label: string }[]) => {
@@ -156,9 +136,7 @@ test("shows protected branches in remote-only list (no longer filtered out)", as
 
 test("asks extra confirmation when a protected branch is selected", async () => {
   const git = createGitMock({
-    getBranches: mock(() =>
-      Promise.resolve({ all: ["main", "feat/old"], current: "feat/old" })
-    ),
+    getBranches: mock(() => Promise.resolve({ all: ["main", "feat/old"], current: "feat/old" })),
     deleteLocalBranchForce: mock(() => Promise.resolve()),
   });
   const ui = createUIMock({
@@ -168,15 +146,15 @@ test("asks extra confirmation when a protected branch is selected", async () => 
 
   await new BranchCleaner(git, ui).run();
 
-  const confirmCalls = (ui.askConfirm as ReturnType<typeof mock>).mock.calls.map((c) => c[0] as string);
+  const confirmCalls = (ui.askConfirm as ReturnType<typeof mock>).mock.calls.map(
+    (c) => c[0] as string,
+  );
   expect(confirmCalls.some((msg) => msg.includes("main") && msg.includes("protected"))).toBe(true);
 });
 
 test("aborts deletion when user declines protected branch confirmation", async () => {
   const git = createGitMock({
-    getBranches: mock(() =>
-      Promise.resolve({ all: ["main", "feat/old"], current: "feat/old" })
-    ),
+    getBranches: mock(() => Promise.resolve({ all: ["main", "feat/old"], current: "feat/old" })),
     deleteLocalBranchForce: mock(() => Promise.resolve()),
   });
   const ui = createUIMock({
@@ -192,7 +170,7 @@ test("aborts deletion when user declines protected branch confirmation", async (
 test("skips extra confirm when no protected branches are selected", async () => {
   const git = createGitMock({
     getBranches: mock(() =>
-      Promise.resolve({ all: ["feat/old", "feat/another"], current: "main" })
+      Promise.resolve({ all: ["feat/old", "feat/another"], current: "main" }),
     ),
     deleteLocalBranchForce: mock(() => Promise.resolve()),
   });
@@ -203,7 +181,9 @@ test("skips extra confirm when no protected branches are selected", async () => 
 
   await new BranchCleaner(git, ui).run();
 
-  const confirmCalls = (ui.askConfirm as ReturnType<typeof mock>).mock.calls.map((c) => c[0] as string);
+  const confirmCalls = (ui.askConfirm as ReturnType<typeof mock>).mock.calls.map(
+    (c) => c[0] as string,
+  );
   expect(confirmCalls.every((msg) => !msg.includes("protected"))).toBe(true);
 });
 
@@ -211,9 +191,7 @@ test("skips extra confirm when no protected branches are selected", async () => 
 
 test("shows last activity date in branch label", async () => {
   const git = createGitMock({
-    getBranches: mock(() =>
-      Promise.resolve({ all: ["feat/old"], current: "main" })
-    ),
+    getBranches: mock(() => Promise.resolve({ all: ["feat/old"], current: "main" })),
     getBranchLastActivity: mock(() => Promise.resolve("3 months ago")),
     deleteLocalBranchForce: mock(() => Promise.resolve()),
   });

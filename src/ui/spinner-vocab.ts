@@ -176,27 +176,15 @@ const vocab: Array<{ pattern: RegExp; messages: MessageSet }> = [
   },
   {
     pattern: /stash/i,
-    messages: [
-      "Excavating shelved work...",
-      "Unearthing the stash...",
-      "Resurrecting changes...",
-    ],
+    messages: ["Excavating shelved work...", "Unearthing the stash...", "Resurrecting changes..."],
   },
   {
     pattern: /tag/i,
-    messages: [
-      "Branding the commit...",
-      "Stamping the release...",
-      "Minting the version...",
-    ],
+    messages: ["Branding the commit...", "Stamping the release...", "Minting the version..."],
   },
   {
     pattern: /remote/i,
-    messages: [
-      "Wiring the remote...",
-      "Establishing the link...",
-      "Registering the origin...",
-    ],
+    messages: ["Wiring the remote...", "Establishing the link...", "Registering the origin..."],
   },
 ];
 

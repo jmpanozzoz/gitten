@@ -1,4 +1,4 @@
-import { test, expect, mock } from "bun:test";
+import { expect, mock, test } from "bun:test";
 import { BranchCreator } from "../../src/core/branch-creator";
 import type { AIBranchSuggester } from "../../src/core/ports/ai.port";
 import { createGitMock } from "../mocks/git-client.mock";
@@ -136,9 +136,7 @@ test("sanitizes AI suggestion before using it as branch name", async () => {
   const git = createGitMock({ branchExists: mock(() => Promise.resolve(false)) });
   const ui = createUIMock({
     askSelect: mock(() => Promise.resolve("feat" as never)),
-    askText: mock()
-      .mockResolvedValueOnce("user login")
-      .mockResolvedValueOnce("feat/oauth-login"),
+    askText: mock().mockResolvedValueOnce("user login").mockResolvedValueOnce("feat/oauth-login"),
     askConfirm: mock(() => Promise.resolve(true)),
   });
 
@@ -154,7 +152,7 @@ test("warns and lets user retry when AI-suggested name already exists", async ()
   const aiSuggester: AIBranchSuggester = mock(() => Promise.resolve("existing-feature"));
   const git = createGitMock({
     branchExists: mock()
-      .mockResolvedValueOnce(true)   // AI suggestion exists
+      .mockResolvedValueOnce(true) // AI suggestion exists
       .mockResolvedValueOnce(false), // user's edited name is free
   });
   const ui = createUIMock({

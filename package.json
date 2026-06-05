@@ -7,9 +7,13 @@
   "scripts": {
     "dev": "bun --hot index.ts",
     "build": "bun build index.ts --compile --outfile gitten",
-    "test": "bun test"
+    "test": "bun test",
+    "coverage": "bun test --coverage",
+    "lint": "biome ci",
+    "lint:fix": "biome check --write"
   },
   "devDependencies": {
+    "@biomejs/biome": "^2.4.16",
     "@types/bun": "latest",
     "@types/node": "^25.8.0"
   },
