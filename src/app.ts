@@ -27,6 +27,7 @@ import { RemoteManager } from "./core/remote-manager";
 import { ResetManager } from "./core/reset-manager";
 import { RevertCommit } from "./core/revert-commit";
 import { Settings } from "./core/settings";
+import { SquashFlow } from "./core/squash-flow";
 import { StashManager } from "./core/stash-manager";
 import { SyncFlow } from "./core/sync-flow";
 import { TagWizard } from "./core/tag-wizard";
@@ -61,7 +62,8 @@ type MoreOption =
   | "bisect"
   | "revert"
   | "diff"
-  | "log";
+  | "log"
+  | "squash";
 
 export async function app(
   git: IGitClient = new GitClient(),
@@ -165,6 +167,14 @@ export async function app(
     return new LogBrowser(git, ui, aiExplainer).run();
   };
 
+  const buildSquashFlow = async () => {
+    const aiConfig = await fetchAIConfig();
+    const aiSummarizer = aiConfig
+      ? (msgs: string[]) => summarizeCommits(msgs, aiConfig)
+      : undefined;
+    return new SquashFlow(git, ui, aiSummarizer).run();
+  };
+
   const moreHandlers: Record<MoreOption, () => Promise<void>> = {
     amend: () => buildAmendFlow(),
     tag: () => buildTagWizard(),
@@ -179,6 +189,7 @@ export async function app(
     revert: () => new RevertCommit(git, ui).run(),
     diff: () => new DiffViewer(git, ui).run(),
     log: () => buildLogBrowser(),
+    squash: () => buildSquashFlow(),
   };
 
   const mainHandlers: Record<Exclude<MainOption, "exit" | "more">, () => Promise<void>> = {
@@ -241,6 +252,11 @@ export async function app(
         value: "log",
         label: "📜 Log",
         hints: ["history", "commits", "browse", "show", "explore", "inspect", "view"],
+      },
+      {
+        value: "squash",
+        label: "🗜️  Squash",
+        hints: ["combine", "fold", "collapse", "merge commits", "fixup", "rewrite", "tidy"],
       },
       {
         value: "worktree",
