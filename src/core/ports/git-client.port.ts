@@ -1,3 +1,4 @@
+import type { PullTarget } from "../domain/pull-target";
 import type { RemoteResetTarget } from "../domain/reset-target";
 
 export type { RemoteResetTarget } from "../domain/reset-target";
@@ -170,10 +171,11 @@ export interface AmendPort {
 
 export interface PullPort extends ConflictPort, MergeRecoveryPort {
   getRemotes(): Promise<Remote[]>;
+  getPullTarget(): Promise<PullTarget | null>;
   getLastCommit(): Promise<CommitSummary>;
   getLogSince(ref: string, head?: string): Promise<CommitSummary[]>;
-  pull(): Promise<PullResult>;
-  pullRebase(): Promise<PullResult>;
+  pull(target?: PullTarget): Promise<PullResult>;
+  pullRebase(target?: PullTarget): Promise<PullResult>;
 }
 
 export interface HistoryCommit {

@@ -37,7 +37,7 @@ export class ResetManager {
     }
 
     const confirmed = await this.ui.askConfirm(
-      "This will permanently discard all uncommitted changes and untracked files.",
+      "Permanently discard tracked changes and ordinary untracked files? Ignored files and nested repositories are kept.",
       false,
     );
     if (!confirmed) return;
@@ -46,8 +46,16 @@ export class ResetManager {
       return;
     }
 
-    await this.ui.spin("Discarding local changes...", () => this.git.discardLocalChanges());
-    this.ui.success("Working tree is clean.");
+    try {
+      await this.ui.spin("Discarding local changes...", () => this.git.discardLocalChanges());
+      if ((await this.git.getStatus()).isClean()) this.ui.success("Working tree is clean.");
+      else this.ui.warn("Some changes remain. Review Repository Status for the remaining paths.");
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      this.ui.error(
+        `Discard did not complete. Check Repository Status before retrying.\n${detail}`,
+      );
+    }
   }
 
   private async resetToRemote(): Promise<void> {

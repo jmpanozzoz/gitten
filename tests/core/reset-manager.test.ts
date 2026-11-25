@@ -132,21 +132,26 @@ test("asks confirmation before discarding changes", async () => {
   await new ResetManager(git, ui).run();
 
   expect(askConfirm).toHaveBeenCalledWith(
-    "This will permanently discard all uncommitted changes and untracked files.",
+    "Permanently discard tracked changes and ordinary untracked files? Ignored files and nested repositories are kept.",
     false,
   );
 });
 
 test("discards local changes when user confirms", async () => {
+  const dirty = {
+    files: [{ path: "file.ts", status: "M" }],
+    isClean: () => false,
+    commitsAhead: 0,
+    commitsBehind: 0,
+  };
   const git = createGitMock({
-    getStatus: mock(() =>
-      Promise.resolve({
-        files: [{ path: "file.ts", status: "M" }],
-        isClean: () => false,
-        commitsAhead: 0,
-        commitsBehind: 0,
+    getStatus: mock()
+      .mockResolvedValueOnce(dirty)
+      .mockResolvedValueOnce({
+        ...dirty,
+        files: [],
+        isClean: () => true,
       }),
-    ),
     discardLocalChanges: mock(() => Promise.resolve()),
   });
   const ui = createUIMock({
@@ -180,6 +185,23 @@ test("does not discard when user declines confirmation", async () => {
   await new ResetManager(git, ui).run();
 
   expect(git.discardLocalChanges).not.toHaveBeenCalled();
+});
+
+test("discard reports a failed status check without announcing a clean working tree", async () => {
+  const git = createGitMock({
+    getStatus: mock()
+      .mockResolvedValueOnce({
+        files: [{ path: "file.ts", status: "M" }],
+        isClean: () => false,
+        commitsAhead: 0,
+        commitsBehind: 0,
+      })
+      .mockRejectedValueOnce("status unavailable"),
+  });
+  const ui = createUIMock({ askSelect: async () => "discard", askConfirm: async () => true });
+  await new ResetManager(git, ui).run();
+  expect(ui.error).toHaveBeenCalledWith(expect.stringContaining("status unavailable"));
+  expect(ui.success).not.toHaveBeenCalled();
 });
 
 // ── reset to remote ────────────────────────────────────────────────────────────

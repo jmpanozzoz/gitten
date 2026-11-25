@@ -142,6 +142,18 @@ test("shows error when branch has no upstream", async () => {
   expect(git.mergeAbort).not.toHaveBeenCalled();
 });
 
+test("Pull without a reviewable upstream fails before asking for a strategy", async () => {
+  const git = createGitMock({
+    getRemotes: async () => WITH_REMOTE,
+    getPullTarget: async () => null,
+  });
+  const ui = createUIMock();
+  await new PullFlow(git, ui).run();
+  expect(ui.error).toHaveBeenCalledWith("This branch has no upstream. Push it first with Sync.");
+  expect(ui.askSelect).not.toHaveBeenCalled();
+  expect(git.pull).not.toHaveBeenCalled();
+});
+
 test("on conflict + ENTER: continues merge without staging unrelated files", async () => {
   const git = createGitMock({
     getInProgressOperation: mock().mockResolvedValueOnce(null).mockResolvedValue("merge"),

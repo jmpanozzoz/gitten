@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { localGit } from "../../scripts/quality/push-snapshot";
 import { BranchCleaner } from "../../src/core/branch-cleaner";
+import { PullFlow } from "../../src/core/pull-flow";
 import { PushBranch } from "../../src/core/push-branch";
 import { createGitClient } from "../../src/git/git-client";
 import { createUIMock } from "../mocks/ui.mock";
@@ -269,7 +270,16 @@ test("the first Pull counts files when it gives an unborn checkout its initial c
     localGit(empty, ["remote", "add", "origin", bare]);
     localGit(empty, ["config", "branch.main.remote", "origin"]);
     localGit(empty, ["config", "branch.main.merge", "refs/heads/main"]);
-    expect(await createGitClient(empty).pull()).toEqual({ headChanged: true, filesChanged: 1 });
+    const client = createGitClient(empty);
+    const target = await client.getPullTarget();
+    expect(target).toEqual({
+      branch: "main",
+      head: null,
+      remote: "origin",
+      refs: ["refs/heads/main"],
+      url: bare,
+    });
+    expect(await client.pull(target!)).toEqual({ headChanged: true, filesChanged: 1 });
     expect(localGit(empty, ["rev-parse", "HEAD"])).toBe(head);
     expect(localGit(empty, ["show", "HEAD:README.md"])).toBe("first tracked file");
   });
@@ -289,6 +299,94 @@ function publishPullUpdate(root: string, source: string, bare: string): string {
   localGit(writer, ["push", "origin", "HEAD:refs/heads/main"]);
   return published;
 }
+
+test("Pull previews the effective fetch URL and refuses a changed destination before fetching", async () => {
+  await withRemotes(async ({ root, source, bare, other, client }) => {
+    const published = publishPullUpdate(root, source, bare);
+    const original = localGit(source, ["rev-parse", "HEAD"]);
+    const alias = "fixture://pull";
+    localGit(source, ["remote", "set-url", "origin", alias]);
+    localGit(source, ["config", `url.${bare}.insteadOf`, alias]);
+    const changed = createUIMock({
+      askSelect: async () => {
+        localGit(source, ["remote", "set-url", "origin", other]);
+        return "merge";
+      },
+    });
+    await new PullFlow(client, changed).run();
+    expect(changed.info).toHaveBeenCalledWith(`Pull source: 'origin' (${bare}) · refs/heads/main`);
+    expect(changed.warn).toHaveBeenCalledWith(
+      expect.stringContaining("changed. Review Pull again"),
+    );
+    expect(changed.success).not.toHaveBeenCalled();
+    expect(localGit(source, ["rev-parse", "HEAD", "refs/remotes/origin/main"]).split("\n")).toEqual(
+      [original, original],
+    );
+
+    localGit(source, ["remote", "set-url", "origin", alias]);
+    const approved = createUIMock({ askSelect: async () => "rebase" });
+    await new PullFlow(client, approved).run();
+    expect(approved.success).toHaveBeenCalledWith("Pulled successfully. 1 file(s) changed.");
+    expect(localGit(source, ["rev-parse", "HEAD"])).toBe(published);
+  });
+});
+
+test("Pull requires one reviewable upstream and supports a local upstream", async () => {
+  await withRemotes(async ({ source, bare, client }) => {
+    const head = commit(source);
+    const configure = (...options: string[]) => localGit(source, ["config", ...options]);
+    expect(await client.getPullTarget()).toBeNull();
+    await client.addRemote("origin", bare);
+    configure("branch.main.remote", "origin");
+    expect(await client.getPullTarget()).toBeNull();
+    configure("branch.main.merge", "not-a-full-ref");
+    await expect(client.getPullTarget()).rejects.toThrow("one reviewable Pull upstream");
+    configure("branch.main.merge", "refs/heads/bad\nref");
+    await expect(client.getPullTarget()).rejects.toThrow("one reviewable Pull upstream");
+    configure("branch.main.merge", "refs/heads/main:refs/heads/other");
+    await expect(client.getPullTarget()).rejects.toThrow();
+    configure("branch.main.merge", "refs/heads/local-source");
+    configure("remote.origin.url", `${bare}\nother`);
+    await expect(client.getPullTarget()).rejects.toThrow("without control characters");
+    configure("remote.origin.url", bare);
+    configure("--add", "branch.main.remote", ".");
+    await expect(client.getPullTarget()).rejects.toThrow("one reviewable Pull upstream");
+    configure("--replace-all", "branch.main.remote", ".");
+    localGit(source, ["tag", "main"]);
+    const target = await client.getPullTarget();
+    expect(target).toEqual({
+      branch: "main",
+      head,
+      remote: ".",
+      refs: ["refs/heads/local-source"],
+      url: ".",
+    });
+    configure("--replace-all", "branch.main.remote", "missing");
+    await expect(client.pull(target!)).rejects.toThrow("Review Pull again");
+    localGit(source, ["switch", "--detach", head]);
+    expect(await client.getPullTarget()).toBeNull();
+    await expect(client.pull(target!)).rejects.toThrow("Review Pull again");
+  });
+});
+
+test("Pull leaves an operation started during strategy selection pending", async () => {
+  await withRemotes(async ({ root, source, bare, client }) => {
+    publishPullUpdate(root, source, bare);
+    const head = localGit(source, ["rev-parse", "HEAD"]);
+    const marker = join(source, ".git", "MERGE_HEAD");
+    const ui = createUIMock({
+      askSelect: async () => {
+        writeFileSync(marker, `${head}\n`);
+        return "merge";
+      },
+    });
+    await new PullFlow(client, ui).run();
+    expect(ui.warn).toHaveBeenCalledWith(expect.stringContaining("changed. Review Pull again"));
+    expect(ui.waitForConflictResolution).not.toHaveBeenCalled();
+    expect(localGit(source, ["rev-parse", "HEAD"])).toBe(head);
+    expect(readFileSync(marker, "utf8")).toBe(`${head}\n`);
+  });
+});
 
 test("Pull reports a completed fetch and checkout when a hook removes HEAD", async () => {
   await withRemotes(async ({ root, source, bare, client }) => {

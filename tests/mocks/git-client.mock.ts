@@ -35,6 +35,13 @@ export function createGitMock(overrides: Partial<IGitClient> = {}): IGitClient {
     hasIndexLock: mock(() => Promise.resolve(false)),
     initRepo: mock(() => Promise.resolve()),
     getRemotes: mock(() => Promise.resolve([] satisfies Remote[])),
+    getPullTarget: mock(async () => ({
+      branch: "main",
+      head: null,
+      remote: "origin",
+      refs: ["refs/heads/main"],
+      url: "https://example.invalid/repo",
+    })),
     addRemote: mock(() => Promise.resolve()),
     removeRemote: mock(() => Promise.resolve()),
     setRemoteUrl: mock(() => Promise.resolve()),

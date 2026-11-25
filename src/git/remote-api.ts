@@ -1,3 +1,4 @@
+import type { PullTarget } from "../core/domain/pull-target";
 import { hasLayoutControl } from "../core/domain/text-layout";
 import type {
   BranchPushPlan,
@@ -83,6 +84,27 @@ export const remoteAPI = {
   },
   async fetchRemote(remote?: string): Promise<void> {
     await this.git.fetch(remote ? ["--", remote] : []);
+  },
+  async getPullTarget(): Promise<PullTarget | null> {
+    const ref = (await this.git.raw(["symbolic-ref", "--quiet", "HEAD"]).catch(() => "")).trimEnd();
+    if (!ref.startsWith("refs/heads/")) return null;
+    const branch = ref.slice("refs/heads/".length);
+    const [head, remotes, refs] = await Promise.all([
+      this.git.revparse(["--verify", "HEAD^{commit}"]).catch(() => null),
+      readConfigValues(this, `branch.${branch}.remote`),
+      readConfigValues(this, `branch.${branch}.merge`),
+    ]);
+    const [remote] = remotes;
+    if (!remote || refs.length === 0) return null;
+    if (
+      remotes.length !== 1 ||
+      refs.some((ref) => !ref.startsWith("refs/") || hasRemoteControl(ref))
+    ) {
+      throw new Error("The current branch does not identify one reviewable Pull upstream.");
+    }
+    await Promise.all(refs.map((ref) => this.git.raw(["check-ref-format", ref])));
+    const url = remote === "." ? remote : await readPullUrl(this, remote);
+    return { branch, head, remote, refs, url };
   },
   async previewBranchPush(remote: string): Promise<BranchPushPlan> {
     const branch = (
@@ -217,6 +239,14 @@ function assertRemoteAddress(url: string): void {
   if (!url.trim() || hasRemoteControl(url)) {
     throw new Error("Enter a non-empty remote URL or path without control characters.");
   }
+}
+
+async function readPullUrl(context: GitContext, remote: string): Promise<string> {
+  await requireRemote(context, remote);
+  const output = await context.git.raw(["remote", "get-url", "--", remote]);
+  const url = output.replace(/\n$/, "");
+  assertRemoteAddress(url);
+  return url;
 }
 
 async function readPushUrls(context: GitContext, remote: string): Promise<string[]> {

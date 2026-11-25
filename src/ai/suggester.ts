@@ -2,6 +2,7 @@ import { normalizeAIBaseUrl } from "../core/domain/ai-endpoint";
 import type { AIConfig } from "../core/domain/preferences";
 import type { BranchType } from "../core/ports/ui.port";
 import { shareableDiff } from "./shareable-diff";
+import { assertShareablePrompt } from "./shareable-text";
 
 const CALL_TIMEOUT_MS = 20_000;
 const MAX_RESPONSE_BYTES = 128 * 1024;
@@ -208,6 +209,7 @@ async function callAI(
   if (!config.enabled) throw new Error("AI suggestions are disabled.");
   const endpoint = normalizeAIBaseUrl(config.baseUrl);
   if (!endpoint) throw new Error("Invalid AI endpoint");
+  assertShareablePrompt(userMessage);
   const url = `${endpoint}/chat/completions`;
 
   const controller = new AbortController();

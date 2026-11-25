@@ -35,6 +35,16 @@ const contracts: ContractRegistry = {
       "Sync stops on cancellation of AI review or suggestion before committing",
     ],
   },
+  "ai/request-screening": {
+    success: [
+      "tests/core/ai-suggester.test.ts",
+      "AI still sends approved ordinary references to passwords and keys",
+    ],
+    failure: [
+      "tests/core/ai-suggester.test.ts",
+      "AI blocks credentials in commit messages, descriptions, and ignore data before making requests",
+    ],
+  },
   "ai/settings-credentials": {
     success: [
       "tests/core/settings.test.ts",
@@ -216,6 +226,28 @@ const contracts: ContractRegistry = {
       "Tag stops publication when creation fails and reports the cause",
     ],
   },
+  "git/discard-local": {
+    success: [
+      integration,
+      "discardLocalChanges removes uncommitted modifications and untracked files",
+    ],
+    failure: [
+      "tests/integration/reset-discard.test.ts",
+      "Discard refuses to overwrite ignored or nested repository paths that block a tracked file",
+    ],
+    cancel: [
+      "tests/core/reset-manager.test.ts",
+      "does not discard when user declines confirmation",
+    ],
+    concurrency: [
+      "tests/integration/reset-discard.test.ts",
+      "Discard rejects an unverifiable HEAD or a changed branch and leaves reset uncalled",
+    ],
+    partial: [
+      "tests/integration/reset-discard.test.ts",
+      "Discard reports remaining paths after restoring tracked files and preserving nested repositories",
+    ],
+  },
   "git/reset-upstream": {
     success: [
       integration,
@@ -343,6 +375,20 @@ const contracts: ContractRegistry = {
     partial: [
       "tests/integration/remote-api.test.ts",
       "Pull reports an updated HEAD and the original error when counting changed paths fails",
+    ],
+  },
+  "git/pull-destination": {
+    success: [
+      "tests/integration/remote-api.test.ts",
+      "the first Pull counts files when it gives an unborn checkout its initial commit",
+    ],
+    failure: [
+      "tests/core/pull-flow.test.ts",
+      "Pull without a reviewable upstream fails before asking for a strategy",
+    ],
+    concurrency: [
+      "tests/integration/remote-api.test.ts",
+      "Pull previews the effective fetch URL and refuses a changed destination before fetching",
     ],
   },
   "git/revert": {

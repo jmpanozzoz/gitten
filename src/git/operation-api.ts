@@ -2,6 +2,7 @@ import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { SimpleGit } from "simple-git";
+import { type PullTarget, PullTargetChanged } from "../core/domain/pull-target";
 import type {
   BisectResult,
   ConflictOperation,
@@ -73,14 +74,19 @@ async function continueWithOriginalMessage(
   await continuation.raw([operation, "--continue"]);
 }
 
-async function pullWithChanges({ git }: GitContext, options: string[]): Promise<PullResult> {
+async function pullWithChanges(
+  context: GitContext,
+  options: string[],
+  target?: PullTarget,
+): Promise<PullResult> {
+  const { git } = context;
   const readHead = () =>
     git
       .revparse(["--verify", "HEAD"])
       .then((oid) => oid.trim())
       .catch(() => null);
   const before = await readHead();
-  await git.pull(options);
+  await git.pull(await pullArguments(context, options, target));
   const after = await readHead();
   if (!after) {
     throw new Error(
@@ -98,6 +104,22 @@ async function pullWithChanges({ git }: GitContext, options: string[]): Promise<
     filesChanged: paths.split("\0").filter(Boolean).length,
     headChanged: true,
   };
+}
+
+async function pullArguments(
+  context: GitContext,
+  options: string[],
+  target?: PullTarget,
+): Promise<string[]> {
+  if (!target) return options;
+  const current = await context.getPullTarget().catch(() => null);
+  if (
+    JSON.stringify(current) !== JSON.stringify(target) ||
+    (await context.getInProgressOperation())
+  ) {
+    throw new PullTargetChanged();
+  }
+  return [...options, "--", target.remote, ...target.refs];
 }
 
 export const operationAPI = {
@@ -119,8 +141,8 @@ export const operationAPI = {
   async revertAbort(): Promise<void> {
     await this.git.raw(["revert", "--abort"]);
   },
-  pull(): Promise<PullResult> {
-    return pullWithChanges(this, ["--no-rebase", "--no-edit"]);
+  pull(target?: PullTarget): Promise<PullResult> {
+    return pullWithChanges(this, ["--no-rebase", "--no-edit"], target);
   },
   async mergeAbort(): Promise<void> {
     await this.git.merge(["--abort"]);
@@ -146,8 +168,8 @@ export const operationAPI = {
     const head = await this.git.revparse(["--verify", "HEAD"]);
     return JSON.stringify([operation, head, ...states]);
   },
-  pullRebase(): Promise<PullResult> {
-    return pullWithChanges(this, ["--rebase"]);
+  pullRebase(target?: PullTarget): Promise<PullResult> {
+    return pullWithChanges(this, ["--rebase"], target);
   },
   async getConflictedFiles(): Promise<string[]> {
     const status = await this.git.status();

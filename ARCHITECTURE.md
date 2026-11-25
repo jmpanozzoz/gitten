@@ -19,6 +19,8 @@ Sync prepares a temporary index for the selected paths and shows the resulting d
 
 Reset verifies the confirmed upstream and saves the previous commit under `refs/gitten/recovery` before changing the working tree and index. It reports that ref even when the reset fails after it is saved. Reset stops if an untracked or ignored path obstructs the destination. The recovery ref preserves committed history. The destructive confirmation covers uncommitted tracked changes.
 
+Discard protects ignored files and nested repositories that would be overwritten by restoring tracked paths. It rechecks HEAD and pending operations before resetting. If ordinary untracked cleanup fails, it reports that the tracked reset already ran. Gitten checks the resulting status before announcing a clean working tree.
+
 Message-only Amend uses a temporary index and compares the resulting tree, parents, and message with the approved content. If a hook changes the result, Amend compares the ref with the created commit before restoring the prior tip. It preserves the original index and reports both commit IDs if restoration fails. Staged-only Amend preserves the existing message verbatim.
 
 Repository Status separates working files from staged files. It shows the staged diff for the selected paths, includes both sides of a rename, and rechecks the diff before unstaging. Recovery compares the pending operation's Git markers and HEAD after confirmation. Dismissing the prompt leaves Git state unchanged. Pull compares the previous and new HEAD and distinguishes an unchanged branch from an advance with an identical file tree. The terminal neutralizes control characters and redacts remote URL credentials before rendering external text. Direction controls and Unicode line separators appear as visible code points in reviews. Selectors retain the original value for Git operations.
@@ -37,6 +39,8 @@ Remote settings pass names and addresses as literal arguments to Git and preserv
 
 Pull reports a partial result when Git finishes the command and HEAD or the changed paths cannot be verified.
 
+Pull displays the effective upstream URL and source refs before strategy selection. It checks the branch, HEAD, source refs, effective URL, and pending-operation state again before fetching. A changed source requires a fresh review.
+
 Sync treats commit counts as provisional if fetching fails or the branch or upstream changes during fetch. Stash rechecks the staged, unstaged, and included untracked paths before writing. A conflicting pop reports the working-tree failure and keeps the stash available. The Git adapter treats a nonzero exit status as failure, including when Git reports the cause only on standard output or exits silently.
 
 Sync checks for a pending Git operation before previewing and again just before committing. Git operation and recovery checks read markers from the current worktree's Git directory, including when its path contains a newline. Undo and Squash recheck the branch and pending operations after saving the recovery ref. Rollback compares the current tip with the expected commit to preserve concurrent updates.
@@ -45,7 +49,7 @@ Sync and Squash use full SHA-1 or SHA-256 commit IDs. Final verification reads t
 
 Purge verifies the mirror against the previewed refs before filtering exact file paths. If a directory shares a former file's name, the directory contents are preserved. Include each historical name of a renamed file. A failed filter or verification discards its temporary mirror. The original repository remains available as the backup. Credential exposure requires rotation and separate cleanup of remotes and other clones.
 
-Settings manages AI connections and saved profiles in user configuration. Project `.gittenrc` may configure branch prefixes and history limits. Effective Settings identifies which preferences come from the project file, user configuration, or defaults. Environment credentials require matching `GITTEN_AI_PROVIDER` and `GITTEN_AI_BASE_URL`. AI requests need explicit consent for the data and destination. The action uses the same connection that was bound for consent. Disabled suggestions block requests, while an explicitly approved connection test sends fixed test text. Diff screening is conservative and can block otherwise valid inputs that resemble secrets.
+Settings manages AI connections and saved profiles in user configuration. Project `.gittenrc` may configure branch prefixes and history limits. Effective Settings identifies which preferences come from the project file, user configuration, or defaults. Environment credentials require matching `GITTEN_AI_PROVIDER` and `GITTEN_AI_BASE_URL`. AI requests need explicit consent for the data and destination. The action uses the same connection that was bound for consent. Disabled suggestions block requests, while an explicitly approved connection test sends fixed test text. The adapter screens request text for credential patterns and checks the full diff for credentials and sensitive paths before truncating. This screening is conservative and can block otherwise valid inputs that resemble secrets.
 
 ## Quality gate
 

@@ -1,5 +1,7 @@
 import { confirmAISend } from "./ai-consent";
 import { resolveConflict } from "./conflict-resolver";
+import { PullTargetChanged } from "./domain/pull-target";
+import { redactRemoteCredentials } from "./domain/remote-display";
 import type { AICommitSummarizer, AIConflictExplainer } from "./ports/ai.port";
 import type { PullPort, PullResult } from "./ports/git-client.port";
 import type { IUI } from "./ports/ui.port";
@@ -36,6 +38,15 @@ export class PullFlow {
       return;
     }
 
+    const target = await this.git.getPullTarget();
+    if (!target) {
+      this.ui.error("This branch has no upstream. Push it first with Sync.");
+      return;
+    }
+    this.ui.info(
+      `Pull source: '${target.remote}' (${redactRemoteCredentials(target.url)}) · ${target.refs.join(", ")}`,
+    );
+
     const strategy = await this.ui.askSelect<PullStrategy>("Pull strategy:", [
       { value: "merge", label: "Merge (default)" },
       { value: "rebase", label: "Rebase — keeps history linear, avoids merge commits" },
@@ -44,7 +55,7 @@ export class PullFlow {
     const beforeHash = await this.headForSummary();
     try {
       const result = await this.ui.spin("Pulling latest changes...", () =>
-        strategy === "rebase" ? this.git.pullRebase() : this.git.pull(),
+        strategy === "rebase" ? this.git.pullRebase(target) : this.git.pull(target),
       );
       await this.reportPull(result, beforeHash);
     } catch (error) {
@@ -89,6 +100,10 @@ export class PullFlow {
   }
 
   private async handleFailure(strategy: PullStrategy, error: unknown): Promise<void> {
+    if (error instanceof PullTargetChanged) {
+      this.ui.warn(error.message);
+      return;
+    }
     const message = error instanceof Error ? error.message.toLowerCase() : "";
     if (message.includes("no tracking") || message.includes("no upstream")) {
       this.ui.error("This branch has no upstream. Push it first with Sync.");

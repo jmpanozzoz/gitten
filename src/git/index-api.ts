@@ -1,5 +1,6 @@
 import type { CommitSelection, DiffRequest } from "../core/ports/git-client.port";
 import type { GitContext } from "./client-context";
+import { discardLocal } from "./discard-local";
 import { readIgnoreFile, writeIgnoreFile } from "./ignore-file";
 import { SelectedCommit } from "./selected-commit";
 import { strictGit } from "./strict-git";
@@ -78,8 +79,6 @@ export const indexAPI = {
     await rootGit.raw(["--literal-pathspecs", "rm", "--cached", "--", ...paths]);
   },
   async discardLocalChanges(): Promise<void> {
-    await this.git.reset(["--hard"]);
-    const root = (await this.git.revparse(["--show-toplevel"])).trimEnd();
-    await strictGit(root).clean("fd");
+    await discardLocal(strictGit(await this.getRepositoryRoot()));
   },
 } satisfies ThisType<GitContext>;

@@ -184,7 +184,38 @@ test("rejects sensitive diffs before contacting the provider, even beyond the tr
   const fetch = spyOn(globalThis, "fetch");
   const diff = `${"sample content\n".repeat(500)}diff --git a/.env.example b/.env.example\n+placeholder`;
   await expect(suggestCommitMessage(diff, CONFIG)).rejects.toThrow("contain sensitive data");
+  const credentialBeyondLimit = `${"ordinary source\n".repeat(500)}+API_KEY=fixture-not-a-real-key`;
+  await expect(reviewStagedDiff(credentialBeyondLimit, CONFIG)).rejects.toThrow(
+    "The diff appears to contain sensitive data. Continue locally without AI.",
+  );
   expect(fetch).not.toHaveBeenCalled();
+});
+
+test("AI blocks credentials in commit messages, descriptions, and ignore data before making requests", async () => {
+  const fetch = spyOn(globalThis, "fetch");
+  const actions = bindAI(CONFIG);
+  const prompts = [
+    () => actions.amend('fix: configure api_key="fixture-quoted-value"'),
+    () => actions.branch("feat", "Authorization: Basic fixture-header-value"),
+    () => actions.summarize(["fix: use https://build:fixture-value@example.invalid/path"]),
+    () => actions.gitignore(["safe.txt"], ["# https://example.invalid/path?token=fixture-query"]),
+    () => actions.branch("fix", "-----BEGIN TEST PRIVATE KEY-----"),
+  ];
+  for (const prompt of prompts) {
+    await expect(prompt()).rejects.toThrow(
+      /^The request appears to contain sensitive data\. Continue locally without AI\.$/,
+    );
+  }
+  expect(fetch).not.toHaveBeenCalled();
+});
+
+test("AI still sends approved ordinary references to passwords and keys", async () => {
+  const fetch = mockFetch("fix: clarify password reset");
+  const action = bindAI(CONFIG).amend;
+  const message = "fix: password: validation and API key documentation";
+  await expect(action(message)).resolves.toBe("fix: clarify password reset");
+  const [, init] = fetch.mock.calls[0] as [string, RequestInit];
+  expect(JSON.parse(init.body as string).messages[1].content).toBe(`Existing message: ${message}`);
 });
 
 test("AI actions share only their documented inputs with the connection bound for consent", async () => {
