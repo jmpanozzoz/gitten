@@ -161,3 +161,18 @@ test("remove: shows info and exits when no remotes exist", async () => {
   expect(git.removeRemote).not.toHaveBeenCalled();
   expect(ui.info).toHaveBeenCalled();
 });
+
+test("remote creation retries an empty URL before saving a valid one", async () => {
+  const git = createGitMock();
+  const ui = createUIMock({
+    askSelect: async () => "add",
+    askText: mock()
+      .mockResolvedValueOnce("review")
+      .mockResolvedValueOnce("  ")
+      .mockResolvedValueOnce("https://example.test/project"),
+  });
+  await new RemoteManager(git, ui).run();
+  expect(ui.warn).toHaveBeenCalledWith("URL cannot be empty.");
+  expect(git.addRemote).toHaveBeenCalledWith("review", "https://example.test/project");
+  expect(git.addRemote).toHaveBeenCalledTimes(1);
+});

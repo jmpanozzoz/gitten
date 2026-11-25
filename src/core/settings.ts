@@ -1,83 +1,80 @@
-import type { AIConfig, GittenConfig } from "../config/config";
-import { DEFAULT_LIMITS, getLimits, readGlobalConfig, writeConfig } from "../config/config";
-import { AI_PROVIDERS } from "../config/providers";
-import { testAIConnection } from "./ai-suggester";
+import { normalizeAIBaseUrl } from "./domain/ai-endpoint";
+import { AI_PROVIDERS, type AIProvider } from "./domain/ai-providers";
+import {
+  type AIConfig,
+  DEFAULT_LIMITS,
+  type GittenConfig,
+  getBranchPrefixes,
+  getLimits,
+  type LimitsConfig,
+  mergeConfig,
+  type RepoConfig,
+} from "./domain/preferences";
 import type { IUI } from "./ports/ui.port";
 
-type SettingsAction = "ai" | "limits";
+type SettingsAction = "ai" | "limits" | "effective";
 type AIAction = "configure" | "enable" | "disable" | "save" | "switch" | "remove";
 
-/** Mask a secret for display: keep a short head/tail, hide the middle. */
-function maskKey(key: string): string {
-  if (key.length <= 8) return "•".repeat(Math.max(key.length, 4));
-  return `${key.slice(0, 3)}…${key.slice(-4)}`;
+interface SettingsDependencies {
+  read(): Promise<GittenConfig>;
+  readRepository(): Promise<RepoConfig>;
+  write(config: GittenConfig): Promise<void>;
+  resolveConnection(config: AIConfig): AIConfig | null;
+  testConnection(config: AIConfig): Promise<void>;
 }
 
 export class Settings {
-  constructor(private readonly ui: IUI) {}
+  constructor(
+    private readonly ui: IUI,
+    private readonly dependencies: SettingsDependencies,
+  ) {}
 
   async run(): Promise<void> {
     const action = await this.ui.askSelect<SettingsAction>("Settings:", [
       { value: "ai", label: "✨ AI Assistant" },
-      { value: "limits", label: "🔢 Limits" },
+      { value: "limits", label: "🔢 User limits" },
+      { value: "effective", label: "Effective settings and sources" },
     ]);
 
     if (action === "ai") return this.runAI();
     if (action === "limits") return this.runLimits();
+    if (action === "effective") return this.showEffective();
+  }
+
+  private async showEffective(): Promise<void> {
+    const [user, repository] = await Promise.all([
+      this.dependencies.read(),
+      this.dependencies.readRepository(),
+    ]);
+    this.ui.info(describeEffectivePreferences(user, repository));
   }
 
   private async runAI(): Promise<void> {
-    const config = await readGlobalConfig();
-    const ai = config.ai;
-    const isEnabled = ai?.enabled ?? false;
-    const hasConfig = !!(ai?.baseUrl && ai?.model);
-    const profileCount = Object.keys(config.aiProfiles ?? {}).length;
-
-    const providerLabel =
-      AI_PROVIDERS.find((p) => p.id === ai?.provider)?.label ?? ai?.baseUrl ?? "—";
-    const statusLabel = isEnabled
-      ? `✨ AI enabled — ${ai!.model} via ${providerLabel}`
-      : hasConfig
-        ? `AI disabled (${providerLabel} / ${ai!.model})`
-        : "AI not configured";
-    const profileSuffix = profileCount > 0 ? `  ·  ${profileCount} saved profile(s)` : "";
-    this.ui.info(`Current: ${statusLabel}${profileSuffix}`);
-
-    const toggleOption = hasConfig
-      ? isEnabled
-        ? { value: "disable" as AIAction, label: "○  Disable AI" }
-        : { value: "enable" as AIAction, label: "✓  Enable AI" }
-      : null;
-
-    const options: { value: AIAction; label: string }[] = [
-      { value: "configure", label: "✨ Configure AI provider" },
-      ...(toggleOption ? [toggleOption] : []),
-      ...(hasConfig ? [{ value: "save" as AIAction, label: "💾 Save current as profile" }] : []),
-      ...(profileCount > 0 ? [{ value: "switch" as AIAction, label: "🔀 Switch profile" }] : []),
-      ...(profileCount > 0 ? [{ value: "remove" as AIAction, label: "🗑️  Remove profile" }] : []),
-    ];
-
-    const aiAction = await this.ui.askSelect<AIAction>("AI Assistant settings:", options);
-
-    if (aiAction === "disable") return this.disable(config);
-    if (aiAction === "enable") return this.enable(config);
-    if (aiAction === "configure") return this.configure(config);
-    if (aiAction === "save") return this.saveProfile(config);
-    if (aiAction === "switch") return this.switchProfile(config);
-    if (aiAction === "remove") return this.removeProfile(config);
+    const config = await this.dependencies.read();
+    this.ui.info(`Current: ${describeAI(config)}`);
+    const action = await this.ui.askSelect<AIAction>("AI Assistant settings:", aiOptions(config));
+    const actions: Record<AIAction, () => Promise<void>> = {
+      configure: () => this.configure(config),
+      enable: () => this.toggle(config, true),
+      disable: () => this.toggle(config, false),
+      save: () => this.saveProfile(config),
+      switch: () => this.switchProfile(config),
+      remove: () => this.removeProfile(config),
+    };
+    await actions[action]?.();
   }
 
   private async runLimits(): Promise<void> {
-    const config = await readGlobalConfig();
+    const config = await this.dependencies.read();
     const current = getLimits(config);
 
     this.ui.info(
-      `Current limits — undo: ${current.undoCommitLimit}  ·  cherry-pick: ${current.cherryPickLogLimit}  ·  bisect: ${current.bisectLogLimit}  ·  revert: ${current.revertLogLimit}`,
+      `User limits (.gittenrc may override) — undo: ${current.undoCommitLimit}  ·  cherry-pick: ${current.cherryPickLogLimit}  ·  bisect: ${current.bisectLogLimit}  ·  revert: ${current.revertLogLimit}`,
     );
 
     const parseLimit = (raw: string, fallback: number): number => {
-      const n = parseInt(raw, 10);
-      return n > 0 && n <= 500 ? n : fallback;
+      const n = Number(raw);
+      return Number.isInteger(n) && n > 0 && n <= 500 ? n : fallback;
     };
 
     const undoRaw = await this.ui.askText(
@@ -108,7 +105,7 @@ export class Settings {
       revertLogLimit: parseLimit(revertRaw, current.revertLogLimit),
     };
 
-    await writeConfig({ ...config, limits });
+    await this.dependencies.write({ ...config, limits });
     this.ui.success(
       `Limits saved — undo: ${limits.undoCommitLimit}  ·  cherry-pick: ${limits.cherryPickLogLimit}  ·  bisect: ${limits.bisectLogLimit}  ·  revert: ${limits.revertLogLimit}`,
     );
@@ -122,15 +119,9 @@ export class Settings {
       AI_PROVIDERS.map((p) => ({ value: p.id, label: p.label })),
     );
 
-    const provider = AI_PROVIDERS.find((p) => p.id === providerId)!;
-
-    let baseUrl: string;
-    if (providerId === "custom") {
-      baseUrl = await this.ui.askText("Base URL:", "https://api.example.com/v1", existing?.baseUrl);
-    } else {
-      baseUrl = provider.baseUrl;
-      this.ui.info(`Endpoint: ${baseUrl}`);
-    }
+    const provider = AI_PROVIDERS.find((p) => p.id === providerId);
+    if (!provider) return;
+    const baseUrl = await this.promptEndpoint(provider, existing);
 
     const model = await this.ui.askText(
       "Model:",
@@ -138,50 +129,73 @@ export class Settings {
       existing?.provider === providerId ? existing?.model : provider.defaultModel || undefined,
     );
 
-    let apiKey = existing?.apiKey ?? "";
-    if (provider.requiresKey) {
-      const reusable = !!existing?.apiKey && existing.provider === providerId;
-      if (reusable) {
-        this.ui.info(`Current key: ${maskKey(existing!.apiKey!)}`);
-      }
-      // Never pre-fill the secret into the input — show a masked hint instead and
-      // keep the stored key when the user leaves it blank.
-      const entered = await this.ui.askText(
-        reusable ? "API key (leave blank to keep current):" : "API key:",
-        "sk-...",
-      );
-      if (entered.trim()) apiKey = entered.trim();
-    }
-
+    const apiKey = await this.promptKey(provider, baseUrl, existing);
     const enable = await this.ui.askConfirm("Enable AI suggestions?");
 
     const savedAi: AIConfig = { provider: providerId, baseUrl, apiKey, model, enabled: enable };
-    await writeConfig({ ...config, ai: savedAi });
+    await this.dependencies.write({ ...config, ai: savedAi });
 
     this.ui.success(
       enable ? `AI enabled — ${provider.label} / ${model}` : "AI configured but disabled.",
     );
 
-    const shouldTest = await this.ui.askConfirm("Test the connection now?");
-    if (shouldTest) {
-      try {
-        await this.ui.spin("Testing connection...", () => testAIConnection(savedAi));
-        this.ui.success("Connection successful!");
-      } catch (err) {
-        this.ui.warn(`Connection failed: ${err instanceof Error ? err.message : "unknown error"}`);
-        this.ui.info("AI was saved but may not work until you fix the error above.");
-      }
+    await this.maybeTestConnection(savedAi);
+  }
+
+  private async promptEndpoint(
+    provider: AIProvider,
+    existing?: Partial<AIConfig>,
+  ): Promise<string> {
+    if (provider.id !== "custom") {
+      this.ui.info(`Endpoint: ${provider.baseUrl}`);
+      return provider.baseUrl;
+    }
+    while (true) {
+      const initial = existing?.provider === provider.id ? existing.baseUrl : undefined;
+      const input = await this.ui.askText("Base URL:", "https://api.example.com/v1", initial);
+      const endpoint = normalizeAIBaseUrl(input);
+      if (endpoint) return endpoint;
+      this.ui.warn(
+        "Enter an HTTPS URL or a local HTTP URL without credentials, query, or fragment.",
+      );
     }
   }
 
-  private async enable(config: GittenConfig): Promise<void> {
-    await writeConfig({ ...config, ai: { ...config.ai, enabled: true } });
-    this.ui.success("AI enabled.");
+  private async promptKey(
+    provider: AIProvider,
+    endpoint: string,
+    existing?: Partial<AIConfig>,
+  ): Promise<string> {
+    if (!provider.requiresKey) return "";
+    const previousKey =
+      existing?.provider === provider.id && existing.baseUrl === endpoint
+        ? existing.apiKey
+        : undefined;
+    const entered = await this.ui.askSecret(
+      previousKey ? "API key (leave blank to keep current):" : "API key:",
+    );
+    return entered.trim() || previousKey || "";
   }
 
-  private async disable(config: GittenConfig): Promise<void> {
-    await writeConfig({ ...config, ai: { ...config.ai, enabled: false } });
-    this.ui.success("AI disabled.");
+  private async maybeTestConnection(config: AIConfig): Promise<void> {
+    const shouldTest = await this.ui.askConfirm(`Send a test message to ${config.baseUrl}?`, false);
+    if (!shouldTest) return;
+    try {
+      const connection = this.dependencies.resolveConnection(config);
+      if (!connection) throw new Error("Invalid AI connection");
+      await this.ui.spin("Testing connection...", () =>
+        this.dependencies.testConnection(connection),
+      );
+      this.ui.success("Connection successful!");
+    } catch (err) {
+      this.ui.warn(`Connection failed: ${err instanceof Error ? err.message : "unknown error"}`);
+      this.ui.info("AI was saved but may not work until you fix the error above.");
+    }
+  }
+
+  private async toggle(config: GittenConfig, enabled: boolean): Promise<void> {
+    await this.dependencies.write({ ...config, ai: { ...config.ai, enabled } });
+    this.ui.success(enabled ? "AI enabled." : "AI disabled.");
   }
 
   private async saveProfile(config: GittenConfig): Promise<void> {
@@ -192,7 +206,7 @@ export class Settings {
     const name = (await this.ui.askText("Profile name:", "work")).trim();
     if (!name) return;
     const profiles = { ...config.aiProfiles, [name]: config.ai as AIConfig };
-    await writeConfig({ ...config, aiProfiles: profiles });
+    await this.dependencies.write({ ...config, aiProfiles: profiles });
     this.ui.success(`Saved profile '${name}'.`);
   }
 
@@ -202,10 +216,10 @@ export class Settings {
       "Switch to which profile?",
       Object.keys(profiles).map((n) => ({ value: n, label: n })),
     );
-    const profile = profiles[name];
-    if (!profile) return;
+    if (!Object.hasOwn(profiles, name)) return;
+    const profile = profiles[name]!;
     // The active profile is simply whatever lives in `ai`; switching loads it and turns AI on.
-    await writeConfig({ ...config, ai: { ...profile, enabled: true } });
+    await this.dependencies.write({ ...config, ai: { ...profile, enabled: true } });
     this.ui.success(`Switched to '${name}' — ${profile.model} via ${profile.provider}.`);
   }
 
@@ -217,7 +231,69 @@ export class Settings {
     );
     if (selected.length === 0) return;
     for (const n of selected) delete profiles[n];
-    await writeConfig({ ...config, aiProfiles: profiles });
+    await this.dependencies.write({ ...config, aiProfiles: profiles });
     this.ui.success(`Removed ${selected.length} profile(s).`);
   }
+}
+
+function describeEffectivePreferences(user: GittenConfig, repository: RepoConfig): string {
+  const effective = mergeConfig(user, repository);
+  const limits = getLimits(effective);
+  const names: Record<keyof LimitsConfig, string> = {
+    undoCommitLimit: "Undo history",
+    cherryPickLogLimit: "Cherry-pick history",
+    bisectLogLimit: "Bisect history",
+    revertLogLimit: "Revert history",
+  };
+  const limitsWithSources = (Object.keys(limits) as (keyof LimitsConfig)[]).map((key) => {
+    const source = preferenceSource(repository.limits?.[key], user.limits?.[key]);
+    return `${names[key]}: ${limits[key]} (${source})`;
+  });
+  const prefixes = getBranchPrefixes(effective);
+  const prefixSource = effective.branchPrefixes?.length
+    ? preferenceSource(repository.branchPrefixes, user.branchPrefixes)
+    : "built-in default";
+  return [
+    ...limitsWithSources,
+    `Branch prefixes: ${prefixes.join(", ")} (${prefixSource})`,
+    `AI connection: ${describeAI(user)} (user configuration)`,
+  ].join("\n");
+}
+
+function preferenceSource(repository: unknown, user: unknown): string {
+  if (repository !== undefined) return ".gittenrc";
+  return user === undefined ? "built-in default" : "user configuration";
+}
+
+function describeAI(config: GittenConfig): string {
+  const count = Object.keys(config.aiProfiles ?? {}).length;
+  const suffix = count > 0 ? `  ·  ${count} saved profile(s)` : "";
+  const ai = config.ai;
+  if (!ai?.baseUrl || !ai.model) return `AI not configured${suffix}`;
+  const provider = AI_PROVIDERS.find(({ id }) => id === ai.provider)?.label ?? ai.baseUrl;
+  const message = ai.enabled
+    ? `✨ AI enabled — ${ai.model} via ${provider}`
+    : `AI disabled (${provider} / ${ai.model})`;
+  return `${message}${suffix}`;
+}
+
+function aiOptions(config: GittenConfig): { value: AIAction; label: string }[] {
+  const options: { value: AIAction; label: string }[] = [
+    { value: "configure", label: "✨ Configure AI provider" },
+  ];
+  if (config.ai?.baseUrl && config.ai.model) {
+    options.push(
+      config.ai.enabled
+        ? { value: "disable", label: "○  Disable AI" }
+        : { value: "enable", label: "✓  Enable AI" },
+    );
+    options.push({ value: "save", label: "💾 Save current as profile" });
+  }
+  if (Object.keys(config.aiProfiles ?? {}).length > 0) {
+    options.push(
+      { value: "switch", label: "🔀 Switch profile" },
+      { value: "remove", label: "🗑️  Remove profile" },
+    );
+  }
+  return options;
 }

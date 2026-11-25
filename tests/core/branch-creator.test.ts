@@ -1,5 +1,6 @@
 import { expect, mock, test } from "bun:test";
 import { BranchCreator } from "../../src/core/branch-creator";
+import { GoBackSignal } from "../../src/core/domain/navigation";
 import type { AIBranchSuggester } from "../../src/core/ports/ai.port";
 import { createGitMock } from "../mocks/git-client.mock";
 import { createUIMock } from "../mocks/ui.mock";
@@ -201,4 +202,81 @@ test("aborts without retry when no AI and branch already exists", async () => {
   expect(git.checkoutNewBranch).not.toHaveBeenCalled();
   // askText called only once (for description — no retry prompt)
   expect(ui.askText).toHaveBeenCalledTimes(1);
+});
+
+test("falls back locally when AI naming fails", async () => {
+  const git = createGitMock();
+  const ui = createUIMock({
+    askSelect: async () => "feat",
+    askText: async () => "Create fallback",
+    askConfirm: async () => true,
+  });
+  await new BranchCreator(git, ui, async () => {
+    throw new Error("offline");
+  }).run();
+  expect(git.checkoutNewBranch).toHaveBeenCalledWith("feat/create-fallback");
+  expect(ui.warn).toHaveBeenCalledWith(expect.stringContaining("AI naming failed"));
+});
+
+test("retries an invalid AI-edited ref and only checks out the validated replacement", async () => {
+  const git = createGitMock({ isValidBranchName: async (name) => name === "feat/validated" });
+  const ui = createUIMock({
+    askSelect: async () => "feat",
+    askText: mock()
+      .mockResolvedValueOnce("Some feature")
+      .mockResolvedValueOnce("@{-1}")
+      .mockResolvedValueOnce("feat/validated"),
+    askConfirm: async () => true,
+  });
+  await new BranchCreator(git, ui, async () => "some-feature").run();
+  expect(git.checkoutNewBranch).toHaveBeenCalledTimes(1);
+  expect(git.checkoutNewBranch).toHaveBeenCalledWith("feat/validated");
+});
+
+test("keeps a custom branch prefix and defaults a blank edit to the sanitised suggestion", async () => {
+  const git = createGitMock();
+  const ui = createUIMock({
+    askSelect: mock().mockResolvedValue("constructor"),
+    askText: mock().mockResolvedValueOnce("Ticket").mockResolvedValueOnce(" "),
+    askConfirm: mock().mockResolvedValue(true),
+  });
+  await new BranchCreator(git, ui, async () => "fix/Release Ticket", ["constructor"]).run();
+  expect(ui.askSelect).toHaveBeenCalledWith("Branch type:", [
+    { value: "constructor", label: "constructor" },
+  ]);
+  expect(git.checkoutNewBranch).toHaveBeenCalledWith("constructor/release-ticket");
+});
+
+test("retries repeated invalid and occupied names before creating a valid branch", async () => {
+  const git = createGitMock({
+    isValidBranchName: async (name) => ["feat/occupied", "feat/valid"].includes(name),
+    branchExists: async (name) => name === "feat/occupied",
+  });
+  const ui = createUIMock({
+    askSelect: mock().mockResolvedValue("feat"),
+    askText: mock()
+      .mockResolvedValueOnce("!!!")
+      .mockResolvedValueOnce("also bad")
+      .mockResolvedValueOnce("feat/occupied")
+      .mockResolvedValueOnce("feat/valid"),
+  });
+  await new BranchCreator(git, ui).run();
+  expect(ui.warn).toHaveBeenCalledWith('"also bad" is not a valid branch name.');
+  expect(ui.warn).toHaveBeenCalledWith('Branch "feat/occupied" also already exists.');
+  expect(git.checkoutNewBranch).toHaveBeenCalledTimes(1);
+  expect(git.checkoutNewBranch).toHaveBeenCalledWith("feat/valid");
+});
+
+test("cancelling the AI suggestion leaves the current branch untouched", async () => {
+  const git = createGitMock();
+  const ui = createUIMock({
+    askSelect: mock().mockResolvedValue("feat"),
+    askText: mock().mockResolvedValue("Change"),
+    askConfirm: mock().mockResolvedValue(true),
+  });
+  const cancel = new GoBackSignal();
+  await expect(new BranchCreator(git, ui, mock().mockRejectedValue(cancel)).run()).rejects.toBe(
+    cancel,
+  );
+  expect(git.checkoutNewBranch).not.toHaveBeenCalled();
 });

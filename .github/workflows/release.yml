@@ -2,47 +2,154 @@ name: Release
 
 on:
   push:
+    branches:
+      - 'release-rehearsal/**'
     tags:
       - "v*"
 
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  release:
-    name: Build & Publish
-    runs-on: ubuntu-latest
+  quality:
+    uses: ./.github/workflows/quality.yml
 
+  native:
+    uses: ./.github/workflows/native.yml
+    with:
+      upload: true
+
+  package:
+    name: Package and attest verified release assets
+    needs: [quality, native]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      attestations: write
+      id-token: write
     steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
-          bun-version: latest
-
-      - name: Install dependencies
-        run: bun install --frozen-lockfile
-
-      - name: Run tests
-        run: bun test
-
-      - name: Build binaries
+          path: dist
+          pattern: gitten-binary-*
+          merge-multiple: true
+      - name: Generate release checksum manifest
+        working-directory: dist
         run: |
-          bun build index.ts --compile --target=bun-darwin-arm64   --outfile dist/gitten-darwin-arm64
-          bun build index.ts --compile --target=bun-darwin-x64     --outfile dist/gitten-darwin-x64
-          bun build index.ts --compile --target=bun-linux-x64      --outfile dist/gitten-linux-x64
-          bun build index.ts --compile --target=bun-linux-arm64    --outfile dist/gitten-linux-arm64
-          bun build index.ts --compile --target=bun-windows-x64    --outfile dist/gitten-windows-x64.exe
-
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v3
+          set -euo pipefail
+          assets=(gitten-darwin-arm64 gitten-darwin-x64 gitten-linux-x64 gitten-linux-arm64 gitten-windows-x64.exe)
+          for asset in "${assets[@]}"; do
+            test -s "$asset"
+          done
+          manifest=$(mktemp .SHA256SUMS.XXXXXX)
+          trap 'rm -f "$manifest"' EXIT
+          sha256sum "${assets[@]}" > "$manifest"
+          mv "$manifest" SHA256SUMS
+      - name: Attest the checksum manifest and release binaries
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4
         with:
+          subject-path: dist/*
+      - uses: actions/upload-artifact@ea165f8d65b540449e92b4886f43607fa02 # v4
+        with:
+          name: gitten-release-assets
+          if-no-files-found: error
+          overwrite: true
+          path: |
+            dist/gitten-darwin-arm64
+            dist/gitten-darwin-x64
+            dist/gitten-linux-arm64
+            dist/gitten-linux-x64
+            dist/gitten-windows-x64.exe
+            dist/SHA256SUMS
+
+  publish:
+    name: Publish verified release assets
+    if: github.ref_type == 'tag'
+    needs: [package]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: gitten-release-assets
+          path: dist
+      - name: Check package and look for a published release
+        id: existing
+        working-directory: dist
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || exit 1
+          sha256sum --strict --check SHA256SUMS || exit 1
+          listing="repos/$GITHUB_REPOSITORY/releases?per_page=100"
+          published=$(gh api --paginate "$listing" --jq '.[] | select(.draft == false) | [.tag_name, .id] | @tsv' |
+            awk -F '\t' -v tag="$GITHUB_REF_NAME" '$1 == tag { print $2 }')
+          [[ -z "$published" || "$published" =~ ^[0-9]+$ ]] || exit 1
+          printf 'published=%s\n' "$published" >> "$GITHUB_OUTPUT"
+      - name: Upload binaries and checksum manifest to a draft
+        id: stage
+        if: steps.existing.outputs.published == ''
+        uses: softprops/action-gh-release@8a0cd651e5b2365bd640854a3fa5dfc70e4875f3 # v3
+        with:
+          draft: true
+          fail_on_unmatched_files: true
           files: |
             dist/gitten-darwin-arm64
             dist/gitten-darwin-x64
             dist/gitten-linux-x64
             dist/gitten-linux-arm64
             dist/gitten-windows-x64.exe
+            dist/SHA256SUMS
           generate_release_notes: true
+      - name: Verify uploaded digests and publish the draft
+        working-directory: dist
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_ID: ${{ steps.existing.outputs.published || steps.stage.outputs.id }}
+          ALREADY_PUBLISHED: ${{ steps.existing.outputs.published != '' }}
+        run: |
+          set -euo pipefail
+          [[ "$RELEASE_ID" =~ ^[0-9]+$ ]] || exit 1
+          endpoint="repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID"
+          metadata=$(gh api "$endpoint" --jq '
+            [.tag_name, .draft, .prerelease] | @tsv')
+          draft=true
+          if [[ "$ALREADY_PUBLISHED" == true ]]; then draft=false; fi
+          [[ "$metadata" == "$GITHUB_REF_NAME"$'\t'"$draft"$'\t'false ]] || exit 1
+          uploaded=$(gh api "$endpoint" --jq '.assets[] | [.name, .state, .digest] | @tsv' | LC_ALL=C sort)
+          expected=$(sha256sum gitten-* SHA256SUMS | awk '{printf "%s\tuploaded\tsha256:%s\n", $2, $1}' | LC_ALL=C sort)
+          if [[ "$uploaded" != "$expected" ]]; then
+            printf '%s\n' 'GitHub did not record all expected release asset digests.' >&2
+            exit 1
+          fi
+          if [[ "$draft" == true ]]; then
+            gh api --method PATCH "$endpoint" -F draft=false --silent || exit 1
+          fi
+
+  homebrew:
+    if: github.ref_type == 'tag'
+    needs: [publish]
+    uses: ./.github/workflows/update-homebrew.yml
+    permissions:
+      attestations: read
+      contents: read
+    with:
+      tag: ${{ github.ref_name }}
+    secrets:
+      release_token: ${{ secrets.RELEASE_TOKEN }}
+
+  rehearse-homebrew:
+    if: github.ref_type == 'branch' && startsWith(github.ref_name, 'release-rehearsal/')
+    needs: [package]
+    uses: ./.github/workflows/update-homebrew.yml
+    permissions:
+      attestations: read
+      contents: read
+    with:
+      rehearsal: true

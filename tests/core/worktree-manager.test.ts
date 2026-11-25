@@ -9,6 +9,15 @@ const WORKTREES: WorktreeEntry[] = [
   { path: "/repo-feat", branch: "feat/login", isMain: false, isLocked: false },
 ];
 
+test("labels locked linked worktrees in the list", async () => {
+  const git = createGitMock({
+    getWorktrees: async () => [{ ...WORKTREES[1]!, isLocked: true }],
+  });
+  const ui = createUIMock({ askSelect: mock().mockResolvedValue("list") });
+  await new WorktreeManager(git, ui).run();
+  expect(ui.info).toHaveBeenCalledWith("feat/login (locked)  →  /repo-feat");
+});
+
 // ─── list ─────────────────────────────────────────────────────────────────────
 
 test("shows list of worktrees on list action", async () => {
@@ -23,7 +32,46 @@ test("shows list of worktrees on list action", async () => {
 
   expect(git.getWorktrees).toHaveBeenCalledTimes(1);
   expect(ui.info).toHaveBeenCalledWith(expect.stringContaining("feat/login"));
-  expect(ui.info).toHaveBeenCalledWith(expect.stringContaining("main"));
+  expect(ui.info).toHaveBeenCalledWith("main (main)  →  /repo");
+});
+
+test("adds no worktree when all local branches are occupied", async () => {
+  const git = createGitMock({
+    getWorktrees: async () => WORKTREES,
+    getBranches: async () => ({ all: ["main", "feat/login"], current: "main" }),
+  });
+  const ui = createUIMock({
+    askSelect: mock().mockResolvedValueOnce("add").mockResolvedValueOnce("existing"),
+    askText: mock().mockResolvedValue("../checkout"),
+  });
+  await new WorktreeManager(git, ui).run();
+  expect(ui.info).toHaveBeenCalledWith("No local branches are available for a new worktree.");
+  expect(ui.askSearchSelect).not.toHaveBeenCalled();
+  expect(git.addWorktree).not.toHaveBeenCalled();
+});
+
+test("reports non-Error failures when adding and removing a worktree", async () => {
+  const git = createGitMock({
+    getWorktrees: async () => WORKTREES,
+    addWorktree: mock().mockRejectedValue("destination unavailable"),
+    removeWorktree: mock().mockRejectedValue("checkout in use"),
+  });
+  const addUI = createUIMock({
+    askSelect: mock().mockResolvedValueOnce("add").mockResolvedValueOnce("new"),
+    askText: mock().mockResolvedValueOnce("../checkout").mockResolvedValueOnce("topic"),
+  });
+  await new WorktreeManager(git, addUI).run();
+  expect(addUI.error).toHaveBeenCalledWith("Failed to add worktree: destination unavailable");
+  expect(addUI.success).not.toHaveBeenCalled();
+
+  const removeUI = createUIMock({
+    askSelect: mock().mockResolvedValue("remove"),
+    askSearchSelect: mock().mockResolvedValue("/repo-feat"),
+    askConfirm: mock().mockResolvedValue(true),
+  });
+  await new WorktreeManager(git, removeUI).run();
+  expect(removeUI.error).toHaveBeenCalledWith("Failed to remove worktree: checkout in use");
+  expect(removeUI.success).not.toHaveBeenCalled();
 });
 
 // ─── add worktree ─────────────────────────────────────────────────────────────

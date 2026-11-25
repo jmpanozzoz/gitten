@@ -1,88 +1,135 @@
 name: Update Homebrew Formula
 
 on:
-  release:
-    types: [published]
-
-permissions:
-  contents: write
-  pull-requests: write
+  workflow_call:
+    inputs:
+      tag:
+        type: string
+      rehearsal:
+        type: boolean
+        default: false
+    secrets:
+      release_token:
+        required: false
 
 jobs:
   update-formula:
-    name: Update Formula
-    runs-on: ubuntu-latest
-
+    runs-on: ubuntu-24.04
+    permissions:
+      attestations: read
+      contents: read
     steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-
-      - name: Compute SHA256 checksums
-        id: sha
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        if: '!inputs.rehearsal'
+        with:
+          ref: main
+          token: ${{ secrets.release_token }}
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        if: inputs.rehearsal
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        if: inputs.rehearsal
+        with:
+          name: gitten-release-assets
+          path: ${{ runner.temp }}/gitten-release-rehearsal
+      - name: Verify manifest and read Homebrew checksums
+        id: checksum
         env:
-          TAG: ${{ github.event.release.tag_name }}
+          TAG: ${{ inputs.tag }}
+          REHEARSAL: ${{ inputs.rehearsal }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          VERSION="${TAG#v}"
-
-          # SHA256 of an empty input — the value produced when curl fails but the
-          # pipe still succeeds. Guard against committing it as a real checksum.
-          EMPTY_SHA="e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-
-          sha_of_asset() {
-            local asset="$1"
-            local url="https://github.com/jmpanozzoz/gitten/releases/download/${TAG}/${asset}"
-            local out="${asset}"
-            # Absorb the race between "release published" and asset upload: the
-            # release event can fire before binaries finish uploading, so retry
-            # 404s for up to ~5 minutes instead of failing the run (and needing
-            # a manual re-run, as happened on v1.1.2).
-            curl -fSL --retry 20 --retry-delay 10 --retry-max-time 300 --retry-all-errors -o "$out" "$url"
-            if [ ! -s "$out" ]; then
-              echo "::error::Downloaded asset ${asset} is missing or empty" >&2
-              exit 1
-            fi
-            local sum
-            sum=$(sha256sum "$out" | cut -d' ' -f1)
-            if [ -z "$sum" ] || [ "$sum" = "$EMPTY_SHA" ]; then
-              echo "::error::Computed empty/placeholder SHA256 for ${asset}" >&2
-              exit 1
-            fi
-            echo "$sum"
-          }
-
-          ARM64_SHA=$(sha_of_asset "gitten-darwin-arm64")
-          X64_SHA=$(sha_of_asset "gitten-darwin-x64")
-
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "arm64_sha=$ARM64_SHA" >> "$GITHUB_OUTPUT"
-          echo "x64_sha=$X64_SHA" >> "$GITHUB_OUTPUT"
-
+          if [[ "$REHEARSAL" == true ]]; then
+            [[ "$GITHUB_REF" == refs/heads/release-rehearsal/* ]] || exit 1
+            TAG="v$(node -p 'require("./package.json").version')"
+            manifest="$RUNNER_TEMP/gitten-release-rehearsal/SHA256SUMS"
+          else
+            [[ "$GITHUB_REF" == "refs/tags/$TAG" && "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || exit 1
+            release="https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG"
+            manifest=$(mktemp)
+            trap 'rm -f "$manifest"' EXIT
+            curl -q -fsSL --proto '=https' --proto-redir '=https' --retry 4 --retry-all-errors \
+              -o "$manifest" "$release/SHA256SUMS"
+          fi
+          [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ && -s "$manifest" ]]
+          gh attestation verify "$manifest" --repo "$GITHUB_REPOSITORY" \
+            --cert-identity "https://github.com/$GITHUB_REPOSITORY/.github/workflows/release.yml@$GITHUB_REF" \
+            --source-digest "$GITHUB_SHA" \
+            --deny-self-hosted-runners
+          if [[ "$REHEARSAL" == true ]]; then
+            (cd "${manifest%/*}" && sha256sum --strict --check SHA256SUMS) || exit 1
+          fi
+          printf 'tag=%s\n' "$TAG" >> "$GITHUB_OUTPUT"
+          for arch in arm64 x64; do
+            hash=$(awk -v name="gitten-darwin-$arch" '$2 == name { print $1 }' "$manifest")
+            [[ "$hash" =~ ^[0-9a-f]{64}$ ]]
+            printf '%s=%s\n' "$arch" "$hash" >> "$GITHUB_OUTPUT"
+          done
       - name: Update formula file
         env:
-          VERSION: ${{ steps.sha.outputs.version }}
-          ARM64_SHA: ${{ steps.sha.outputs.arm64_sha }}
-          X64_SHA: ${{ steps.sha.outputs.x64_sha }}
+          TAG: ${{ steps.checksum.outputs.tag }}
+          ARM64_SHA: ${{ steps.checksum.outputs.arm64 }}
+          X64_SHA: ${{ steps.checksum.outputs.x64 }}
         run: |
-          sed -i "s/version \".*\"/version \"${VERSION}\"/" Formula/gitten.rb
-          sed -i "/gitten-darwin-arm64/{n;s/sha256 \".*\"/sha256 \"${ARM64_SHA}\"/}" Formula/gitten.rb
-          sed -i "/gitten-darwin-x64/{n;s/sha256 \".*\"/sha256 \"${X64_SHA}\"/}" Formula/gitten.rb
-
+          set -euo pipefail
+          [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          [[ "$ARM64_SHA" =~ ^[0-9a-f]{64}$ && "$X64_SHA" =~ ^[0-9a-f]{64}$ ]]
+          formula=Formula/gitten.rb
+          candidate=$(mktemp Formula/.gitten.XXXXXX)
+          trap 'rm -f "$candidate"' EXIT
+          if ! awk -v version="${TAG#v}" -v arm64="$ARM64_SHA" -v x64="$X64_SHA" '
+            arch != "" {
+              if ($1 != "sha256" || NF != 2 || $2 !~ /^"[0-9a-f]+"$/ || length($2) != 66) exit 1
+              if (arch == "arm64") {
+                sub(/"[^"]*"/, "\"" arm64 "\"")
+                arm_count++
+              } else {
+                sub(/"[^"]*"/, "\"" x64 "\"")
+                intel_count++
+              }
+              arch = ""
+            }
+            /^[[:space:]]*url ".*\/gitten-darwin-arm64"$/ { arch = "arm64" }
+            /^[[:space:]]*url ".*\/gitten-darwin-x64"$/ { arch = "x64" }
+            /^[[:space:]]*version "[^"]+"$/ {
+              sub(/"[^"]*"/, "\"" version "\"")
+              versions++
+            }
+            { print }
+            END {
+              if (versions != 1 || arm_count != 1 || intel_count != 1 || arch != "") exit 1
+            }
+          ' "$formula" > "$candidate"; then
+            printf '%s\n' "Could not update the expected Homebrew formula entries." >&2
+            exit 1
+          fi
+          chmod 644 "$candidate"
+          mv "$candidate" "$formula"
+      - uses: actions/upload-artifact@ea165f8d65b540449e92b4886f43607fa02 # v4
+        if: inputs.rehearsal
+        with:
+          name: gitten-homebrew-rehearsal
+          path: Formula/gitten.rb
+          if-no-files-found: error
+          overwrite: true
       - name: Open PR with updated formula
+        if: '!inputs.rehearsal'
         env:
-          TAG: ${{ github.event.release.tag_name }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ inputs.tag }}
+          GH_TOKEN: ${{ secrets.release_token }}
         run: |
-          BRANCH="chore/homebrew-formula-${TAG}"
+          set -euo pipefail
+          branch="chore/homebrew-formula-$TAG"
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git checkout -b "$BRANCH"
+          git switch -c "$branch"
           git add Formula/gitten.rb
           git diff --cached --quiet && exit 0
           git commit -m "chore: update Homebrew formula to ${TAG}"
-          git push origin "$BRANCH"
+          git push origin "$branch"
           gh pr create \
             --title "chore: update Homebrew formula to ${TAG}" \
-            --body "Automated formula update after release ${TAG}. SHA256 checksums recomputed from published assets." \
-            --base main \
-            --head "$BRANCH"
+            --body "Updates the formula with the published and attested release checksums." \
+            --base main --head "$branch"

@@ -1,5 +1,7 @@
 {
   "release-type": "node",
+  "draft": true,
+  "force-tag-creation": true,
   "include-component-in-tag": false,
   "packages": {
     ".": {}

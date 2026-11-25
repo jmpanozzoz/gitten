@@ -1,9 +1,17 @@
 import { expect, mock, test } from "bun:test";
 import { BranchSwitcher } from "../../src/core/branch-switcher";
+import { GoBackSignal } from "../../src/core/domain/navigation";
 import { createGitMock } from "../mocks/git-client.mock";
 import { createUIMock } from "../mocks/ui.mock";
 
 const BRANCHES = { all: ["main", "dev", "feat/login", "fix/bug-42"], current: "feat/login" };
+const UPSTREAM = {
+  branch: "main",
+  head: "a".repeat(40),
+  remote: "publish",
+  ref: "refs/remotes/publish/main",
+  commit: "b".repeat(40),
+};
 const CLEAN = {
   files: [],
   isClean: () => true,
@@ -49,6 +57,7 @@ test("checks out selected branch directly when working tree is clean", async () 
 
   expect(git.checkoutBranch).toHaveBeenCalledWith("main");
   expect(git.stash).not.toHaveBeenCalled();
+  expect(git.fetchRemote).not.toHaveBeenCalled();
 });
 
 test("excludes current branch from the list", async () => {
@@ -158,6 +167,7 @@ test("warns and offers pull when branch is behind origin after switching", async
   const git = createGitMock({
     getBranches: mock(() => Promise.resolve(BRANCHES)),
     getStatus: mock(() => Promise.resolve(BEHIND)),
+    getRemoteResetTarget: async () => UPSTREAM,
     checkoutBranch: mock(() => Promise.resolve()),
     pull: mock(() => Promise.resolve({ filesChanged: 3 })),
   });
@@ -169,6 +179,7 @@ test("warns and offers pull when branch is behind origin after switching", async
   await new BranchSwitcher(git, ui).run();
 
   expect(ui.askConfirm).toHaveBeenCalledWith(expect.stringContaining("5 commit(s) behind"));
+  expect(git.fetchRemote).toHaveBeenCalledWith("publish");
   expect(git.pull).toHaveBeenCalledTimes(1);
   expect(ui.success).toHaveBeenCalledWith("Up to date.");
 });
@@ -184,6 +195,7 @@ test("skips pull when user declines the behind warning", async () => {
   const git = createGitMock({
     getBranches: mock(() => Promise.resolve(BRANCHES)),
     getStatus: mock(() => Promise.resolve(BEHIND)),
+    getRemoteResetTarget: async () => UPSTREAM,
     checkoutBranch: mock(() => Promise.resolve()),
   });
   const ui = createUIMock({
@@ -207,6 +219,7 @@ test("does not warn when branch is up to date after switching", async () => {
   const git = createGitMock({
     getBranches: mock(() => Promise.resolve(BRANCHES)),
     getStatus: mock(() => Promise.resolve(UP_TO_DATE)),
+    getRemoteResetTarget: async () => UPSTREAM,
     checkoutBranch: mock(() => Promise.resolve()),
   });
   const ui = createUIMock({
@@ -217,4 +230,87 @@ test("does not warn when branch is up to date after switching", async () => {
 
   expect(ui.askConfirm).not.toHaveBeenCalled();
   expect(git.pull).not.toHaveBeenCalled();
+});
+
+test("checks tracking aliases before touching local changes", async () => {
+  const git = createGitMock({
+    getBranches: async () => BRANCHES,
+    getTrackingBranches: async () => [
+      {
+        remote: "review",
+        name: "main",
+        ref: "refs/remotes/review/main",
+        head: UPSTREAM.commit,
+      },
+    ],
+  });
+  const ui = createUIMock({
+    askSearchSelect: mock().mockResolvedValue("\0refs/remotes/review/main"),
+    askText: mock().mockResolvedValue("main"),
+  });
+  await new BranchSwitcher(git, ui).run();
+  expect(ui.askText).toHaveBeenCalledWith(
+    "Create local tracking branch:",
+    undefined,
+    "review/main",
+  );
+  expect(ui.warn).toHaveBeenCalledWith("Choose a new local branch name.");
+  expect(git.getStatus).not.toHaveBeenCalled();
+  expect(git.checkoutTrackingBranch).not.toHaveBeenCalled();
+});
+
+test("does not pull when the upstream changes during fetch or after confirmation", async () => {
+  const changed = { ...UPSTREAM, remote: "other" };
+  for (const observations of [
+    [UPSTREAM, null],
+    [UPSTREAM, changed],
+    [UPSTREAM, UPSTREAM, changed],
+  ]) {
+    const upstream = mock().mockResolvedValue(observations.at(-1));
+    for (const target of observations) upstream.mockResolvedValueOnce(target);
+    const git = createGitMock({
+      getBranches: async () => BRANCHES,
+      getStatus: async () => ({ ...CLEAN, commitsBehind: 2 }),
+      getRemoteResetTarget: upstream,
+    });
+    const ui = createUIMock({
+      askSearchSelect: mock().mockResolvedValue("main"),
+      askConfirm: mock().mockResolvedValue(true),
+    });
+    await new BranchSwitcher(git, ui).run();
+    expect(git.fetchRemote).toHaveBeenCalledWith("publish");
+    expect(git.pull).not.toHaveBeenCalled();
+    expect(ui.info).toHaveBeenCalledWith(expect.stringContaining("Use Pull to review"));
+  }
+});
+
+test("does not fetch if another branch takes over before the upstream lookup", async () => {
+  const git = createGitMock({
+    getBranches: async () => BRANCHES,
+    getRemoteResetTarget: async () => ({ ...UPSTREAM, branch: "dev" }),
+  });
+  const ui = createUIMock({ askSearchSelect: mock().mockResolvedValue("main") });
+  await new BranchSwitcher(git, ui).run();
+  expect(git.checkoutBranch).toHaveBeenCalledWith("main");
+  expect(git.fetchRemote).not.toHaveBeenCalled();
+});
+
+test("reports a failed refresh and preserves cancellation after a successful switch", async () => {
+  for (const reason of [new Error("offline"), new GoBackSignal()]) {
+    const git = createGitMock({
+      getBranches: async () => BRANCHES,
+      getRemoteResetTarget: async () => UPSTREAM,
+      fetchRemote: mock().mockRejectedValue(reason),
+    });
+    const ui = createUIMock({ askSearchSelect: mock().mockResolvedValue("main") });
+    const result = new BranchSwitcher(git, ui).run();
+    if (reason instanceof GoBackSignal) {
+      await expect(result).rejects.toBe(reason);
+    } else {
+      await result;
+      expect(ui.info).toHaveBeenCalledWith("Branch switched. Use Pull to refresh its upstream.");
+    }
+    expect(ui.success).toHaveBeenCalledWith("Switched to main.");
+    expect(git.pull).not.toHaveBeenCalled();
+  }
 });

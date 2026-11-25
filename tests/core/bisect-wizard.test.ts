@@ -1,5 +1,6 @@
 import { expect, mock, test } from "bun:test";
 import { BisectWizard } from "../../src/core/bisect-wizard";
+import { GoBackSignal } from "../../src/core/domain/navigation";
 import { createGitMock } from "../mocks/git-client.mock";
 import { createUIMock } from "../mocks/ui.mock";
 
@@ -13,6 +14,56 @@ const DONE: import("../../src/core/ports/git-client.port").BisectResult = {
   done: true,
   badCommit: { hash: "abc1234", message: "feat: add login" },
 };
+
+test("resumes an active bisect, skips one candidate and leaves the session active on back", async () => {
+  const git = createGitMock({
+    getInProgressOperation: async () => "bisect",
+    bisectSkip: mock(async () => NOT_DONE),
+  });
+  const ui = createUIMock({
+    askSelect: mock().mockResolvedValueOnce("skip").mockRejectedValueOnce(new GoBackSignal()),
+  });
+  await new BisectWizard(git, ui).run();
+  expect(git.bisectStart).not.toHaveBeenCalled();
+  expect(git.bisectSkip).toHaveBeenCalledTimes(1);
+  expect(git.bisectReset).not.toHaveBeenCalled();
+  expect(ui.info).toHaveBeenCalledWith(
+    "Bisect is still active. Open Bisect again to resume or stop.",
+  );
+});
+
+test("does not start Bisect during a different Git operation", async () => {
+  const git = createGitMock({ getInProgressOperation: async () => "merge" });
+  const ui = createUIMock();
+  await new BisectWizard(git, ui).run();
+  expect(ui.warn).toHaveBeenCalledWith("Finish the pending merge before bisecting.");
+  expect(git.bisectStart).not.toHaveBeenCalled();
+});
+
+test("reports a first bad commit without a subject and resets the session", async () => {
+  const git = createGitMock({
+    getLog: async () => COMMITS,
+    bisectGood: async () => ({ done: true, badCommit: { hash: "a".repeat(40), message: "" } }),
+  });
+  const ui = createUIMock({ askSearchSelect: mock().mockResolvedValue("def5678") });
+  await new BisectWizard(git, ui).run();
+  expect(ui.success).toHaveBeenCalledWith("First bad commit found: aaaaaaaaaaaa");
+  expect(git.bisectReset).toHaveBeenCalledTimes(1);
+});
+
+test("Bisect reports both a failed verdict and a failed reset", async () => {
+  const git = createGitMock({
+    getInProgressOperation: async () => "bisect",
+    bisectSkip: mock().mockRejectedValue("no testable commit"),
+    bisectReset: mock().mockRejectedValue(new Error("index locked")),
+  });
+  const ui = createUIMock({ askSelect: mock().mockResolvedValue("skip") });
+  await new BisectWizard(git, ui).run();
+  expect(ui.error).toHaveBeenCalledWith("Bisect failed: no testable commit");
+  expect(ui.warn).toHaveBeenCalledWith(
+    "Could not reset bisect. Open Repository Status or run git bisect reset.",
+  );
+});
 
 // ─── setup ────────────────────────────────────────────────────────────────────
 
@@ -190,6 +241,7 @@ test("calls aiExplainer with bad commit diff when bisect finds culprit", async (
   const ui = createUIMock({
     askSearchSelect: mock(() => Promise.resolve("good123")),
     askSelect: mock(() => Promise.resolve("bad")),
+    askConfirm: async () => true,
   });
 
   await new BisectWizard(git, ui, aiExplainer).run();

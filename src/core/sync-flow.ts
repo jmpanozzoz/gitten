@@ -1,11 +1,15 @@
-import { renderDiff } from "../ui/diff-renderer";
+import { confirmAISend } from "./ai-consent";
+import { showDiffPages } from "./diff-pages";
+import { GoBackSignal } from "./domain/navigation";
+import { sameResetSource } from "./domain/reset-target";
 import type { AICommitReviewer, AICommitSuggester } from "./ports/ai.port";
-import type { IGitClient } from "./ports/git-client.port";
+import type { IGitClient, StatusSummary } from "./ports/git-client.port";
 import type { IUI } from "./ports/ui.port";
 import { PROTECTED_BRANCHES } from "./protected-branches";
+import { PushBranch } from "./push-branch";
 
 const DEFAULT_COMMIT_MESSAGE = "chore: update";
-const NO_UPSTREAM_ERROR = "no upstream";
+type UpstreamCheck = "missing" | "unverified" | "verified";
 
 export class SyncFlow {
   constructor(
@@ -16,94 +20,125 @@ export class SyncFlow {
   ) {}
 
   async run(): Promise<void> {
-    const branch = await this.git.getCurrentBranch();
-
-    if (PROTECTED_BRANCHES.has(branch)) {
-      const proceed = await this.ui.askConfirm(
-        `⚠️  You are on '${branch}'. Commit directly to this branch?`,
-      );
-      if (!proceed) return;
+    const pending = await this.git.getInProgressOperation();
+    if (pending) {
+      this.ui.warn(`Finish the pending ${pending} before using Sync.`);
+      return;
     }
 
-    // Fetch silently so behind count is accurate before we start staging
-    try {
-      await this.git.fetchRemote();
-    } catch {
-      // No remote or network issue — continue without blocking
-    }
-
+    const upstream = await this.refreshUpstream();
     const status = await this.git.getStatus();
+    const push = new PushBranch(this.git, this.ui);
 
     if (status.isClean()) {
-      if (status.commitsAhead === 0) {
-        this.ui.info("Already up to date — nothing to commit or push.");
-        return;
-      }
-      const proceed = await this.ui.askConfirm("Nothing to commit. Push current branch?");
-      if (!proceed) return;
-    } else {
-      if (status.commitsBehind > 0) {
-        const pullFirst = await this.ui.askConfirm(
-          `⚠️  Remote has ${status.commitsBehind} new commit(s). Pull first to avoid a rejected push?`,
-        );
-        if (pullFirst) {
-          this.ui.info("Go to Pull from the main menu, then come back to Sync.");
-          return;
-        }
-      }
-
-      const staged = await this.selectFiles(status.files);
-      if (staged.length === 0) return;
-      const shouldPush = await this.stageAndCommit(staged);
-      if (!shouldPush) return;
+      if (this.shouldOfferPush(status, upstream)) await push.run({ setUpstream: true });
+      return;
     }
 
-    await this.safePush();
+    const branch = await this.git.getCurrentBranch();
+    if (
+      PROTECTED_BRANCHES.has(branch) &&
+      !(await this.ui.askConfirm(`Commit directly to protected branch '${branch}'?`, false))
+    )
+      return;
+
+    const commit = await this.commitChanges(status);
+    if (commit) await push.run({ expectedHead: commit, setUpstream: true });
   }
 
-  private async selectFiles(files: { path: string; status: string }[]): Promise<string[]> {
-    return this.ui.askMultiSelect(
-      "Select files to stage:",
-      files.map((f) => ({ value: f.path, label: `${f.status}  ${f.path}` })),
+  private async refreshUpstream(): Promise<UpstreamCheck> {
+    try {
+      const upstream = await this.git.getRemoteResetTarget();
+      if (!upstream) return "missing";
+      await this.git.fetchRemote(upstream.remote);
+      const refreshed = await this.git.getRemoteResetTarget();
+      if (refreshed && sameResetSource(upstream, refreshed)) return "verified";
+      this.ui.warn("The branch or upstream changed during fetch. Commit counts may be stale.");
+    } catch {
+      this.ui.warn("Could not refresh the upstream. Commit counts may be stale.");
+    }
+    return "unverified";
+  }
+
+  private shouldOfferPush(status: StatusSummary, upstream: UpstreamCheck): boolean {
+    if (upstream !== "verified" || status.commitsAhead > 0) return true;
+    if (status.commitsBehind > 0) {
+      this.ui.info(`Behind upstream by ${status.commitsBehind} commit(s). Use Pull to update.`);
+    } else {
+      this.ui.info("Already up to date — nothing to commit or push.");
+    }
+    return false;
+  }
+
+  private async commitChanges(status: StatusSummary): Promise<string | undefined> {
+    if (status.commitsBehind > 0) {
+      const pullFirst = await this.ui.askConfirm(
+        `⚠️  Remote has ${status.commitsBehind} new commit(s). Pull first to avoid a rejected push?`,
+      );
+      if (pullFirst) {
+        this.ui.info("Go to Pull from the main menu, then come back to Sync.");
+        return;
+      }
+    }
+    const paths = await this.selectFiles(status.files);
+    if (paths.length > 0) return this.previewAndCommit(paths);
+  }
+
+  private async selectFiles(files: StatusSummary["files"]): Promise<string[]> {
+    const selected = new Set(
+      await this.ui.askMultiSelect(
+        "Select files to commit:",
+        files.map(({ path, status, previousPath }) => ({
+          value: path,
+          label: `${status}  ${previousPath ? `${previousPath} → ` : ""}${path}`,
+        })),
+      ),
     );
+    const paths = files
+      .filter(({ path }) => selected.has(path))
+      .flatMap(({ path, previousPath }) => (previousPath ? [previousPath, path] : [path]));
+    return [...new Set(paths)];
   }
 
-  private async stageAndCommit(paths: string[]): Promise<boolean> {
-    await this.ui.spin("Staging...", () => this.git.addFiles(paths));
+  private async previewAndCommit(paths: string[]): Promise<string | undefined> {
+    const selection = await this.ui.spin("Preparing commit preview...", () =>
+      this.git.previewSelectedCommit(paths),
+    );
+    const { diff, stat } = selection;
+    if (!diff) {
+      this.ui.info("The selected files have no changes to commit.");
+      return;
+    }
+    this.ui.info(`+${stat.insertions} −${stat.deletions} lines selected`);
+    await showDiffPages(this.ui, diff);
+    await this.runAiReview(diff);
 
-    const stat = await this.git.getDiffStat();
-    this.ui.info(`+${stat.insertions} −${stat.deletions} lines staged`);
-
-    await this.showDiffPreview();
-    await this.runAiReview();
-
-    const placeholder = await this.resolveCommitPlaceholder();
+    const placeholder = await this.resolveCommitPlaceholder(diff);
     const message = await this.ui.askText("Commit message:", undefined, placeholder);
     const finalMessage = message.trim() || DEFAULT_COMMIT_MESSAGE;
 
-    await this.ui.spin("Committing...", () => this.git.commit(finalMessage));
-
-    return this.ui.askConfirm("Push now?");
+    try {
+      return await this.ui.spin("Committing selection...", () =>
+        this.git.commitSelection(selection, finalMessage),
+      );
+    } catch (error) {
+      this.ui.error(error instanceof Error ? error.message : "Could not commit the selection.");
+      return;
+    }
   }
 
-  private async showDiffPreview(): Promise<void> {
-    const diff = await this.git.getStagedDiff();
-    if (!diff) return;
-    this.ui.info(renderDiff(diff, 30));
-  }
-
-  private async runAiReview(): Promise<void> {
+  private async runAiReview(diff: string): Promise<void> {
     if (!this.aiReviewer) return;
 
-    const proceed = await this.ui.askConfirm("✨ Review staged diff with AI before committing?");
+    const proceed = await confirmAISend(this.ui, "the selected diff for review", this.aiReviewer);
     if (!proceed) return;
 
-    const diff = await this.git.getStagedDiff();
     let findings: string[] = [];
 
     try {
       findings = await this.ui.spin("Reviewing...", () => this.aiReviewer!(diff));
     } catch (err) {
+      if (err instanceof GoBackSignal) throw err;
       this.ui.warn(`AI review failed: ${err instanceof Error ? err.message : "unknown error"}`);
       return;
     }
@@ -118,19 +153,21 @@ export class SyncFlow {
     }
   }
 
-  private async resolveCommitPlaceholder(): Promise<string> {
+  private async resolveCommitPlaceholder(diff: string): Promise<string> {
     if (!this.aiSuggester) return DEFAULT_COMMIT_MESSAGE;
 
-    const suggest = await this.ui.askConfirm("✨ Generate commit message with AI?");
+    const suggest = await confirmAISend(
+      this.ui,
+      "the selected diff to suggest a commit message",
+      this.aiSuggester,
+    );
     if (!suggest) return DEFAULT_COMMIT_MESSAGE;
-
-    const diff = await this.git.getStagedDiff();
 
     let suggestion: string | null = null;
     try {
       suggestion = await this.ui.spin("Generating suggestion...", () => this.aiSuggester!(diff));
     } catch (err) {
-      if (err instanceof Error && err.message === "go-back") throw err;
+      if (err instanceof GoBackSignal) throw err;
       const msg = err instanceof Error ? err.message : "unknown error";
       this.ui.warn(`AI failed: ${msg}`);
       return DEFAULT_COMMIT_MESSAGE;
@@ -142,31 +179,5 @@ export class SyncFlow {
     }
 
     return suggestion;
-  }
-
-  private async safePush(): Promise<void> {
-    try {
-      await this.ui.spin("Pushing...", () => this.git.push(false));
-      this.ui.success("Branch pushed successfully.");
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message.toLowerCase() : "";
-
-      if (message.includes(NO_UPSTREAM_ERROR) || message.includes("has no upstream")) {
-        await this.ui.spin("No upstream found — pushing with -u origin...", () =>
-          this.git.push(true),
-        );
-        this.ui.success("Branch pushed and upstream set.");
-        return;
-      }
-
-      if (message.includes("rejected") || message.includes("fetch first")) {
-        this.ui.error("Push rejected — the remote has new commits. Run a pull first.");
-        return;
-      }
-
-      const raw = err instanceof Error ? err.message : String(err);
-      this.ui.error(`Push failed: ${raw}`);
-      this.ui.info("Your commit is saved locally. Push manually with: git push");
-    }
   }
 }

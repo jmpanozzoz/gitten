@@ -25,6 +25,6 @@ class Gitten < Formula
   end
 
   test do
-    assert_match "gitten v#{version}", shell_output("#{bin}/gitten --version")
+    assert_equal "gitten v#{version}", shell_output("#{bin}/gitten --version").strip
   end
 end

@@ -1,26 +1,43 @@
 import { expect, mock, test } from "bun:test";
+import { GoBackSignal } from "../../src/core/domain/navigation";
 import { RevertCommit } from "../../src/core/revert-commit";
-import { GoBackSignal } from "../../src/ui/go-back";
 import { createGitMock } from "../mocks/git-client.mock";
 import { createUIMock } from "../mocks/ui.mock";
-
-mock.module("../../src/config/config", () => ({
-  readConfig: mock(() => Promise.resolve({})),
-  // Faithful to the real getLimits (defaults ⊕ config.limits) — Bun applies this
-  // module mock process-wide, so a fixed stub would corrupt other suites.
-  getLimits: (config: { limits?: Record<string, number> }) => ({
-    undoCommitLimit: 10,
-    cherryPickLogLimit: 30,
-    bisectLogLimit: 30,
-    revertLogLimit: 30,
-    ...(config?.limits ?? {}),
-  }),
-}));
 
 const COMMITS = [
   { hash: "abc1234", message: "feat: add login" },
   { hash: "def5678", message: "fix: header typo" },
 ];
+
+test("resumes a pending revert without asking for or reverting another commit", async () => {
+  const git = createGitMock({ getInProgressOperation: async () => "revert" });
+  const ui = createUIMock({ waitForConflictResolution: async () => true });
+  await new RevertCommit(git, ui).run();
+  expect(git.revertContinue).toHaveBeenCalledTimes(1);
+  expect(git.revertCommit).not.toHaveBeenCalled();
+  expect(ui.success).toHaveBeenCalledWith("Revert completed.");
+});
+
+test("keeps other pending operations untouched and reports non-conflict revert failures", async () => {
+  const busy = createGitMock({ getInProgressOperation: async () => "merge" });
+  const ui = createUIMock({
+    askSearchSelect: async () => "abc1234",
+    askConfirm: async () => true,
+  });
+  await new RevertCommit(busy, ui).run();
+  expect(ui.warn).toHaveBeenCalledWith("Finish the pending merge before reverting.");
+  expect(busy.revertCommit).not.toHaveBeenCalled();
+
+  const git = createGitMock({
+    getLog: async () => COMMITS,
+    revertCommit: async () => {
+      throw new Error("cannot create revert commit");
+    },
+  });
+  await expect(new RevertCommit(git, ui).run()).rejects.toThrow("cannot create revert commit");
+  expect(git.revertAbort).not.toHaveBeenCalled();
+  expect(ui.success).not.toHaveBeenCalled();
+});
 
 // ─── happy path ───────────────────────────────────────────────────────────────
 
@@ -105,6 +122,7 @@ test("proceeds when on a protected branch and user confirms", async () => {
 
 test("calls revertAbort when conflict occurs and user presses ESC", async () => {
   const git = createGitMock({
+    getInProgressOperation: mock().mockResolvedValueOnce(null).mockResolvedValue("revert"),
     getLog: mock(() => Promise.resolve(COMMITS)),
     revertCommit: mock(() => Promise.reject(new Error("conflict"))),
     getConflictedFiles: mock(() => Promise.resolve(["src/app.ts"])),
@@ -116,16 +134,17 @@ test("calls revertAbort when conflict occurs and user presses ESC", async () => 
   });
   const waitForResolution = mock(() => Promise.resolve(false)); // ESC
 
-  await new RevertCommit(git, ui, waitForResolution).run();
+  await new RevertCommit(git, ui, { waitForResolution }).run();
 
   expect(git.revertAbort).toHaveBeenCalledTimes(1);
 });
 
 test("calls revertContinue when conflict is resolved and user presses ENTER", async () => {
   const git = createGitMock({
+    getInProgressOperation: mock().mockResolvedValueOnce(null).mockResolvedValue("revert"),
     getLog: mock(() => Promise.resolve(COMMITS)),
     revertCommit: mock(() => Promise.reject(new Error("conflict"))),
-    getConflictedFiles: mock(() => Promise.resolve(["src/app.ts"])),
+    getConflictedFiles: mock().mockResolvedValueOnce(["src/app.ts"]).mockResolvedValueOnce([]),
     revertContinue: mock(() => Promise.resolve()),
     addAll: mock(() => Promise.resolve()),
   });
@@ -135,9 +154,9 @@ test("calls revertContinue when conflict is resolved and user presses ENTER", as
   });
   const waitForResolution = mock(() => Promise.resolve(true)); // ENTER
 
-  await new RevertCommit(git, ui, waitForResolution).run();
+  await new RevertCommit(git, ui, { waitForResolution }).run();
 
-  expect(git.addAll).toHaveBeenCalled();
+  expect(git.addAll).not.toHaveBeenCalled();
   expect(git.revertContinue).toHaveBeenCalledTimes(1);
 });
 

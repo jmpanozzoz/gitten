@@ -1,92 +1,119 @@
-import { stdinResolution } from "../utils/stdin-resolution";
+import { confirmAISend } from "./ai-consent";
 import { resolveConflict } from "./conflict-resolver";
 import type { AICommitSummarizer, AIConflictExplainer } from "./ports/ai.port";
-import type { IGitClient } from "./ports/git-client.port";
+import type { IGitClient, PullResult } from "./ports/git-client.port";
 import type { IUI } from "./ports/ui.port";
+
+type PullStrategy = "merge" | "rebase";
+
+interface PullFlowOptions {
+  waitForResolution?: () => Promise<boolean>;
+  aiSummarizer?: AICommitSummarizer;
+  aiConflictExplainer?: AIConflictExplainer;
+}
 
 export class PullFlow {
   constructor(
     private readonly git: IGitClient,
     private readonly ui: IUI,
-    private readonly waitForResolution: () => Promise<boolean> = stdinResolution,
-    private readonly aiSummarizer?: AICommitSummarizer,
-    private readonly aiConflictExplainer?: AIConflictExplainer,
+    private readonly options: PullFlowOptions = {},
   ) {}
 
   async run(): Promise<void> {
+    const currentOperation = await this.git.getInProgressOperation();
+    if (currentOperation === "merge" || currentOperation === "rebase") {
+      await this.handleConflict(currentOperation);
+      return;
+    }
+    if (currentOperation) {
+      this.ui.warn(`Finish the pending ${currentOperation} before pulling.`);
+      return;
+    }
+
     const remotes = await this.git.getRemotes();
     if (remotes.length === 0) {
       this.ui.info("No remote configured. Add one via Manage Remotes.");
       return;
     }
 
-    const strategy = await this.ui.askSelect<"merge" | "rebase">("Pull strategy:", [
+    const strategy = await this.ui.askSelect<PullStrategy>("Pull strategy:", [
       { value: "merge", label: "Merge (default)" },
       { value: "rebase", label: "Rebase — keeps history linear, avoids merge commits" },
     ]);
 
-    const doPull = strategy === "rebase" ? () => this.git.pullRebase() : () => this.git.pull();
-
-    let beforeHash: string | null = null;
-    if (this.aiSummarizer) {
-      try {
-        beforeHash = (await this.git.getLastCommit()).hash;
-      } catch {
-        /* empty repo */
-      }
+    const beforeHash = await this.headForSummary();
+    try {
+      const result = await this.ui.spin("Pulling latest changes...", () =>
+        strategy === "rebase" ? this.git.pullRebase() : this.git.pull(),
+      );
+      await this.reportPull(result, beforeHash);
+    } catch (error) {
+      await this.handleFailure(strategy, error);
     }
+  }
+
+  private async headForSummary(): Promise<string | null> {
+    if (!this.options.aiSummarizer) return null;
+    const previous = await this.git.getLastCommit().catch(() => null);
+    return previous?.hash ?? null;
+  }
+
+  private async reportPull(
+    { filesChanged, headChanged }: PullResult,
+    beforeHash: string | null,
+  ): Promise<void> {
+    if (filesChanged === 0 && !headChanged) {
+      this.ui.info("Already up to date.");
+      return;
+    }
+    this.ui.success(
+      filesChanged > 0
+        ? `Pulled successfully. ${filesChanged} file(s) changed.`
+        : "Pulled successfully. HEAD moved without tracked file changes.",
+    );
+    const summarize = this.options.aiSummarizer;
+    if (!summarize || !beforeHash) return;
 
     try {
-      const result = await this.ui.spin("Pulling latest changes...", doPull);
-      if (result.filesChanged === 0) {
-        this.ui.info("Already up to date.");
-      } else {
-        this.ui.success(`Pulled successfully. ${result.filesChanged} file(s) changed.`);
-        if (this.aiSummarizer && beforeHash) {
-          try {
-            const newCommits = await this.git.getLogSince(beforeHash);
-            if (newCommits.length > 0) {
-              const summary = await this.ui.spin("Summarizing changes...", () =>
-                this.aiSummarizer!(newCommits.map((c) => c.message)),
-              );
-              if (summary) this.ui.info(`✨ What changed:\n${summary}`);
-            }
-          } catch {
-            /* non-blocking */
-          }
-        }
-      }
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message.toLowerCase() : "";
-
-      if (
-        message.includes("no tracking") ||
-        message.includes("no upstream") ||
-        message.includes("has no upstream")
-      ) {
-        this.ui.error("This branch has no upstream. Push it first with Sync.");
+      const commits = await this.git.getLogSince(beforeHash);
+      if (commits.length === 0) return;
+      if (!(await confirmAISend(this.ui, "the new commit messages for a pull summary", summarize)))
         return;
-      }
-
-      if (message.includes("conflict")) {
-        await resolveConflict(
-          this.git,
-          this.ui,
-          {
-            label: "Merge",
-            onContinue: async () => {
-              await this.git.addAll();
-              await this.git.mergeContinue();
-            },
-            onAbort: () => this.git.mergeAbort(),
-            explain: this.aiConflictExplainer,
-          },
-          this.waitForResolution,
-        );
-        return;
-      }
-
-      throw err;
+      const summary = await this.ui.spin("Summarizing changes...", () =>
+        summarize(commits.map((commit) => commit.message)),
+      );
+      if (summary) this.ui.info(`✨ What changed:\n${summary}`);
+    } catch {
+      // The pull has already completed.
     }
+  }
+
+  private async handleFailure(strategy: PullStrategy, error: unknown): Promise<void> {
+    const message = error instanceof Error ? error.message.toLowerCase() : "";
+    if (message.includes("no tracking") || message.includes("no upstream")) {
+      this.ui.error("This branch has no upstream. Push it first with Sync.");
+      return;
+    }
+    if ((await this.git.getInProgressOperation()) === strategy) {
+      await this.handleConflict(strategy);
+      return;
+    }
+    throw error;
+  }
+
+  private async handleConflict(strategy: PullStrategy): Promise<void> {
+    const rebase = strategy === "rebase";
+    await resolveConflict(
+      this.git,
+      this.ui,
+      {
+        operation: strategy,
+        label: rebase ? "Rebase" : "Merge",
+        onContinue: () => (rebase ? this.git.rebaseContinue() : this.git.mergeContinue()),
+        onAbort: () => (rebase ? this.git.rebaseAbort() : this.git.mergeAbort()),
+        explain: this.options.aiConflictExplainer,
+      },
+      this.options.waitForResolution,
+    );
   }
 }

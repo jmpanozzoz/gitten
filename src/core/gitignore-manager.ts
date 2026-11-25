@@ -1,3 +1,5 @@
+import { confirmAISend } from "./ai-consent";
+import { GoBackSignal } from "./domain/navigation";
 import type { AIGitignoreSuggester } from "./ports/ai.port";
 import type { IGitClient } from "./ports/git-client.port";
 import type { IUI } from "./ports/ui.port";
@@ -85,12 +87,16 @@ export class GitignoreManager {
     if (action === "add") return this.addPattern();
     if (action === "template") return this.applyTemplate();
     if (action === "ai") return this.suggestWithAI();
-    if (action === "view") return this.viewCurrent();
+    return this.viewCurrent();
   }
 
   private async addPattern(): Promise<void> {
     const pattern = await this.ui.askText("Pattern to ignore:", ".env");
     if (!pattern.trim()) return;
+    if (!isPattern(pattern)) {
+      this.ui.warn("Enter one pattern per line. Escape a leading # to match it literally.");
+      return;
+    }
 
     const lines = await this.git.readGitignore();
 
@@ -99,23 +105,51 @@ export class GitignoreManager {
       return;
     }
 
-    await this.git.writeGitignore([...lines, pattern]);
+    const previouslyIgnored = new Set(await this.git.getIgnoredTrackedFiles());
+    await this.git.writeGitignore([...lines, pattern], lines);
     this.ui.success(`Added "${pattern}" to .gitignore.`);
 
-    await this.untrackMatching(pattern);
+    try {
+      await this.untrackMatching(pattern, previouslyIgnored);
+    } catch (error) {
+      if (error instanceof GoBackSignal) throw error;
+      const detail = error instanceof Error ? error.message : String(error);
+      this.ui.error(
+        `The pattern was saved, but removing files from the index did not complete.\n${detail}`,
+      );
+    }
   }
 
-  private async untrackMatching(pattern: string): Promise<void> {
-    const tracked = await this.git.getTrackedFiles();
-    const glob = new Bun.Glob(pattern);
-    const matches = tracked.filter((f) => glob.match(f));
-
+  private async untrackMatching(
+    pattern: string,
+    previouslyIgnored: ReadonlySet<string>,
+  ): Promise<void> {
+    const readMatches = async () =>
+      (await this.git.getIgnoredTrackedFiles())
+        .filter((file) => !previouslyIgnored.has(file))
+        .sort();
+    const matches = await readMatches();
     if (matches.length === 0) return;
+    const preview = await this.git.getStagedPathDiff(matches);
+    this.ui.info(
+      `Paths to remove from the index:\n${matches.map((path) => `  ${JSON.stringify(path)}`).join("\n")}`,
+    );
 
     const confirm = await this.ui.askConfirm(
       `${matches.length} tracked file(s) match "${pattern}". Remove from Git index (git rm --cached)?`,
+      false,
     );
     if (!confirm) return;
+    if (
+      (await this.git.getInProgressOperation()) ||
+      JSON.stringify(await readMatches()) !== JSON.stringify(matches) ||
+      (await this.git.getStagedPathDiff(matches)) !== preview
+    ) {
+      this.ui.warn(
+        "The ignore matches or Git index changed. The pattern was saved and no files were removed.",
+      );
+      return;
+    }
 
     await this.git.untrackFiles(matches);
     this.ui.success(`Removed ${matches.length} file(s) from Git index.`);
@@ -141,20 +175,29 @@ export class GitignoreManager {
       return;
     }
 
-    await this.git.writeGitignore([...existing, ...toAdd]);
+    await this.git.writeGitignore(
+      insertTemplate(existing, TEMPLATES[templateName], toAdd),
+      existing,
+    );
     this.ui.success(
       `Added ${toAdd.length} new entr${toAdd.length === 1 ? "y" : "ies"} from ${templateName} template.`,
     );
   }
 
   private async suggestWithAI(): Promise<void> {
+    const suggest = this.aiSuggester;
+    if (
+      !suggest ||
+      !(await confirmAISend(this.ui, "tracked filenames and ignore patterns", suggest))
+    )
+      return;
     const [tracked, existing] = await Promise.all([
       this.git.getTrackedFiles(),
       this.git.readGitignore(),
     ]);
 
     const suggestions = await this.ui.spin("Asking AI for suggestions...", () =>
-      this.aiSuggester!(tracked, existing),
+      suggest(tracked, existing),
     );
 
     if (suggestions.length === 0) {
@@ -163,10 +206,10 @@ export class GitignoreManager {
     }
 
     const existingSet = new Set(existing);
-    const newOnly = suggestions.filter((s) => !existingSet.has(s));
+    const newOnly = [...new Set(suggestions)].filter((s) => isPattern(s) && !existingSet.has(s));
 
     if (newOnly.length === 0) {
-      this.ui.info("All AI suggestions are already in .gitignore.");
+      this.ui.info("No new valid AI patterns to add.");
       return;
     }
 
@@ -177,7 +220,7 @@ export class GitignoreManager {
 
     if (selected.length === 0) return;
 
-    await this.git.writeGitignore([...existing, ...selected]);
+    await this.git.writeGitignore([...existing, ...selected], existing);
     this.ui.success(`Added ${selected.length} pattern(s) to .gitignore.`);
   }
 
@@ -194,4 +237,22 @@ export class GitignoreManager {
       `.gitignore — ${entries.length} entr${entries.length === 1 ? "y" : "ies"}:\n${entries.map((e) => `  ${e}`).join("\n")}`,
     );
   }
+}
+
+function isPattern(pattern: string): boolean {
+  return Boolean(pattern.trim()) && !pattern.startsWith("#") && !/[\0\r\n]/u.test(pattern);
+}
+
+function insertTemplate(existing: string[], template: string[], additions: string[]): string[] {
+  const result = [...existing];
+  const present = new Set(existing);
+  const missing = new Set(additions);
+  for (const [index, line] of template.entries()) {
+    if (!missing.has(line)) continue;
+    // Keep a missing exclusion ahead of any later exception already in the file.
+    const next = template.slice(index + 1).find((entry) => present.has(entry));
+    const at = next === undefined ? result.length : result.lastIndexOf(next);
+    result.splice(at, 0, line);
+  }
+  return result;
 }

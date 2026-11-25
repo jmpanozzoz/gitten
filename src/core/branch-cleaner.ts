@@ -1,6 +1,10 @@
-import type { IGitClient } from "./ports/git-client.port";
+import { GoBackSignal } from "./domain/navigation";
+import { redactRemoteCredentials } from "./domain/remote-display";
+import type { IGitClient, TrackingBranch } from "./ports/git-client.port";
 import type { IUI } from "./ports/ui.port";
 import { PROTECTED_BRANCHES } from "./protected-branches";
+
+type BranchDeletion = Pick<TrackingBranch, "name"> & { target?: TrackingBranch };
 
 export class BranchCleaner {
   constructor(
@@ -9,91 +13,135 @@ export class BranchCleaner {
   ) {}
 
   async run(): Promise<void> {
-    const { all: local, current } = await this.git.getBranches();
-    const remote = await this.git.getRemoteBranches();
-
-    const localSet = new Set(local);
-    const localCandidates = local.filter((b) => b !== current);
-    const remoteOnlyCandidates = remote.filter((b) => !localSet.has(b) && b !== current);
-
-    if (localCandidates.length === 0 && remoteOnlyCandidates.length === 0) {
-      this.ui.info("No branches available to delete.");
-      return;
-    }
-
-    const labelled = await this.ui.spin("Loading branch info...", async () => {
-      const localLabels = await Promise.all(
-        localCandidates.map(async (b) => ({
-          value: b,
-          label: `${b}  (${await this.git.getBranchLastActivity(b)})`,
-        })),
-      );
-      const remoteLabels = remoteOnlyCandidates.map((b) => ({
-        value: `remote:${b}`,
-        label: `${b}  [remote only]`,
-      }));
-      return [...localLabels, ...remoteLabels];
-    });
-
-    const selected = await this.ui.askSearchMultiSelect("Select branches to delete:", labelled);
-    if (selected.length === 0) return;
-
-    const selectedProtected = selected
-      .map((s) => (s.startsWith("remote:") ? s.slice(7) : s))
-      .filter((b) => PROTECTED_BRANCHES.has(b));
-
-    if (selectedProtected.length > 0) {
-      const confirmed = await this.ui.askConfirm(
-        `⚠️  You selected protected branch(es): ${selectedProtected.join(", ")}. Delete anyway?`,
-      );
-      if (!confirmed) return;
-    }
-
-    const hasLocalSelected = selected.some((s) => !s.startsWith("remote:"));
-    const deleteRemote = hasLocalSelected
-      ? await this.ui.askConfirm("Also delete from origin?")
-      : true;
-
-    let localDeleted = 0;
-    let remoteDeleted = 0;
-    const warnings: string[] = [];
-
-    for (const entry of selected) {
-      const isRemoteOnly = entry.startsWith("remote:");
-      const branch = isRemoteOnly ? entry.slice(7) : entry;
-
-      if (!isRemoteOnly) {
-        try {
-          await this.ui.spin(`Removing local "${branch}"...`, () =>
-            this.git.deleteLocalBranchForce(branch),
-          );
-          localDeleted++;
-        } catch {
-          warnings.push(`Could not delete local branch "${branch}" — skipping.`);
-        }
+    const selected = await this.selectBranches();
+    if (selected.length === 0 || !(await this.confirmProtected(selected))) return;
+    let deleted = 0;
+    try {
+      for (const branch of selected) {
+        const removed = branch.target
+          ? await this.deleteRemote(branch.target)
+          : await this.deleteLocal(branch.name);
+        if (removed) deleted++;
       }
-
-      if (isRemoteOnly || deleteRemote) {
-        try {
-          await this.ui.spin(`Removing remote "${branch}"...`, () =>
-            this.git.deleteRemoteBranch(branch),
-          );
-          remoteDeleted++;
-        } catch {
-          warnings.push(`Could not delete remote branch "${branch}" — skipping.`);
-        }
-      }
+    } catch (error) {
+      if (deleted > 0)
+        this.ui.warn(`Deleted ${deleted} of ${selected.length} selected branch(es).`);
+      throw error;
     }
-
-    for (const w of warnings) this.ui.warn(w);
-
-    const parts: string[] = [];
-    if (localDeleted > 0) parts.push(`${localDeleted} local`);
-    if (remoteDeleted > 0) parts.push(`${remoteDeleted} remote`);
-    this.ui.success(`${parts.join(" + ")} branch(es) deleted.`);
+    if (deleted === 0) this.ui.info("No branches were deleted.");
+    else if (deleted === selected.length)
+      this.ui.success(`Deleted all ${deleted} selected branch(es).`);
+    else this.ui.warn(`Deleted ${deleted} of ${selected.length} selected branch(es).`);
   }
 
-  filterCandidates(all: string[], current: string): string[] {
-    return all.filter((b) => b !== current);
+  private async selectBranches(): Promise<BranchDeletion[]> {
+    const [{ all, current }, tracking] = await Promise.all([
+      this.git.getBranches(),
+      this.git.getTrackingBranches(),
+    ]);
+    const local = all.filter((name) => name !== current);
+    if (local.length === 0 && tracking.length === 0) {
+      this.ui.info("No branches available to delete.");
+      return [];
+    }
+    const options = await this.ui.spin("Loading branch info...", async () => [
+      ...(await Promise.all(
+        local.map(async (name) => ({
+          value: { name } satisfies BranchDeletion,
+          label: `${name} · local · ${await this.git.getBranchLastActivity(name)}`,
+        })),
+      )),
+      ...tracking.map((target) => ({
+        value: { name: target.name, target },
+        label: `${target.remote}/${target.name} · remote · ${target.head.slice(0, 12)}`,
+      })),
+    ]);
+    return this.ui.askSearchMultiSelect<BranchDeletion>("Select branches to delete:", options);
+  }
+
+  private async confirmProtected(selected: BranchDeletion[]): Promise<boolean> {
+    const names = selected
+      .filter(({ name }) => PROTECTED_BRANCHES.has(name))
+      .map(({ name, target }) => (target ? `${target.remote}/${name}` : name));
+    if (names.length === 0) return true;
+    return this.ui.askConfirm(`Delete protected branch(es) ${names.join(", ")}?`, false);
+  }
+
+  private async deleteLocal(branch: string): Promise<boolean> {
+    try {
+      await this.ui.spin(`Removing local "${branch}"...`, () => this.git.deleteLocalBranch(branch));
+      return true;
+    } catch (error) {
+      if (!(error instanceof Error) || !error.message.includes("not fully merged")) {
+        this.ui.warn(`Could not delete local branch "${branch}".`);
+        return false;
+      }
+      return this.forceUnmerged(branch);
+    }
+  }
+
+  private async forceUnmerged(branch: string): Promise<boolean> {
+    const head = await this.localHead(branch);
+    if (!head) {
+      this.ui.warn(`Could not verify local branch "${branch}".`);
+      return false;
+    }
+    if (
+      !(await this.ui.askConfirm(
+        `"${branch}" at ${head.slice(0, 12)} has unmerged commits. Force deletion?`,
+        false,
+      ))
+    )
+      return false;
+    if ((await this.localHead(branch)) !== head) {
+      this.ui.warn(`Local branch "${branch}" changed. Review it again before deleting.`);
+      return false;
+    }
+    try {
+      await this.ui.spin(`Removing unmerged branch "${branch}"...`, () =>
+        this.git.deleteLocalBranchForce(branch),
+      );
+      return true;
+    } catch {
+      this.ui.warn(`Could not force-delete local branch "${branch}".`);
+      return false;
+    }
+  }
+
+  private async localHead(branch: string): Promise<string | undefined> {
+    const log = await this.git.getLog(`refs/heads/${branch}`, 1).catch(() => []);
+    return log[0]?.hash;
+  }
+
+  private async deleteRemote(target: TrackingBranch): Promise<boolean> {
+    const label = `${target.remote}/${target.name}`;
+    try {
+      const plan = await this.git.previewRemoteBranchDeletion(target);
+      const name = plan.destination.slice("refs/heads/".length);
+      if (name !== target.name && PROTECTED_BRANCHES.has(name)) {
+        if (
+          !(await this.ui.askConfirm(
+            `Delete protected remote branch ${target.remote}/${name}?`,
+            false,
+          ))
+        )
+          return false;
+      }
+      const details = plan.urls.map(redactRemoteCredentials).join("\n");
+      this.ui.info(
+        `${target.remote}:${plan.destination} at ${target.head.slice(0, 12)}\n${details}`,
+      );
+      if (!(await this.ui.askConfirm(`Delete ${plan.destination} from ${target.remote}?`, false)))
+        return false;
+      await this.ui.spin(`Removing ${label}...`, () => this.git.deleteRemoteBranch(plan));
+      return true;
+    } catch (error) {
+      if (error instanceof GoBackSignal) throw error;
+      const detail = error instanceof Error ? error.message : String(error);
+      this.ui.warn(
+        `Deletion for ${label} could not be confirmed. Check the remote before retrying.\n${detail}`,
+      );
+      return false;
+    }
   }
 }

@@ -1,6 +1,6 @@
 import { expect, mock, test } from "bun:test";
 import { SyncFlow } from "../../src/core/sync-flow";
-import { createGitMock } from "../mocks/git-client.mock";
+import { createGitMock, makeCommitSelection } from "../mocks/git-client.mock";
 import { createUIMock } from "../mocks/ui.mock";
 
 const FILES = [{ path: "src/app.ts", status: "M" }];
@@ -16,10 +16,10 @@ const SELECT_ALL = { askMultiSelect: mock(() => Promise.resolve(["src/app.ts"]))
 function makeFlow(aiReviewer?: (diff: string) => Promise<string[]>) {
   const git = createGitMock({
     getStatus: mock(() => Promise.resolve(DIRTY_STATUS)),
-    addFiles: mock(() => Promise.resolve()),
-    getStagedDiff: mock(() => Promise.resolve("+const x = 1;")),
-    commit: mock(() => Promise.resolve()),
-    push: mock(() => Promise.resolve()),
+    previewSelectedCommit: mock(async (paths) =>
+      makeCommitSelection(paths, { diff: "+const x = 1;" }),
+    ),
+    pushBranch: mock(() => Promise.resolve()),
   });
   const ui = createUIMock({
     ...SELECT_ALL,
@@ -98,7 +98,7 @@ test("proceeds to commit after review regardless of findings", async () => {
 
   await flow.run();
 
-  expect(git.commit).toHaveBeenCalledTimes(1);
+  expect(git.commitSelection).toHaveBeenCalledTimes(1);
 });
 
 // ─── review AI failure ────────────────────────────────────────────────────────
@@ -113,5 +113,5 @@ test("warns and proceeds when AI reviewer throws", async () => {
   await flow.run();
 
   expect(ui.warn).toHaveBeenCalledWith(expect.stringContaining("API timeout"));
-  expect(git.commit).toHaveBeenCalledTimes(1);
+  expect(git.commitSelection).toHaveBeenCalledTimes(1);
 });

@@ -1,36 +1,20 @@
 import { expect, mock, test } from "bun:test";
+import { resolveAIConnection } from "../../src/config/config";
+import { GoBackSignal } from "../../src/core/domain/navigation";
 import { Settings } from "../../src/core/settings";
-import { GoBackSignal } from "../../src/ui/go-back";
 import { createUIMock } from "../mocks/ui.mock";
 
 const MOCK_READ = mock(() => Promise.resolve({}));
 const MOCK_WRITE = mock(() => Promise.resolve());
 const MOCK_TEST_CONNECTION = mock(() => Promise.resolve());
 
-mock.module("../../src/config/config", () => ({
-  readGlobalConfig: MOCK_READ,
-  writeConfig: MOCK_WRITE,
-  getActiveAIConfig: mock(() => Promise.resolve(null)),
-  // Faithful to the real getLimits (defaults ⊕ config.limits) so this module mock,
-  // which Bun applies process-wide, doesn't corrupt other suites' real assertions.
-  getLimits: (config: { limits?: Record<string, number> }) => ({
-    undoCommitLimit: 10,
-    cherryPickLogLimit: 30,
-    bisectLogLimit: 30,
-    revertLogLimit: 30,
-    ...(config?.limits ?? {}),
-  }),
-  DEFAULT_LIMITS: {
-    undoCommitLimit: 10,
-    cherryPickLogLimit: 30,
-    bisectLogLimit: 30,
-    revertLogLimit: 30,
-  },
-}));
-
-mock.module("../../src/core/ai-suggester", () => ({
-  testAIConnection: MOCK_TEST_CONNECTION,
-}));
+const dependencies = {
+  read: MOCK_READ,
+  readRepository: async () => ({}),
+  write: MOCK_WRITE,
+  resolveConnection: resolveAIConnection,
+  testConnection: MOCK_TEST_CONNECTION,
+};
 
 // ─── top-level menu ───────────────────────────────────────────────────────────
 
@@ -40,7 +24,7 @@ test("propagates GoBackSignal when user presses ESC on top-level menu", async ()
     askSelect: mock(() => Promise.reject(new GoBackSignal())),
   });
 
-  await expect(new Settings(ui).run()).rejects.toBeInstanceOf(GoBackSignal);
+  await expect(new Settings(ui, dependencies).run()).rejects.toBeInstanceOf(GoBackSignal);
   expect(MOCK_WRITE).not.toHaveBeenCalled();
 });
 
@@ -52,13 +36,12 @@ test("saves full config when user fills in all fields (openai provider)", async 
       .mockResolvedValueOnce("ai") // top-level menu
       .mockResolvedValueOnce("configure") // ai action
       .mockResolvedValueOnce("openai"), // provider
-    askText: mock()
-      .mockResolvedValueOnce("gpt-4o-mini") // model
-      .mockResolvedValueOnce("sk-test-key"), // api key
+    askText: mock().mockResolvedValueOnce("gpt-4o-mini"),
+    askSecret: mock().mockResolvedValueOnce("sk-test-key"),
     askConfirm: mock(() => Promise.resolve(true)),
   });
 
-  await new Settings(ui).run();
+  await new Settings(ui, dependencies).run();
 
   expect(MOCK_WRITE).toHaveBeenCalledWith(
     expect.objectContaining({
@@ -90,13 +73,12 @@ test("keeps the existing API key when left blank and never displays it in full",
       .mockResolvedValueOnce("ai") // top-level menu
       .mockResolvedValueOnce("configure") // ai action
       .mockResolvedValueOnce("openai"), // provider
-    askText: mock()
-      .mockResolvedValueOnce("gpt-4o-mini") // model
-      .mockResolvedValueOnce("   "), // API key left blank → keep existing
+    askText: mock().mockResolvedValueOnce("gpt-4o-mini"),
+    askSecret: mock().mockResolvedValueOnce("   "),
     askConfirm: mock(() => Promise.resolve(false)),
   });
 
-  await new Settings(ui).run();
+  await new Settings(ui, dependencies).run();
 
   // The stored key is preserved untouched.
   expect(MOCK_WRITE).toHaveBeenCalledWith(
@@ -105,17 +87,7 @@ test("keeps the existing API key when left blank and never displays it in full",
     }),
   );
 
-  // The key is only ever shown masked — the full secret must never be printed.
-  const infoOutput = (ui.info as ReturnType<typeof mock>).mock.calls
-    .map((c) => String(c[0]))
-    .join("\n");
-  expect(infoOutput).toContain("sk-…7890");
-  expect(infoOutput).not.toContain("sk-secret-1234567890");
-
-  // And it must never be pre-filled into the prompt as an initial value.
-  for (const call of (ui.askText as ReturnType<typeof mock>).mock.calls) {
-    expect(call[2]).not.toBe("sk-secret-1234567890");
-  }
+  expect(ui.askSecret).toHaveBeenCalledWith("API key (leave blank to keep current):");
 });
 
 test("saves config without API key for Ollama (local, no key required)", async () => {
@@ -128,7 +100,7 @@ test("saves config without API key for Ollama (local, no key required)", async (
     askConfirm: mock(() => Promise.resolve(true)),
   });
 
-  await new Settings(ui).run();
+  await new Settings(ui, dependencies).run();
 
   expect(MOCK_WRITE).toHaveBeenCalledWith(
     expect.objectContaining({
@@ -150,12 +122,12 @@ test("saves config with custom base URL when Custom provider selected", async ()
       .mockResolvedValueOnce("custom"),
     askText: mock()
       .mockResolvedValueOnce("https://my-llm.example.com/v1")
-      .mockResolvedValueOnce("my-model")
-      .mockResolvedValueOnce("my-api-key"),
+      .mockResolvedValueOnce("my-model"),
+    askSecret: mock().mockResolvedValueOnce("my-api-key"),
     askConfirm: mock(() => Promise.resolve(true)),
   });
 
-  await new Settings(ui).run();
+  await new Settings(ui, dependencies).run();
 
   expect(MOCK_WRITE).toHaveBeenCalledWith(
     expect.objectContaining({
@@ -181,7 +153,7 @@ test("disables AI when user chooses disable", async () => {
     askSelect: mock().mockResolvedValueOnce("ai").mockResolvedValueOnce("disable"),
   });
 
-  await new Settings(ui).run();
+  await new Settings(ui, dependencies).run();
 
   expect(MOCK_WRITE).toHaveBeenCalledWith(
     expect.objectContaining({ ai: expect.objectContaining({ enabled: false }) }),
@@ -197,7 +169,7 @@ test("enables AI when user chooses enable", async () => {
     askSelect: mock().mockResolvedValueOnce("ai").mockResolvedValueOnce("enable"),
   });
 
-  await new Settings(ui).run();
+  await new Settings(ui, dependencies).run();
 
   expect(MOCK_WRITE).toHaveBeenCalledWith(
     expect.objectContaining({ ai: expect.objectContaining({ enabled: true }) }),
@@ -220,7 +192,7 @@ test("shows Enable option when AI is configured but disabled", async () => {
       }),
   });
 
-  await new Settings(ui).run();
+  await new Settings(ui, dependencies).run();
 });
 
 test("shows Disable option when AI is enabled", async () => {
@@ -239,7 +211,7 @@ test("shows Disable option when AI is enabled", async () => {
       }),
   });
 
-  await new Settings(ui).run();
+  await new Settings(ui, dependencies).run();
 });
 
 test("shows only Configure option when no config exists yet", async () => {
@@ -253,11 +225,12 @@ test("shows only Configure option when no config exists yet", async () => {
         return Promise.resolve("configure");
       })
       .mockResolvedValueOnce("openai"),
-    askText: mock().mockResolvedValueOnce("gpt-4o").mockResolvedValueOnce("sk-key"),
+    askText: mock().mockResolvedValueOnce("gpt-4o"),
+    askSecret: mock().mockResolvedValueOnce("sk-key"),
     askConfirm: mock(() => Promise.resolve(false)),
   });
 
-  await new Settings(ui).run();
+  await new Settings(ui, dependencies).run();
 });
 
 // ─── connection test ──────────────────────────────────────────────────────────
@@ -270,11 +243,12 @@ test("runs connection test and shows success when user opts in", async () => {
       .mockResolvedValueOnce("ai")
       .mockResolvedValueOnce("configure")
       .mockResolvedValueOnce("openai"),
-    askText: mock().mockResolvedValueOnce("gpt-4o").mockResolvedValueOnce("sk-key"),
+    askText: mock().mockResolvedValueOnce("gpt-4o"),
+    askSecret: mock().mockResolvedValueOnce("sk-key"),
     askConfirm: mock(() => Promise.resolve(true)),
   });
 
-  await new Settings(ui).run();
+  await new Settings(ui, dependencies).run();
 
   expect(MOCK_TEST_CONNECTION).toHaveBeenCalledTimes(1);
   expect(ui.success).toHaveBeenCalledWith("Connection successful!");
@@ -290,11 +264,12 @@ test("shows warning when connection test fails", async () => {
       .mockResolvedValueOnce("ai")
       .mockResolvedValueOnce("configure")
       .mockResolvedValueOnce("openai"),
-    askText: mock().mockResolvedValueOnce("gpt-4o").mockResolvedValueOnce("bad-key"),
+    askText: mock().mockResolvedValueOnce("gpt-4o"),
+    askSecret: mock().mockResolvedValueOnce("bad-key"),
     askConfirm: mock(() => Promise.resolve(true)),
   });
 
-  await new Settings(ui).run();
+  await new Settings(ui, dependencies).run();
 
   expect(ui.warn).toHaveBeenCalledWith(expect.stringContaining("Invalid API key"));
   expect(ui.info).toHaveBeenCalledWith(expect.stringContaining("may not work"));
@@ -307,11 +282,12 @@ test("skips connection test when user declines", async () => {
       .mockResolvedValueOnce("ai")
       .mockResolvedValueOnce("configure")
       .mockResolvedValueOnce("openai"),
-    askText: mock().mockResolvedValueOnce("gpt-4o").mockResolvedValueOnce("sk-key"),
+    askText: mock().mockResolvedValueOnce("gpt-4o"),
+    askSecret: mock().mockResolvedValueOnce("sk-key"),
     askConfirm: mock().mockResolvedValueOnce(true).mockResolvedValueOnce(false),
   });
 
-  await new Settings(ui).run();
+  await new Settings(ui, dependencies).run();
 
   expect(MOCK_TEST_CONNECTION).not.toHaveBeenCalled();
 });
@@ -329,7 +305,7 @@ test("saves updated limits when user enters valid values", async () => {
       .mockResolvedValueOnce("25"), // revert limit
   });
 
-  await new Settings(ui).run();
+  await new Settings(ui, dependencies).run();
 
   expect(MOCK_WRITE).toHaveBeenCalledWith(
     expect.objectContaining({
@@ -354,7 +330,7 @@ test("keeps current value when user enters invalid input for a limit", async () 
       .mockResolvedValueOnce("30"),
   });
 
-  await new Settings(ui).run();
+  await new Settings(ui, dependencies).run();
 
   expect(MOCK_WRITE).toHaveBeenCalledWith(
     expect.objectContaining({
@@ -373,7 +349,7 @@ test("rejects values above 500 and keeps current limit", async () => {
       .mockResolvedValueOnce("30"),
   });
 
-  await new Settings(ui).run();
+  await new Settings(ui, dependencies).run();
 
   expect(MOCK_WRITE).toHaveBeenCalledWith(
     expect.objectContaining({
@@ -400,7 +376,7 @@ test("saves the current AI config as a named profile", async () => {
     askText: mock(() => Promise.resolve("work")),
   });
 
-  await new Settings(ui).run();
+  await new Settings(ui, dependencies).run();
 
   expect(MOCK_WRITE).toHaveBeenCalledWith(
     expect.objectContaining({
@@ -432,7 +408,7 @@ test("switching a profile loads it into the active config and enables AI", async
       .mockResolvedValueOnce("groq"),
   });
 
-  await new Settings(ui).run();
+  await new Settings(ui, dependencies).run();
 
   expect(MOCK_WRITE).toHaveBeenCalledWith(
     expect.objectContaining({
@@ -459,11 +435,147 @@ test("removes the selected profile(s)", async () => {
     askMultiSelect: mock(() => Promise.resolve(["work"])),
   });
 
-  await new Settings(ui).run();
+  await new Settings(ui, dependencies).run();
 
   expect(MOCK_WRITE).toHaveBeenCalledWith(
     expect.objectContaining({
       aiProfiles: { home: expect.objectContaining({ provider: "groq" }) },
     }),
+  );
+});
+
+test("effective settings identify user, repository and default values without exposing credentials", async () => {
+  MOCK_WRITE.mockClear();
+  const ui = createUIMock({ askSelect: async () => "effective" });
+  await new Settings(ui, {
+    ...dependencies,
+    read: async () => ({
+      limits: { undoCommitLimit: 20, cherryPickLogLimit: 45 },
+      branchPrefixes: ["work"],
+      ai: {
+        enabled: true,
+        model: "test-model",
+        baseUrl: "https://example.test/v1",
+        apiKey: "never-display-this",
+      },
+    }),
+    readRepository: async () => ({ limits: { cherryPickLogLimit: 99 }, branchPrefixes: [] }),
+  }).run();
+  expect(ui.info).toHaveBeenCalledWith(
+    expect.stringContaining("Undo history: 20 (user configuration)"),
+  );
+  expect(ui.info).toHaveBeenCalledWith(
+    expect.stringContaining("Cherry-pick history: 99 (.gittenrc)"),
+  );
+  expect(ui.info).toHaveBeenCalledWith(
+    expect.stringContaining("Bisect history: 30 (built-in default)"),
+  );
+  expect(ui.info).toHaveBeenCalledWith(
+    expect.stringContaining("Branch prefixes: feat, fix, hotfix, chore, docs (built-in default)"),
+  );
+  expect(ui.info).not.toHaveBeenCalledWith(expect.stringContaining("never-display-this"));
+  expect(MOCK_WRITE).not.toHaveBeenCalled();
+});
+
+test("editing a custom endpoint retries invalid input and does not reuse credentials for a new endpoint", async () => {
+  const existing = { ...FULL_AI, provider: "custom", baseUrl: "https://old.example.test/v1" };
+  const write = mock(async () => {});
+  const ui = createUIMock({
+    askSelect: mock()
+      .mockResolvedValueOnce("ai")
+      .mockResolvedValueOnce("configure")
+      .mockResolvedValue("custom"),
+    askText: mock()
+      .mockResolvedValueOnce("https://user:password@example.test/v1")
+      .mockResolvedValueOnce("https://new.example.test/v1/")
+      .mockResolvedValueOnce("model"),
+    askSecret: mock().mockResolvedValue(" "),
+    askConfirm: mock().mockResolvedValue(false),
+  });
+  await new Settings(ui, { ...dependencies, read: async () => ({ ai: existing }), write }).run();
+  expect(ui.askText).toHaveBeenCalledWith(
+    "Base URL:",
+    "https://api.example.com/v1",
+    existing.baseUrl,
+  );
+  expect(ui.warn).toHaveBeenCalledWith(expect.stringContaining("without credentials"));
+  expect(ui.askSecret).toHaveBeenCalledWith("API key:");
+  expect(write).toHaveBeenCalledWith(
+    expect.objectContaining({
+      ai: expect.objectContaining({
+        baseUrl: "https://new.example.test/v1",
+        apiKey: "",
+        enabled: false,
+      }),
+    }),
+  );
+});
+
+test("an invalid connection or non-Error failure never reports a successful connection test", async () => {
+  for (const connection of [null, FULL_AI]) {
+    const testConnection = mock().mockRejectedValue("offline");
+    const ui = createUIMock({
+      askSelect: mock()
+        .mockResolvedValueOnce("ai")
+        .mockResolvedValueOnce("configure")
+        .mockResolvedValue("openai"),
+      askText: mock().mockResolvedValue("model"),
+      askSecret: mock().mockResolvedValue(""),
+      askConfirm: mock().mockResolvedValue(true),
+    });
+    await new Settings(ui, {
+      ...dependencies,
+      resolveConnection: () => connection,
+      testConnection,
+    }).run();
+    expect(testConnection).toHaveBeenCalledTimes(connection ? 1 : 0);
+    expect(ui.warn).toHaveBeenCalledWith(
+      connection ? "Connection failed: unknown error" : "Connection failed: Invalid AI connection",
+    );
+    expect(ui.success).not.toHaveBeenCalledWith("Connection successful!");
+  }
+});
+
+test("ignores unavailable providers and profiles and does not write when selection is empty", async () => {
+  for (const [action, choice] of [
+    ["configure", "missing"],
+    ["switch", "constructor"],
+    ["remove", ""],
+    ["save", ""],
+  ]) {
+    const write = mock(async () => {});
+    const ui = createUIMock({
+      askSelect: mock()
+        .mockResolvedValueOnce("ai")
+        .mockResolvedValueOnce(action)
+        .mockResolvedValue(choice),
+      askText: mock().mockResolvedValue("  "),
+      askMultiSelect: mock().mockResolvedValue([]),
+    });
+    await new Settings(ui, { ...dependencies, read: async () => ({ ai: FULL_AI }), write }).run();
+    expect(write).not.toHaveBeenCalled();
+  }
+});
+
+test("requires a configured AI connection before saving a profile", async () => {
+  const write = mock(async () => {});
+  const ui = createUIMock({
+    askSelect: mock().mockResolvedValueOnce("ai").mockResolvedValueOnce("save"),
+  });
+  await new Settings(ui, { ...dependencies, read: async () => ({}), write }).run();
+  expect(ui.warn).toHaveBeenCalledWith("Configure an AI provider before saving it as a profile.");
+  expect(ui.askText).not.toHaveBeenCalled();
+  expect(write).not.toHaveBeenCalled();
+});
+
+test("effective settings identify a project-specific branch prefix", async () => {
+  const ui = createUIMock({ askSelect: async () => "effective" });
+  await new Settings(ui, {
+    ...dependencies,
+    read: async () => ({ branchPrefixes: ["work"] }),
+    readRepository: async () => ({ branchPrefixes: ["team"] }),
+  }).run();
+  expect(ui.info).toHaveBeenCalledWith(
+    expect.stringContaining("Branch prefixes: team (.gittenrc)"),
   );
 });

@@ -1,333 +1,106 @@
-import { GoBackSignal } from "./go-back";
+import { emitKeypressEvents, type Key } from "node:readline";
+import { GoBackSignal } from "../core/domain/navigation";
+import { fit, searchLines } from "./search-renderer";
+import { type SearchOption, type SearchOptions, searchKey, searchState } from "./search-state";
 import { theme } from "./theme";
-
-const K = {
-  UP: "\x1b[A",
-  DOWN: "\x1b[B",
-  ENTER: "\r",
-  ESC: "\x1b",
-  BACKSPACE: "\x7f",
-  CTRL_C: "\x03",
-  SPACE: " ",
-} as const;
-
-const MAX_VISIBLE = 8;
-
-type Opt<T> = { value: T; label: string; hints?: string[] };
-
-function applyFilter<T>(options: Opt<T>[], query: string): Opt<T>[] {
-  const q = query.trim().toLowerCase();
-  if (!q) return options;
-  return options.filter(
-    (o) =>
-      o.label.toLowerCase().includes(q) ||
-      (o.hints?.some((h) => h.toLowerCase().includes(q)) ?? false),
-  );
-}
-
-function highlightMatch(label: string, query: string, isCursor: boolean): string {
-  if (!query) return isCursor ? theme.bold(theme.bright(label)) : theme.dim(label);
-  const lower = label.toLowerCase();
-  const idx = lower.indexOf(query.toLowerCase());
-  if (idx === -1) return theme.dim(label);
-  const pre = label.slice(0, idx);
-  const match = label.slice(idx, idx + query.length);
-  const post = label.slice(idx + query.length);
-  return isCursor
-    ? theme.dim(pre) + theme.bold(theme.bright(match)) + theme.dim(post)
-    : theme.dim(pre) + theme.bright(match) + theme.dim(post);
-}
-
-function visibleWindow<T>(filtered: Opt<T>[], cursor: number): { start: number; end: number } {
-  const half = Math.floor(MAX_VISIBLE / 2);
-  const start = Math.max(0, Math.min(cursor - half, filtered.length - MAX_VISIBLE));
-  const end = Math.min(filtered.length, start + MAX_VISIBLE);
-  return { start, end };
-}
-
-function buildSelectLines<T>(
-  message: string,
-  query: string,
-  options: Opt<T>[],
-  cursor: number,
-  searchPool?: Opt<T>[],
-): string[] {
-  const pool = query.trim() && searchPool ? [...options, ...searchPool] : options;
-  const f = applyFilter(pool, query);
-  const clamped = Math.min(cursor, Math.max(0, f.length - 1));
-  const { start, end } = visibleWindow(f, clamped);
-  const lines: string[] = [];
-
-  lines.push(`${theme.accent("◆")}  ${theme.bold(message)}`);
-
-  const searchBar = query
-    ? `${theme.muted("/")} ${theme.bright(query)}${theme.dim("_")}`
-    : `${theme.muted("/")} ${theme.dim("type to filter...")}`;
-  lines.push(`${theme.accent("│")}  ${searchBar}`);
-  lines.push(`${theme.accent("│")}`);
-
-  if (f.length === 0) {
-    lines.push(`${theme.accent("│")}  ${theme.dim("No matches")}`);
-  } else {
-    if (start > 0) lines.push(`${theme.accent("│")}     ${theme.dim(`↑ ${start} more`)}`);
-
-    for (let i = start; i < end; i++) {
-      const isCursor = i === clamped;
-      const text = highlightMatch(f[i]!.label, query, isCursor);
-      lines.push(
-        isCursor
-          ? `${theme.accent("│")}  ${theme.accent("❯")} ${text}`
-          : `${theme.accent("│")}    ${text}`,
-      );
-    }
-
-    const below = f.length - end;
-    if (below > 0) lines.push(`${theme.accent("│")}     ${theme.dim(`↓ ${below} more`)}`);
-  }
-
-  lines.push(`${theme.accent("│")}`);
-  lines.push(`${theme.accent("└")}  ${theme.dim("↑↓ navigate  ·  Enter select  ·  Esc cancel")}`);
-
-  return lines;
-}
-
-function buildMultiSelectLines<T>(
-  message: string,
-  query: string,
-  options: Opt<T>[],
-  cursor: number,
-  checked: Set<T>,
-): string[] {
-  const f = applyFilter(options, query);
-  const clamped = Math.min(cursor, Math.max(0, f.length - 1));
-  const { start, end } = visibleWindow(f, clamped);
-  const lines: string[] = [];
-
-  const countHint = checked.size > 0 ? theme.success(`  ${checked.size} selected`) : "";
-  lines.push(`${theme.accent("◆")}  ${theme.bold(message)}${countHint}`);
-
-  const searchBar = query
-    ? `${theme.muted("/")} ${theme.bright(query)}${theme.dim("_")}`
-    : `${theme.muted("/")} ${theme.dim("type to filter...")}`;
-  lines.push(`${theme.accent("│")}  ${searchBar}`);
-  lines.push(`${theme.accent("│")}`);
-
-  if (f.length === 0) {
-    lines.push(`${theme.accent("│")}  ${theme.dim("No matches")}`);
-  } else {
-    if (start > 0) lines.push(`${theme.accent("│")}     ${theme.dim(`↑ ${start} more`)}`);
-
-    for (let i = start; i < end; i++) {
-      const opt = f[i]!;
-      const isCursor = i === clamped;
-      const isChecked = checked.has(opt.value);
-      const checkbox = isChecked ? theme.success("◼") : theme.dim("◻");
-      const text = highlightMatch(opt.label, query, isCursor);
-      const prefix = isCursor ? theme.accent("❯") : " ";
-      lines.push(`${theme.accent("│")}  ${prefix} ${checkbox} ${text}`);
-    }
-
-    const below = f.length - end;
-    if (below > 0) lines.push(`${theme.accent("│")}     ${theme.dim(`↓ ${below} more`)}`);
-  }
-
-  lines.push(`${theme.accent("│")}`);
-  lines.push(
-    `${theme.accent("└")}  ${theme.dim("Space toggle  ·  ↑↓ navigate  ·  Enter confirm  ·  Esc cancel")}`,
-  );
-
-  return lines;
-}
-
-function redraw(lines: string[], lastCount: number): void {
-  if (lastCount > 0) process.stdout.write(`\x1b[${lastCount}A\x1b[J`);
-  process.stdout.write(`${lines.join("\n")}\n`);
-}
-
-function setupStdin(): void {
-  process.stdout.write("\x1b[?25l");
-  try {
-    if (process.stdin.isTTY) process.stdin.setRawMode(true);
-  } catch {}
-  process.stdin.resume();
-  process.stdin.setEncoding("utf8");
-}
-
-function teardownStdin(listener: (data: string) => void): void {
-  process.stdin.removeListener("data", listener);
-  try {
-    if (process.stdin.isTTY) process.stdin.setRawMode(false);
-  } catch {}
-  process.stdin.pause();
-  process.stdout.write("\x1b[?25h");
-}
 
 export async function searchSelect<T>(
   message: string,
-  options: Opt<T>[],
-  searchPool?: Opt<T>[],
+  options: SearchOption<T>[],
+  pool?: SearchOption<T>[],
 ): Promise<T> {
-  return new Promise<T>((resolve, reject) => {
-    let query = "";
-    let cursor = 0;
-    let lastLineCount = 0;
+  const [selected] = await runSelection({ message, options, pool, multiple: false });
+  return selected.value;
+}
 
-    function draw(): void {
-      const lines = buildSelectLines(message, query, options, cursor, searchPool);
-      redraw(lines, lastLineCount);
-      lastLineCount = lines.length;
+export async function searchMultiSelect<T>(
+  message: string,
+  options: SearchOption<T>[],
+): Promise<T[]> {
+  const selected = await runSelection({ message, options, multiple: true });
+  return selected.map(({ value }) => value);
+}
+
+// In single mode Enter is accepted only when a highlighted option exists.
+function runSelection<T>(
+  options: SearchOptions<T> & { multiple: false },
+): Promise<[SearchOption<T>]>;
+function runSelection<T>(options: SearchOptions<T>): Promise<SearchOption<T>[]>;
+async function runSelection<T>(options: SearchOptions<T>): Promise<SearchOption<T>[]> {
+  const input = process.stdin;
+  const output = process.stdout;
+  if (!input.isTTY || !output.isTTY) throw new Error("An interactive terminal is required.");
+
+  const state = searchState(options);
+  const render = new SearchFrame(output);
+  const restore = { raw: input.isRaw, flowing: input.readableFlowing };
+  return new Promise((resolve, reject) => {
+    const draw = () => render.draw(searchLines(state, output.columns || 80, output.rows || 24));
+
+    function cleanup(): void {
+      input.removeListener("keypress", onKey);
+      input.removeListener("end", cancel);
+      output.removeListener("resize", draw);
+      input.setRawMode(restore.raw);
+      if (!restore.flowing) input.pause();
+      render.finish();
     }
 
-    function done(selected: Opt<T> | null): void {
-      teardownStdin(onData);
-      if (lastLineCount > 0) process.stdout.write(`\x1b[${lastLineCount}A\x1b[J`);
-      if (selected) {
-        process.stdout.write(`${theme.accent("◇")}  ${theme.bold(message)}\n`);
-        process.stdout.write(`${theme.accent("│")}  ${theme.success(selected.label)}\n`);
-        process.stdout.write(`${theme.accent("│")}\n`);
-        resolve(selected.value);
-      } else {
-        reject(new GoBackSignal());
-      }
+    function cancel(): void {
+      cleanup();
+      reject(new GoBackSignal());
     }
 
-    function onData(data: string): void {
-      if (data === K.CTRL_C) {
-        teardownStdin(onData);
-        process.exit(0);
-      }
-
-      const pool = query.trim() && searchPool ? [...options, ...searchPool] : options;
-      const f = applyFilter(pool, query);
-      const maxCursor = Math.max(0, f.length - 1);
-
-      if (data === K.UP) {
-        if (cursor > 0) cursor--;
+    function onKey(character: string, key: Key): void {
+      const outcome = searchKey(state, character, key);
+      if (!outcome) {
         draw();
         return;
       }
-      if (data === K.DOWN) {
-        if (cursor < maxCursor) cursor++;
-        draw();
+      if (outcome.kind === "cancel") {
+        cancel();
         return;
       }
-
-      if (data === K.ENTER) {
-        if (f.length > 0) done(f[Math.min(cursor, f.length - 1)] ?? null);
-        return;
-      }
-
-      if (data === K.ESC) {
-        done(null);
-        return;
-      }
-
-      if (data === K.BACKSPACE) {
-        if (query.length > 0) {
-          query = query.slice(0, -1);
-          cursor = 0;
-          draw();
-        }
-        return;
-      }
-
-      if (data.length === 1 && data >= " " && data.charCodeAt(0) < 127) {
-        query += data;
-        cursor = 0;
-        draw();
-      }
+      cleanup();
+      render.selected(options, outcome.options);
+      resolve(outcome.options);
     }
 
-    setupStdin();
-    process.stdin.on("data", onData);
+    emitKeypressEvents(input);
+    input.setRawMode(true);
+    input.on("keypress", onKey);
+    input.once("end", cancel);
+    output.on("resize", draw);
+    input.resume();
     draw();
   });
 }
 
-export async function searchMultiSelect<T>(message: string, options: Opt<T>[]): Promise<T[]> {
-  return new Promise<T[]>((resolve, reject) => {
-    let query = "";
-    let cursor = 0;
-    let lastLineCount = 0;
-    const checked = new Set<T>();
+class SearchFrame {
+  private rows = 0;
 
-    function draw(): void {
-      const lines = buildMultiSelectLines(message, query, options, cursor, checked);
-      redraw(lines, lastLineCount);
-      lastLineCount = lines.length;
-    }
+  constructor(private readonly output: typeof process.stdout) {
+    output.write("\x1b[?25l");
+  }
 
-    function done(confirmed: boolean): void {
-      teardownStdin(onData);
-      if (lastLineCount > 0) process.stdout.write(`\x1b[${lastLineCount}A\x1b[J`);
-      if (confirmed) {
-        const count = checked.size;
-        process.stdout.write(`${theme.accent("◇")}  ${theme.bold(message)}\n`);
-        process.stdout.write(
-          `${theme.accent("│")}  ${count > 0 ? theme.success(`${count} item(s) selected`) : theme.dim("none selected")}\n`,
-        );
-        process.stdout.write(`${theme.accent("│")}\n`);
-        resolve([...checked]);
-      } else {
-        reject(new GoBackSignal());
-      }
-    }
+  private clear(): void {
+    if (this.rows > 0) this.output.write(`\x1b[${this.rows}A\x1b[J`);
+  }
 
-    function onData(data: string): void {
-      if (data === K.CTRL_C) {
-        teardownStdin(onData);
-        process.exit(0);
-      }
+  draw(lines: string[]): void {
+    this.clear();
+    this.output.write(`${lines.join("\n")}\n`);
+    this.rows = lines.length;
+  }
 
-      const f = applyFilter(options, query);
-      const maxCursor = Math.max(0, f.length - 1);
-      const current = f[Math.min(cursor, f.length - 1)];
+  finish(): void {
+    this.clear();
+    this.output.write("\x1b[?25h");
+  }
 
-      if (data === K.UP) {
-        if (cursor > 0) cursor--;
-        draw();
-        return;
-      }
-      if (data === K.DOWN) {
-        if (cursor < maxCursor) cursor++;
-        draw();
-        return;
-      }
-
-      if (data === K.SPACE && current) {
-        if (checked.has(current.value)) checked.delete(current.value);
-        else checked.add(current.value);
-        draw();
-        return;
-      }
-
-      if (data === K.ENTER) {
-        done(true);
-        return;
-      }
-      if (data === K.ESC) {
-        done(false);
-        return;
-      }
-
-      if (data === K.BACKSPACE) {
-        if (query.length > 0) {
-          query = query.slice(0, -1);
-          cursor = 0;
-          draw();
-        }
-        return;
-      }
-
-      if (data.length === 1 && data >= " " && data.charCodeAt(0) < 127) {
-        query += data;
-        cursor = 0;
-        draw();
-      }
-    }
-
-    setupStdin();
-    process.stdin.on("data", onData);
-    draw();
-  });
+  selected<T>(options: SearchOptions<T>, selected: SearchOption<T>[]): void {
+    const summary = options.multiple ? `${selected.length} item(s) selected` : selected[0]!.label;
+    const line = fit(`◇  ${options.message} · ${summary}`, this.output.columns || 80);
+    this.output.write(`${theme.success(line)}\n`);
+  }
 }

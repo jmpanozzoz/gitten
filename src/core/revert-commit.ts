@@ -1,20 +1,34 @@
-import { getLimits, readConfig } from "../config/config";
-import { stdinResolution } from "../utils/stdin-resolution";
 import { resolveConflict } from "./conflict-resolver";
+import { DEFAULT_LIMITS } from "./domain/preferences";
 import type { AIConflictExplainer } from "./ports/ai.port";
 import type { IGitClient } from "./ports/git-client.port";
 import type { IUI } from "./ports/ui.port";
 import { PROTECTED_BRANCHES } from "./protected-branches";
 
+interface RevertCommitOptions {
+  waitForResolution?: () => Promise<boolean>;
+  aiConflictExplainer?: AIConflictExplainer;
+  logLimit?: number;
+}
+
 export class RevertCommit {
   constructor(
     private readonly git: IGitClient,
     private readonly ui: IUI,
-    private readonly waitForResolution: () => Promise<boolean> = stdinResolution,
-    private readonly aiConflictExplainer?: AIConflictExplainer,
+    private readonly options: RevertCommitOptions = {},
   ) {}
 
   async run(): Promise<void> {
+    const pending = await this.git.getInProgressOperation();
+    if (pending === "revert") {
+      await this.handleConflict();
+      return;
+    }
+    if (pending) {
+      this.ui.warn(`Finish the pending ${pending} before reverting.`);
+      return;
+    }
+
     const branch = await this.git.getCurrentBranch();
 
     if (PROTECTED_BRANCHES.has(branch)) {
@@ -24,8 +38,10 @@ export class RevertCommit {
       if (!proceed) return;
     }
 
-    const { revertLogLimit } = getLimits(await readConfig());
-    const commits = await this.git.getLog(branch, revertLogLimit);
+    const commits = await this.git.getLog(
+      branch,
+      this.options.logLimit ?? DEFAULT_LIMITS.revertLogLimit,
+    );
 
     if (commits.length === 0) {
       this.ui.info("No commits to revert.");
@@ -47,21 +63,24 @@ export class RevertCommit {
     try {
       await this.ui.spin(`Reverting ${hash}...`, () => this.git.revertCommit(hash));
       this.ui.success(`Reverted: a new commit undoing "${commit.message}" was created.`);
-    } catch (_e) {
-      await resolveConflict(
-        this.git,
-        this.ui,
-        {
-          label: "Revert",
-          onContinue: async () => {
-            await this.git.addAll();
-            await this.git.revertContinue();
-          },
-          onAbort: () => this.git.revertAbort(),
-          explain: this.aiConflictExplainer,
-        },
-        this.waitForResolution,
-      );
+    } catch (error) {
+      if ((await this.git.getInProgressOperation()) !== "revert") throw error;
+      await this.handleConflict();
     }
+  }
+
+  private handleConflict(): Promise<boolean> {
+    return resolveConflict(
+      this.git,
+      this.ui,
+      {
+        operation: "revert",
+        label: "Revert",
+        onContinue: () => this.git.revertContinue(),
+        onAbort: () => this.git.revertAbort(),
+        explain: this.options.aiConflictExplainer,
+      },
+      this.options.waitForResolution,
+    );
   }
 }

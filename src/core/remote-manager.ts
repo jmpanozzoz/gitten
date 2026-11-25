@@ -1,7 +1,10 @@
+import { GoBackSignal } from "./domain/navigation";
+import { redactRemoteCredentials } from "./domain/remote-display";
 import type { IGitClient } from "./ports/git-client.port";
 import type { IUI } from "./ports/ui.port";
 
 type RemoteAction = "add" | "change-url" | "remove";
+type InitResult = { status: "linked" | "local-only" } | { status: "remote-failed"; error: unknown };
 
 export class RemoteManager {
   constructor(
@@ -9,12 +12,19 @@ export class RemoteManager {
     private readonly ui: IUI,
   ) {}
 
-  async runInit(): Promise<void> {
+  async runInit(): Promise<InitResult> {
     await this.ui.spin("Initializing Git repository...", () => this.git.initRepo());
     this.ui.success("Git repository initialized.");
 
-    const addRemote = await this.ui.askConfirm("Link a remote repository now?");
-    if (addRemote) await this.addRemote();
+    try {
+      if (!(await this.ui.askConfirm("Link a remote repository now?")))
+        return { status: "local-only" };
+      await this.addRemote();
+      return { status: "linked" };
+    } catch (error) {
+      if (error instanceof GoBackSignal) return { status: "local-only" };
+      return { status: "remote-failed", error };
+    }
   }
 
   async run(): Promise<void> {
@@ -29,7 +39,7 @@ export class RemoteManager {
 
     if (action === "add") return this.addRemote();
     if (action === "change-url") return this.changeUrl(remotes.map((r) => r.name));
-    if (action === "remove") return this.remove(remotes.map((r) => r.name));
+    return this.remove(remotes.map((r) => r.name));
   }
 
   async addRemote(): Promise<void> {
@@ -37,7 +47,7 @@ export class RemoteManager {
     const url = await this.promptUrl();
 
     await this.ui.spin(`Adding remote ${name}...`, () => this.git.addRemote(name, url));
-    this.ui.success(`Remote "${name}" added → ${url}`);
+    this.ui.success(`Remote "${name}" added → ${redactRemoteCredentials(url)}`);
   }
 
   private async changeUrl(remoteNames: string[]): Promise<void> {
@@ -53,7 +63,7 @@ export class RemoteManager {
     const url = await this.promptUrl();
 
     await this.ui.spin(`Updating ${name}...`, () => this.git.setRemoteUrl(name, url));
-    this.ui.success(`Remote "${name}" updated → ${url}`);
+    this.ui.success(`Remote "${name}" updated → ${redactRemoteCredentials(url)}`);
   }
 
   private async remove(remoteNames: string[]): Promise<void> {
@@ -67,7 +77,10 @@ export class RemoteManager {
       remoteNames.map((r) => ({ value: r, label: r })),
     );
 
-    const confirmed = await this.ui.askConfirm(`Remove remote "${name}"?`);
+    const confirmed = await this.ui.askConfirm(
+      `Remove remote "${name}" and its tracking refs?`,
+      false,
+    );
     if (!confirmed) {
       this.ui.info("Cancelled.");
       return;
@@ -83,7 +96,7 @@ export class RemoteManager {
       return;
     }
     for (const r of remotes) {
-      this.ui.info(`${r.name}  →  ${r.url}`);
+      this.ui.info(`${r.name}  →  ${redactRemoteCredentials(r.url)}`);
     }
   }
 

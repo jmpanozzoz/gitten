@@ -1,6 +1,6 @@
 import { expect, mock, test } from "bun:test";
 import { SyncFlow } from "../../src/core/sync-flow";
-import { createGitMock } from "../mocks/git-client.mock";
+import { createGitMock, makeCommitSelection } from "../mocks/git-client.mock";
 import { createUIMock } from "../mocks/ui.mock";
 
 const FILES = [{ path: "src/app.ts", status: "M" }];
@@ -16,10 +16,10 @@ const SELECT_ALL = { askMultiSelect: mock(() => Promise.resolve(["src/app.ts"]))
 function makeSyncFlow(aiSuggester?: (diff: string) => Promise<string | null>, gitOverrides = {}) {
   const git = createGitMock({
     getStatus: mock(() => Promise.resolve(DIRTY_STATUS)),
-    addFiles: mock(() => Promise.resolve()),
-    getStagedDiff: mock(() => Promise.resolve("diff --git a/src/app.ts")),
-    commit: mock(() => Promise.resolve()),
-    push: mock(() => Promise.resolve()),
+    previewSelectedCommit: mock(async (paths) =>
+      makeCommitSelection(paths, { diff: "diff --git a/src/app.ts" }),
+    ),
+    pushBranch: mock(() => Promise.resolve()),
     ...gitOverrides,
   });
   const ui = createUIMock({
@@ -37,7 +37,7 @@ test("uses AI suggestion as initialValue when user accepts", async () => {
   await flow.run();
 
   expect(aiSuggester).toHaveBeenCalledTimes(1);
-  expect(git.getStagedDiff).toHaveBeenCalledTimes(2); // once for preview, once for AI suggestion
+  expect(git.previewSelectedCommit).toHaveBeenCalledTimes(1); // preview and AI use the same diff
   const initialValue = (ui.askText as ReturnType<typeof mock>).mock.calls[0]![2];
   expect(initialValue).toBe("feat: ai suggestion");
 });

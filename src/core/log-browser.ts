@@ -1,16 +1,11 @@
-import { renderDiff } from "../ui/diff-renderer";
+import { showDiffPages } from "./diff-pages";
+import { explainDiff } from "./explain-diff";
 import type { AICommitExplainer } from "./ports/ai.port";
-import type { IGitClient } from "./ports/git-client.port";
+import type { IGitClient, LogPage } from "./ports/git-client.port";
 import type { IUI } from "./ports/ui.port";
 
 const LOG_LIMIT = 30;
 
-/**
- * Read-only history browser: list recent commits of the current branch, inspect
- * any commit's diff, and (optionally) get an AI explanation. The picker is the
- * exit point — cancelling it (ESC) raises GoBackSignal, which the menu loop
- * catches to return to the main menu.
- */
 export class LogBrowser {
   constructor(
     private readonly git: IGitClient,
@@ -19,29 +14,38 @@ export class LogBrowser {
   ) {}
 
   async run(): Promise<void> {
-    const branch = await this.git.getCurrentBranch();
-    const commits = await this.ui.spin("Loading history...", () =>
-      this.git.getLog(branch, LOG_LIMIT),
-    );
-
-    if (commits.length === 0) {
+    let number = 0;
+    let page = await this.load(number);
+    const head = page.head ?? undefined;
+    if (page.commits.length === 0) {
       this.ui.info("No commits to show.");
       return;
     }
-
-    const options = commits.map((c) => ({
-      value: c.hash,
-      label: `${c.hash} — ${c.message}`,
-    }));
-
-    // Browse loop: keep picking commits to inspect until the user cancels.
     while (true) {
-      const hash = await this.ui.askSearchSelect(
-        "Browse history — pick a commit to inspect:",
-        options,
-      );
-      await this.inspect(hash);
+      const choice = await this.pick(page, number);
+      if (choice === "older" || choice === "newer") {
+        number += choice === "older" ? 1 : -1;
+        page = await this.load(number, head);
+      } else {
+        await this.inspect(choice);
+      }
     }
+  }
+
+  private load(number: number, head?: string): Promise<LogPage> {
+    return this.ui.spin("Loading history...", () =>
+      this.git.readLogPage({ head, limit: LOG_LIMIT, offset: number * LOG_LIMIT }),
+    );
+  }
+
+  private pick(page: LogPage, number: number): Promise<string> {
+    const options = page.commits.map(({ hash, message }) => ({
+      value: hash,
+      label: `${hash.slice(0, 12)} — ${message}`,
+    }));
+    if (number > 0) options.push({ value: "newer", label: "Newer commits" });
+    if (page.hasNext) options.push({ value: "older", label: "Older commits" });
+    return this.ui.askSearchSelect(`History page ${number + 1} — select a commit:`, options);
   }
 
   private async inspect(hash: string): Promise<void> {
@@ -52,18 +56,13 @@ export class LogBrowser {
       return;
     }
 
-    this.ui.info(renderDiff(diff));
+    await showDiffPages(this.ui, diff);
 
-    if (!this.aiExplainer) return;
-
-    const explain = await this.ui.askConfirm("✨ Explain this commit with AI?");
-    if (!explain) return;
-
-    try {
-      const explanation = await this.ui.spin("Analyzing...", () => this.aiExplainer!(diff));
-      if (explanation) this.ui.info(`✨ ${explanation}`);
-    } catch {
-      // AI is optional — never block browsing on it.
-    }
+    await explainDiff(
+      this.ui,
+      async () => diff,
+      "the commit diff for explanation",
+      this.aiExplainer,
+    );
   }
 }

@@ -4,14 +4,17 @@ import { SquashFlow } from "../../src/core/squash-flow";
 import { createGitMock } from "../mocks/git-client.mock";
 import { createUIMock } from "../mocks/ui.mock";
 
-// getLog is newest-first: c3 is HEAD (index 0), c1 is oldest (index 2).
-const COMMITS = [
-  { hash: "c3", message: "feat: c" },
-  { hash: "c2", message: "feat: b" },
-  { hash: "c1", message: "feat: a" },
-];
+const branchRef = "refs/heads/feature";
+const history = {
+  branchRef,
+  commits: [
+    { oid: "c".repeat(40), firstParent: "b".repeat(40), subject: "feat: c" },
+    { oid: "b".repeat(40), firstParent: "a".repeat(40), subject: "feat: b" },
+    { oid: "a".repeat(40), firstParent: null, subject: "feat: a" },
+  ],
+};
 
-const dirtyStatus = (): StatusSummary => ({
+const dirty = (): StatusSummary => ({
   files: [{ path: "x.ts", status: "M" }],
   isClean: () => false,
   hasStagedChanges: () => false,
@@ -19,124 +22,126 @@ const dirtyStatus = (): StatusSummary => ({
   commitsBehind: 0,
 });
 
-test("warns and aborts when on a protected branch and the user declines", async () => {
+test("uses a default Squash message when the oldest commit has no subject", async () => {
+  const oldest = { ...history.commits[2]!, subject: "" };
   const git = createGitMock({
-    getCurrentBranch: mock(() => Promise.resolve("main")),
+    readRewriteHistory: async () => ({
+      ...history,
+      commits: [...history.commits.slice(0, 2), oldest],
+    }),
   });
-  const ui = createUIMock({ askConfirm: mock(() => Promise.resolve(false)) });
-
+  const ui = createUIMock({
+    askSearchSelect: async () => oldest.oid,
+    askText: mock().mockResolvedValue(""),
+    askConfirm: mock().mockResolvedValue(true),
+  });
   await new SquashFlow(git, ui).run();
-
-  expect(ui.askConfirm).toHaveBeenCalledWith(expect.stringContaining("main"));
-  expect(git.resetSoft).not.toHaveBeenCalled();
-  expect(git.commit).not.toHaveBeenCalled();
+  expect(ui.askText).toHaveBeenCalledWith(
+    "Squashed commit message:",
+    undefined,
+    "chore: squash commits",
+  );
+  expect(git.squashRange).toHaveBeenCalledWith(
+    expect.objectContaining({ oldest: oldest.oid }),
+    "chore: squash commits",
+  );
 });
 
-test("aborts when the working tree is not clean", async () => {
+test("warns and stops when the working tree is dirty", async () => {
   const git = createGitMock({
-    getStatus: mock(() => Promise.resolve(dirtyStatus())),
-    getLog: mock(() => Promise.resolve(COMMITS)),
+    getStatus: async () => dirty(),
+    readRewriteHistory: async () => history,
   });
   const ui = createUIMock();
-
   await new SquashFlow(git, ui).run();
-
   expect(ui.warn).toHaveBeenCalledWith(expect.stringContaining("uncommitted changes"));
-  expect(git.resetSoft).not.toHaveBeenCalled();
+  expect(git.squashRange).not.toHaveBeenCalled();
 });
 
-test("informs when there are fewer than 2 commits to squash", async () => {
+test("requires at least two commits and a boundary below HEAD", async () => {
   const git = createGitMock({
-    getLog: mock(() => Promise.resolve([{ hash: "c1", message: "feat: a" }])),
+    readRewriteHistory: mock()
+      .mockResolvedValueOnce({ ...history, commits: history.commits.slice(0, 1) })
+      .mockResolvedValueOnce(history),
   });
-  const ui = createUIMock();
-
-  await new SquashFlow(git, ui).run();
-
+  const ui = createUIMock({ askSearchSelect: async () => history.commits[0]!.oid });
+  const flow = new SquashFlow(git, ui);
+  await flow.run();
+  await flow.run();
   expect(ui.info).toHaveBeenCalledWith("Need at least 2 commits to squash.");
-  expect(git.resetSoft).not.toHaveBeenCalled();
-});
-
-test("aborts when the chosen boundary is HEAD (only 1 commit)", async () => {
-  const git = createGitMock({ getLog: mock(() => Promise.resolve(COMMITS)) });
-  const ui = createUIMock({
-    askSearchSelect: mock(() => Promise.resolve("c3")), // index 0 → count 1
-  });
-
-  await new SquashFlow(git, ui).run();
-
   expect(ui.info).toHaveBeenCalledWith(expect.stringContaining("below HEAD"));
-  expect(git.resetSoft).not.toHaveBeenCalled();
+  expect(git.squashRange).not.toHaveBeenCalled();
 });
 
-test("soft-resets and recommits the chosen number of commits", async () => {
-  const git = createGitMock({
-    getLog: mock(() => Promise.resolve(COMMITS)),
-    resetSoft: mock(() => Promise.resolve()),
-    commit: mock(() => Promise.resolve()),
-  });
+test("passes the selected range and oldest subject to Squash when no message is entered", async () => {
+  const git = createGitMock({ readRewriteHistory: async () => history });
   const ui = createUIMock({
-    askSearchSelect: mock(() => Promise.resolve("c1")), // index 2 → count 3
-    askText: mock(() => Promise.resolve("feat: squashed work")),
-    askConfirm: mock(() => Promise.resolve(true)),
+    askSearchSelect: async () => history.commits[2]!.oid,
+    askText: async () => " ",
+    askConfirm: mock(async () => true),
   });
-
   await new SquashFlow(git, ui).run();
-
-  expect(git.resetSoft).toHaveBeenCalledWith(3);
-  expect(git.commit).toHaveBeenCalledWith("feat: squashed work");
+  expect(ui.askConfirm).toHaveBeenCalledWith("Squash 3 commits into one?", false);
+  expect(git.squashRange).toHaveBeenCalledWith(
+    {
+      branchRef,
+      head: history.commits[0]!.oid,
+      oldest: history.commits[2]!.oid,
+      base: null,
+      count: 3,
+    },
+    "feat: a",
+  );
 });
 
-test("falls back to the base commit message when left blank", async () => {
+test("uses the AI message only after specific consent", async () => {
+  const summarize = mock(async () => "feat: combined work");
+  const git = createGitMock({ readRewriteHistory: async () => history });
+  const ui = createUIMock({
+    askSearchSelect: async () => history.commits[1]!.oid,
+    askConfirm: mock(async () => true),
+  });
+  await new SquashFlow(git, ui, summarize).run();
+  expect(summarize).toHaveBeenCalledWith(["feat: c", "feat: b"]);
+  expect(git.squashRange).toHaveBeenCalledWith(
+    expect.objectContaining({ base: history.commits[2]!.oid }),
+    "feat: combined work",
+  );
+});
+
+test("declining Squash on a protected branch leaves the refs unchanged", async () => {
   const git = createGitMock({
-    getLog: mock(() => Promise.resolve(COMMITS)),
-    resetSoft: mock(() => Promise.resolve()),
-    commit: mock(() => Promise.resolve()),
+    readRewriteHistory: async () => ({ ...history, branchRef: "refs/heads/main" }),
   });
   const ui = createUIMock({
-    askSearchSelect: mock(() => Promise.resolve("c1")), // count 3
-    askText: mock(() => Promise.resolve("   ")), // blank → use placeholder
-    askConfirm: mock(() => Promise.resolve(true)),
+    askSearchSelect: async () => history.commits[1]!.oid,
+    askConfirm: async () => false,
   });
-
   await new SquashFlow(git, ui).run();
-
-  // toSquash = [c3, c2, c1]; base (oldest) message is "feat: a".
-  expect(git.commit).toHaveBeenCalledWith("feat: a");
+  expect(ui.warn).toHaveBeenCalledWith(expect.stringContaining("Protected branch main"));
+  expect(git.squashRange).not.toHaveBeenCalled();
 });
 
-test("uses the AI summary as the message when requested", async () => {
-  const aiSummarizer = mock(() => Promise.resolve("feat: combined work"));
-  const git = createGitMock({
-    getLog: mock(() => Promise.resolve(COMMITS)),
-    resetSoft: mock(() => Promise.resolve()),
-    commit: mock(() => Promise.resolve()),
-  });
-  const ui = createUIMock({
-    askSearchSelect: mock(() => Promise.resolve("c1")), // count 3
-    askText: mock(() => Promise.resolve("")), // blank → use AI placeholder
-    askConfirm: mock(() => Promise.resolve(true)), // yes to AI + yes to squash
-  });
-
-  await new SquashFlow(git, ui, aiSummarizer).run();
-
-  expect(aiSummarizer).toHaveBeenCalledWith(["feat: c", "feat: b", "feat: a"]);
-  expect(git.commit).toHaveBeenCalledWith("feat: combined work");
-});
-
-test("does not squash when the final confirmation is declined", async () => {
-  const git = createGitMock({
-    getLog: mock(() => Promise.resolve(COMMITS)),
-    resetSoft: mock(() => Promise.resolve()),
-  });
-  const ui = createUIMock({
-    askSearchSelect: mock(() => Promise.resolve("c1")),
-    askText: mock(() => Promise.resolve("feat: squashed")),
-    askConfirm: mock(() => Promise.resolve(false)),
-  });
-
+test("Squash stops before prompting when a pending Git operation prevents a rewrite", async () => {
+  const git = createGitMock({ getInProgressOperation: async () => "rebase" });
+  const ui = createUIMock();
   await new SquashFlow(git, ui).run();
+  expect(ui.warn).toHaveBeenCalledWith(expect.stringContaining("pending rebase"));
+  expect(ui.askSearchSelect).not.toHaveBeenCalled();
+  expect(git.squashRange).not.toHaveBeenCalled();
+});
 
-  expect(git.resetSoft).not.toHaveBeenCalled();
-  expect(git.commit).not.toHaveBeenCalled();
+test("Squash keeps the explicit subject when AI fails and falls back on an empty suggestion", async () => {
+  const summarize = mock().mockRejectedValueOnce(new Error("offline")).mockResolvedValueOnce("");
+  const git = createGitMock({ readRewriteHistory: async () => history });
+  const ui = createUIMock({
+    askSearchSelect: async () => history.commits[1]!.oid,
+    askText: mock().mockResolvedValueOnce("Keep this subject").mockResolvedValueOnce(""),
+    askConfirm: async () => true,
+  });
+  const flow = new SquashFlow(git, ui, summarize);
+  await flow.run();
+  await flow.run();
+  expect(git.squashRange).toHaveBeenNthCalledWith(1, expect.any(Object), "Keep this subject");
+  expect(git.squashRange).toHaveBeenNthCalledWith(2, expect.any(Object), "feat: b");
 });

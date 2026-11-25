@@ -2,157 +2,104 @@
 set -euo pipefail
 
 REPO="jmpanozzoz/gitten"
-BINARY="gitten"
-DEFAULT_INSTALL_DIR="/usr/local/bin"
-BAR_WIDTH=36
+RELEASES="https://github.com/$REPO/releases"
+RELEASE_API="https://api.github.com/repos/$REPO/releases/latest"
 
-# ── ANSI colors (stripped when not a TTY) ─────────────────────────────────────
-if [ -t 1 ]; then
-  RST=$'\033[0m'  BLD=$'\033[1m'  DIM=$'\033[2m'
-  GRN=$'\033[0;32m'  BGN=$'\033[1;32m'  CYN=$'\033[0;36m'
-  YLW=$'\033[1;33m'  RED=$'\033[0;31m'
-else
-  RST=''  BLD=''  DIM=''  GRN=''  BGN=''  CYN=''  YLW=''  RED=''
-fi
+fail() { printf 'gitten installer: %s\n' "$1" >&2; exit 1; }
 
-# ── clack-style primitives ─────────────────────────────────────────────────────
-_D="${DIM}│${RST}"   # dim │  (border)
-_A="${CYN}◆${RST}"   # cyan ◆ (active)
-_C="${DIM}◇${RST}"   # dim  ◇ (completed / info)
-_E="${DIM}└${RST}"   # dim  └ (outro)
-
-intro()   { printf "\n  ${_D}\n  ${_C}  ${BLD}%s${RST}\n  ${_D}\n" "$1"; }
-outro()   { printf "  ${_D}\n  ${_E}  %s\n\n" "$1"; }
-log_sep() { printf "  ${_D}\n"; }
-log_msg() { printf "  ${_D}  %s\n" "$1"; }
-log_row() { printf "  ${_D}  ${DIM}%-12s${RST}  %s\n" "$1" "$2"; }
-log_ok()  { printf "  ${_C}  ${BGN}✓${RST}  %s\n" "$1"; }
-log_warn(){ printf "  ${_D}  ${YLW}▲${RST}  %s\n" "$1"; }
-log_err() { printf "  ${_D}  ${RED}✗${RST}  %s\n" "$1" >&2; exit 1; }
-log_act() { printf "  ${_A}  %s\n" "$1"; }
-
-draw_bar() {
-  local pct="${1:-0}" i filled=0 empty=0 filled_s="" empty_s=""
-  filled=$(( (pct * BAR_WIDTH) / 100 ))
-  empty=$(( BAR_WIDTH - filled ))
-  for ((i=0; i<filled; i++)); do filled_s+="─"; done
-  for ((i=0; i<empty;  i++)); do empty_s+="─"; done
-  printf "  ${_D}  ${BLD}%s${RST}${DIM}%s${RST}  %3d%s" \
-    "$filled_s" "$empty_s" "$pct" "%"
+asset_for_host() {
+  local system="$1" arch="$2"
+  case "$system/$arch" in
+    Darwin/arm64) printf '%s\n' gitten-darwin-arm64 ;;
+    Darwin/x86_64) printf '%s\n' gitten-darwin-x64 ;;
+    Linux/x86_64) printf '%s\n' gitten-linux-x64 ;;
+    Linux/aarch64 | Linux/arm64) printf '%s\n' gitten-linux-arm64 ;;
+    MINGW*/* | MSYS*/* | CYGWIN*/*) fail "Use install.ps1 for native Windows." ;;
+    *) fail "Unsupported platform: $system $arch" ;;
+  esac
 }
 
-# ── OS / arch ─────────────────────────────────────────────────────────────────
-OS=$(uname -s); ARCH=$(uname -m)
+read_release() {
+  local response
+  command -v jq >/dev/null 2>&1 || fail "Install jq to read trusted release metadata."
+  response=$(curl -q -fsS --proto '=https' "$RELEASE_API") || fail "Could not resolve the latest release."
+  tag=$(jq -ers 'select(length == 1) | .[0].tag_name | strings' <<< "$response") || fail "Invalid release metadata."
+  [[ "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || fail "Unexpected release tag."
+  manifest_digest=$(jq -er '
+    [.assets[]? | select(.name == "SHA256SUMS")] | select(length == 1) |
+    .[0] | select(.state == "uploaded") | if (.digest | type) == "string" then .digest else "" end
+  ' <<< "$response") || fail "Missing or ambiguous release manifest metadata."
+  [[ "$manifest_digest" =~ ^sha256:[0-9a-f]{64}$ ]] || fail "Invalid release manifest digest."
+}
 
-case "$OS" in
-  MINGW* | MSYS* | CYGWIN*)
-    intro "🐱 gitten installer"
-    log_warn "Windows via Git Bash / MSYS detected."
-    log_sep
-    log_msg "Use the PowerShell installer for native Windows support:"
-    log_sep
-    log_msg "  ${BLD}irm https://raw.githubusercontent.com/${REPO}/main/install.ps1 | iex${RST}"
-    outro "See you on the other side 🐱"
-    exit 0 ;;
-  Darwin)
-    case "$ARCH" in
-      arm64)  ASSET="gitten-darwin-arm64"; PLATFORM="macOS  arm64" ;;
-      x86_64) ASSET="gitten-darwin-x64";   PLATFORM="macOS  x64"   ;;
-      *) log_err "Unsupported architecture: $ARCH" ;;
-    esac ;;
-  Linux)
-    WSL_HINT=""; grep -qi microsoft /proc/version 2>/dev/null && WSL_HINT=" · WSL"
-    [ -n "${WSL_DISTRO_NAME:-}" ] && WSL_HINT=" · WSL"
-    case "$ARCH" in
-      x86_64)          ASSET="gitten-linux-x64";  PLATFORM="Linux  x64${WSL_HINT}"  ;;
-      aarch64 | arm64) ASSET="gitten-linux-arm64"; PLATFORM="Linux  arm64${WSL_HINT}" ;;
-      *) log_err "Unsupported architecture: $ARCH" ;;
-    esac ;;
-  *) printf "${RED}Unsupported OS: %s${RST}\n" "$OS" >&2; exit 1 ;;
-esac
+download() {
+  curl -q -fsSL --proto '=https' --proto-redir '=https' -o "$2" "$1"
+}
 
-# ── Previous version ───────────────────────────────────────────────────────────
-PREV_VER=""
-command -v "$BINARY" &>/dev/null && PREV_VER=$("$BINARY" --version 2>/dev/null || true)
-
-# ── Install directory ──────────────────────────────────────────────────────────
-if [ -w "$DEFAULT_INSTALL_DIR" ]; then
-  INSTALL_DIR="$DEFAULT_INSTALL_DIR"
-else
-  INSTALL_DIR="$HOME/.local/bin"
-  mkdir -p "$INSTALL_DIR"
-fi
-DEST="$INSTALL_DIR/$BINARY"
-DOWNLOAD_URL="https://github.com/$REPO/releases/latest/download/$ASSET"
-
-# ── Header ─────────────────────────────────────────────────────────────────────
-intro "🐱 gitten installer"
-log_row "Platform" "$PLATFORM"
-log_row "Binary"   "$ASSET"
-log_row "Target"   "$DEST"
-log_sep
-
-# ── Download with progress bar ─────────────────────────────────────────────────
-TMPFILE=$(mktemp)
-cleanup() { rm -f "$TMPFILE"; printf '\033[?25h'; }
-trap cleanup EXIT
-
-printf '\033[?25l'       # hide cursor during download
-
-log_act "Downloading $ASSET"
-draw_bar 0              # initial empty bar (no newline — will be overwritten)
-
-# Run curl in background with progress bar (-# writes to stderr → TMPFILE).
-# NOTE: do NOT add -s (silent); it suppresses -# output.
-curl -fL --progress-bar "$DOWNLOAD_URL" -o "$DEST" 2>"$TMPFILE" &
-CURL_PID=$!
-
-while kill -0 "$CURL_PID" 2>/dev/null; do
-  sleep 0.12
-  # || true: grep exits 1 when no match — must not trigger set -eo pipefail
-  PROG=$(tr '\r' '\n' < "$TMPFILE" 2>/dev/null | grep -oE '[0-9]+\.[0-9]+%' | tail -1 || true)
-  if [ -n "$PROG" ]; then
-    PCT="${PROG%%%*}"   # strip trailing %
-    PCT="${PCT%%.*}"    # integer part only
-    [ "$PCT" -gt 100 ] && PCT=100
-    printf '\r'; draw_bar "$PCT"
+hash_file() {
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum -- "$1" | awk '{print $1}'
+  elif command -v shasum >/dev/null 2>&1; then
+    shasum -a 256 -- "$1" | awk '{print $1}'
+  else
+    fail "Install sha256sum or shasum to verify the download."
   fi
-done
+}
 
-CURL_STATUS=0
-wait $CURL_PID || CURL_STATUS=$?
-printf '\033[?25h'      # restore cursor
-rm -f "$TMPFILE"
+check_artifact() {
+  local manifest="$1" asset="$2" file="$3" expected actual
+  expected=$(awk -v asset="$asset" '$2 == asset {print $1}' "$manifest")
+  [[ "$expected" =~ ^[0-9a-f]{64}$ ]] || fail "Missing or ambiguous checksum for $asset."
+  actual=$(hash_file "$file")
+  [[ "$actual" == "$expected" ]] || fail "SHA-256 checksum mismatch for $asset."
+}
 
-if [ $CURL_STATUS -ne 0 ]; then
-  printf '\r\033[2K\n'
-  log_err "Download failed. Check https://github.com/$REPO/releases"
-fi
+install_destination() {
+  local override="$1" system_bin="$2"
+  if [[ -n "$override" ]]; then
+    printf '%s\n' "$override"
+  elif [[ -d "$system_bin" && -w "$system_bin" ]]; then
+    printf '%s\n' "$system_bin"
+  else
+    printf '%s\n' "$HOME/.local/bin"
+  fi
+}
 
-printf '\r'; draw_bar 100; printf '\n'
-chmod +x "$DEST"
+install_gitten() {
+  local tag manifest_digest manifest actual_manifest_digest
+  asset=$(asset_for_host "$(uname -s)" "$(uname -m)")
+  read_release
+  target_dir=$(install_destination "${GITTEN_INSTALL_DIR:-}" /usr/local/bin)
+  mkdir -p -- "$target_dir"
+  target_dir=$(cd "$target_dir" && pwd -P)
+  destination="$target_dir/gitten"
+  [[ ! -d "$destination" ]] || fail "The install destination is a directory."
+  temporary=$(mktemp -d "$target_dir/.gitten-install.XXXXXX")
+  trap 'rm -rf -- "$temporary"' EXIT
+  trap 'exit 130' INT
+  trap 'exit 143' TERM
 
-# ── Verify ─────────────────────────────────────────────────────────────────────
-log_sep
-log_ok "Installed at $DEST"
+  printf 'Downloading %s from %s\n' "$asset" "$tag"
+  base="$RELEASES/download/$tag"
+  manifest="$temporary/SHA256SUMS"
+  download "$base/SHA256SUMS" "$manifest" || fail "Could not download release checksums."
+  actual_manifest_digest=$(hash_file "$manifest")
+  [[ "sha256:$actual_manifest_digest" == "$manifest_digest" ]] || fail "SHA-256 checksum mismatch for the release manifest."
+  download "$base/$asset" "$temporary/$asset" || fail "Could not download $asset."
+  check_artifact "$manifest" "$asset" "$temporary/$asset"
 
-NEW_VER=$("$DEST" --version 2>/dev/null || true)
-if [ -n "$NEW_VER" ]; then
-  log_ok "Verified  ${BLD}${NEW_VER}${RST}"
-else
-  log_warn "Could not verify — try: $DEST --version"
-fi
+  chmod +x "$temporary/$asset"
+  version=$("$temporary/$asset" --version) || fail "The verified binary did not run."
+  [[ "$version" == "gitten $tag" ]] || fail "The verified binary reported an unexpected version."
 
-# ── PATH hint ──────────────────────────────────────────────────────────────────
-if ! command -v "$BINARY" &>/dev/null 2>&1; then
-  log_sep
-  log_warn "Add this to your shell profile to use gitten from anywhere:"
-  log_msg "  ${DIM}export PATH=\"\$HOME/.local/bin:\$PATH\"${RST}"
-fi
+  mv -f -- "$temporary/$asset" "$destination" || fail "Could not replace $destination."
+  printf 'Installed %s at %s\n' "$version" "$destination"
+  entry_on_path=$(command -v gitten || true)
+  if [[ ! "$entry_on_path" -ef "$destination" ]]; then
+    printf 'Add %s to PATH or run the executable directly.\n' "$target_dir"
+  fi
+}
 
-# ── Outro ──────────────────────────────────────────────────────────────────────
-if [ -n "$PREV_VER" ] && [ "$PREV_VER" != "$NEW_VER" ]; then
-  outro "Updated ${DIM}${PREV_VER}${RST} → ${BLD}${NEW_VER}${RST}. Run: gitten"
-else
-  outro "${BLD}${NEW_VER:-gitten}${RST} installed. Run: gitten"
+if [[ "${BASH_SOURCE[0]-$0}" == "$0" ]]; then
+  install_gitten
 fi

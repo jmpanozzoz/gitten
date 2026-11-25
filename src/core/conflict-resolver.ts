@@ -1,9 +1,10 @@
-import { stdinResolution } from "../utils/stdin-resolution";
+import { explainDiff } from "./explain-diff";
 import type { AIConflictExplainer } from "./ports/ai.port";
-import type { IGitClient } from "./ports/git-client.port";
+import type { ConflictOperation, ConflictPort } from "./ports/git-client.port";
 import type { IUI } from "./ports/ui.port";
 
 interface ConflictActions {
+  operation: ConflictOperation;
   label: string;
   onContinue: () => Promise<void>;
   onAbort: () => Promise<void>;
@@ -11,60 +12,74 @@ interface ConflictActions {
   explain?: AIConflictExplainer;
 }
 
-/**
- * Drive the user through a conflict pause (resolve in IDE → ENTER continue / ESC abort).
- * Returns `true` when the operation was continued and completed, `false` when it was
- * aborted or the continue failed — callers running a sequence use this to decide
- * whether to keep going.
- */
 export async function resolveConflict(
-  git: IGitClient,
+  git: ConflictPort,
   ui: IUI,
   actions: ConflictActions,
-  waitForResolution: () => Promise<boolean> = stdinResolution,
+  waitForResolution: () => Promise<boolean | null> = () => ui.waitForConflictResolution(),
 ): Promise<boolean> {
-  const conflicted = await git.getConflictedFiles();
+  const identity = await git.getConflictIdentity(actions.operation);
+  warnConflict(ui, actions.label, await git.getConflictedFiles());
+  await explainDiff(
+    ui,
+    () => git.getConflictDiff(),
+    "the conflict diff for explanation",
+    actions.explain,
+  );
 
-  if (conflicted.length > 0) {
-    ui.warn(`🚨 ${actions.label} conflict — ${conflicted.length} file(s) need resolution:`);
-    for (const f of conflicted) {
-      ui.warn(`  • ${f}`);
-    }
-  } else {
-    ui.warn(`🚨 ${actions.label} conflict detected.`);
-  }
-
-  if (actions.explain) {
-    const wantExplain = await ui.askConfirm("✨ Explain this conflict with AI?");
-    if (wantExplain) {
-      try {
-        const diff = await git.getConflictDiff();
-        if (diff) {
-          const explanation = await ui.spin("Analyzing conflict...", () => actions.explain!(diff));
-          if (explanation) ui.info(`✨ ${explanation}`);
-        }
-      } catch {
-        // AI is optional — never block conflict resolution on it.
-      }
-    }
-  }
-
-  ui.warn("Resolve in your IDE, then press ENTER to continue or ESC to abort.");
+  ui.warn(
+    "Resolve and stage the listed files before continuing. Escape leaves the operation pending.",
+  );
 
   const confirmed = await waitForResolution();
 
+  if (confirmed === null) return false;
+  if (!(await stillActive(git, actions.operation, identity))) {
+    ui.warn("The active Git operation changed. Open repository status again.");
+    return false;
+  }
   if (confirmed) {
     try {
+      if ((await git.getConflictedFiles()).length > 0) {
+        ui.warn(`${actions.label} is still pending. Stage the resolved files before continuing.`);
+        return false;
+      }
+      if (await git.hasStagedConflictMarkers()) {
+        ui.warn(`${actions.label} is still pending. The staged diff contains conflict markers.`);
+        return false;
+      }
       await actions.onContinue();
       ui.success(`${actions.label} completed.`);
       return true;
-    } catch {
-      ui.error(`Failed to complete ${actions.label.toLowerCase()}. Check your working tree.`);
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      ui.error(`${actions.label} did not continue. Check Git status before retrying.\n${detail}`);
       return false;
     }
   }
 
   await actions.onAbort();
-  ui.info(`${actions.label} aborted. Working tree is clean.`);
+  ui.info(`${actions.label} aborted. Check Git status for local changes.`);
   return false;
+}
+
+async function stillActive(
+  git: ConflictPort,
+  operation: ConflictOperation,
+  identity: string | null,
+): Promise<boolean> {
+  return (
+    identity !== null &&
+    (await git.getInProgressOperation()) === operation &&
+    (await git.getConflictIdentity(operation)) === identity
+  );
+}
+
+function warnConflict(ui: IUI, label: string, conflicted: string[]): void {
+  if (conflicted.length === 0) {
+    ui.warn(`🚨 ${label} conflict detected.`);
+    return;
+  }
+  ui.warn(`🚨 ${label} conflict — ${conflicted.length} file(s) need resolution:`);
+  for (const file of conflicted) ui.warn(`  • ${file}`);
 }

@@ -1,0 +1,10 @@
+#!/bin/sh
+set -eu
+
+if ! command -v bun >/dev/null 2>&1; then
+  printf '%s\n' "Gitten pre-push requires Bun. Install the version specified in CLAUDE.md." >&2
+  exit 1
+fi
+
+root=$(git rev-parse --show-toplevel)
+exec bun --no-env-file "$root/scripts/quality/pre-push.ts" "$@"

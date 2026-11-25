@@ -1,9 +1,17 @@
+import { confirmAISend } from "./ai-consent";
+import { showDiffPages } from "./diff-pages";
 import type { AIMessageImprover } from "./ports/ai.port";
-import type { IGitClient } from "./ports/git-client.port";
+import type { CommitSummary, IGitClient } from "./ports/git-client.port";
 import type { IUI } from "./ports/ui.port";
 import { PROTECTED_BRANCHES } from "./protected-branches";
 
 type AmendOption = "message" | "staged" | "both";
+
+interface AmendPreview {
+  branch: string;
+  last: CommitSummary;
+  staged?: string;
+}
 
 export class AmendFlow {
   constructor(
@@ -13,6 +21,11 @@ export class AmendFlow {
   ) {}
 
   async run(): Promise<void> {
+    const pending = await this.git.getInProgressOperation();
+    if (pending) {
+      this.ui.warn(`Finish the pending ${pending} before amending.`);
+      return;
+    }
     const branch = await this.git.getCurrentBranch();
     if (PROTECTED_BRANCHES.has(branch)) {
       const proceed = await this.ui.askConfirm(
@@ -21,7 +34,7 @@ export class AmendFlow {
       if (!proceed) return;
     }
 
-    let last: { hash: string; message: string };
+    let last: CommitSummary;
     try {
       last = await this.git.getLastCommit();
     } catch {
@@ -36,49 +49,71 @@ export class AmendFlow {
       { value: "both", label: "✏️  + 📁  Both" },
     ]);
 
-    if (choice === "staged" || choice === "both") {
-      const status = await this.git.getStatus();
-      if (!status.hasStagedChanges()) {
+    const preview: AmendPreview = { branch, last };
+    if (choice !== "message") {
+      const staged = await this.git.getStagedDiff();
+      if (!staged) {
         this.ui.warn("Nothing staged — stage your changes before amending.");
         return;
       }
+      preview.staged = staged;
+      await showDiffPages(this.ui, staged);
+      if (!(await this.ui.askConfirm("Amend with the displayed staged changes?", false))) return;
     }
-
-    if (choice === "message") {
-      await this.amendMessage(last.message, false);
-    } else if (choice === "staged") {
-      await this.ui.spin("Amending with staged files...", () => this.git.amendNoEdit());
-      this.ui.success("Commit amended with staged files.");
-    } else {
-      await this.amendMessage(last.message, true);
+    if (choice === "staged") {
+      if (await this.apply(preview, () => this.git.amendNoEdit())) {
+        this.ui.success("Commit amended with staged files.");
+      }
+      return;
     }
+    await this.amendMessage(preview);
   }
 
-  private async amendMessage(current: string, withStagedFiles: boolean): Promise<void> {
-    let placeholder = current;
-
-    if (this.aiSuggester) {
-      const improve = await this.ui.askConfirm("✨ Improve commit message with AI?");
-      if (improve) {
-        try {
-          const suggestion = await this.ui.spin("Improving...", () => this.aiSuggester!(current));
-          if (suggestion) {
-            placeholder = suggestion;
-            this.ui.info(`Suggested: ${suggestion}`);
-          }
-        } catch (err) {
-          this.ui.warn(`AI failed: ${err instanceof Error ? err.message : "unknown error"}`);
-        }
-      }
-    }
-
-    const input = await this.ui.askText("Commit message:", undefined, placeholder);
-    const message = input.trim() || current;
-    await this.ui.spin("Amending commit...", () => this.git.amendCommit(message));
+  private async amendMessage(preview: AmendPreview): Promise<void> {
+    const { last, staged } = preview;
+    const current = last.message;
+    const placeholder = await this.suggestSubject(current);
+    const input = await this.ui.askText("Commit subject:", undefined, placeholder);
+    const subject = input.trim() || current;
+    const message = last.body ? `${subject}\n\n${last.body}` : subject;
+    if (!(await this.apply(preview, () => this.git.amendCommit(message, staged === undefined))))
+      return;
     this.ui.success(
-      withStagedFiles
-        ? `Commit amended with new message and staged files: "${message}"`
-        : `Commit amended: "${message}"`,
+      staged === undefined
+        ? `Commit amended: "${subject}"`
+        : `Commit amended with new message and staged files: "${subject}"`,
     );
+  }
+
+  private async apply(preview: AmendPreview, write: () => Promise<void>): Promise<boolean> {
+    const pending = await this.git.getInProgressOperation();
+    const branch = await this.git.getCurrentBranch();
+    const tip = await this.git.getLastCommit().catch(() => null);
+    if (pending || branch !== preview.branch || tip?.hash !== preview.last.hash) {
+      this.ui.warn("The branch or Git operation changed. Review the amend again.");
+      return false;
+    }
+    if (preview.staged !== undefined && (await this.git.getStagedDiff()) !== preview.staged) {
+      this.ui.warn("Staged changes differ from the preview. Review the amend again.");
+      return false;
+    }
+    await this.ui.spin("Amending commit...", write);
+    return true;
+  }
+
+  private async suggestSubject(current: string): Promise<string> {
+    const suggest = this.aiSuggester;
+    if (!suggest || !(await confirmAISend(this.ui, "the commit subject for rewriting", suggest))) {
+      return current;
+    }
+    try {
+      const suggestion = await this.ui.spin("Improving...", () => suggest(current));
+      if (!suggestion) return current;
+      this.ui.info(`Suggested: ${suggestion}`);
+      return suggestion;
+    } catch (err) {
+      this.ui.warn(`AI failed: ${err instanceof Error ? err.message : "unknown error"}`);
+      return current;
+    }
   }
 }

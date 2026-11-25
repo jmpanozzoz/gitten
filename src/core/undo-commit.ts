@@ -1,49 +1,42 @@
-import { getLimits, readConfig } from "../config/config";
-import type { IGitClient } from "./ports/git-client.port";
+import { DEFAULT_LIMITS } from "./domain/preferences";
+import { describeHistoryRange, editableHistory, selectHistoryRange } from "./history-range";
+import type { HistoryRewritePort, UndoMode } from "./ports/git-client.port";
 import type { IUI } from "./ports/ui.port";
-
-type ResetMode = "soft" | "mixed";
 
 export class UndoCommit {
   constructor(
-    private readonly git: IGitClient,
+    private readonly git: HistoryRewritePort,
     private readonly ui: IUI,
+    private readonly logLimit = DEFAULT_LIMITS.undoCommitLimit,
   ) {}
 
   async run(): Promise<void> {
-    const { undoCommitLimit } = getLimits(await readConfig());
-    const branch = await this.git.getCurrentBranch();
-    const commits = await this.git.getLog(branch, undoCommitLimit);
-
-    if (commits.length === 0) {
+    const history = await editableHistory(this.git, this.ui, this.logLimit);
+    if (!history) return;
+    if (history.commits.length === 0) {
       this.ui.info("No commits to undo.");
       return;
     }
-
-    const hash = await this.ui.askSearchSelect(
-      "Undo back to which commit? (everything above it will be undone)",
-      commits.map((c) => ({
-        value: c.hash,
-        label: `${c.hash} — ${c.message}`,
-      })),
+    const range = await selectHistoryRange(
+      this.ui,
+      history,
+      "Undo from HEAD through this first-parent commit:",
     );
+    if (!range) return;
 
-    const n = commits.findIndex((c) => c.hash === hash) + 1;
-
-    const mode = await this.ui.askSelect<ResetMode>("How do you want to undo?", [
-      { value: "soft", label: "↩  Soft — keep changes staged" },
-      { value: "mixed", label: "↺  Mixed — keep changes unstaged" },
+    const mode = await this.ui.askSelect<UndoMode>("How do you want to undo?", [
+      { value: "soft", label: "Soft — keep the existing index and working files" },
+      { value: "mixed", label: "Mixed — reset the index and keep working files" },
     ]);
+    if (mode === "mixed")
+      this.ui.warn("The index will be replaced. Working files remain in place.");
+    this.ui.warn(describeHistoryRange(range));
+    if (!(await this.ui.askConfirm(`Undo ${range.count} commit(s) with ${mode} reset?`, false)))
+      return;
 
-    const confirmed = await this.ui.askConfirm(`Undo ${n} commit(s) with ${mode} reset?`);
-    if (!confirmed) return;
-
-    await this.ui.spin(`Undoing ${n} commit(s)...`, () =>
-      mode === "soft" ? this.git.resetSoft(n) : this.git.resetMixed(n),
+    const backup = await this.ui.spin(`Undoing ${range.count} commit(s)...`, () =>
+      this.git.undoRange(range, mode),
     );
-
-    this.ui.success(
-      `${n} commit(s) undone. Changes are ${mode === "soft" ? "staged" : "in your working tree"}.`,
-    );
+    this.ui.success(`Undid ${range.count} commit(s). Recovery ref ${backup}.`);
   }
 }

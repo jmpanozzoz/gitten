@@ -1,8 +1,93 @@
 import { expect, mock, test } from "bun:test";
+import { GoBackSignal } from "../../src/core/domain/navigation";
 import { ResetManager } from "../../src/core/reset-manager";
-import { GoBackSignal } from "../../src/ui/go-back";
 import { createGitMock } from "../mocks/git-client.mock";
 import { createUIMock } from "../mocks/ui.mock";
+
+const TARGET = {
+  branch: "feat/local",
+  head: "a".repeat(40),
+  remote: "team",
+  ref: "refs/remotes/team/release",
+  commit: "b".repeat(40),
+};
+
+test("discarding changes stops if a Git operation starts during confirmation", async () => {
+  const git = createGitMock({
+    getInProgressOperation: mock().mockResolvedValueOnce(null).mockResolvedValue("revert"),
+    getStatus: async () => ({
+      files: [{ path: "keep.txt", status: "M" }],
+      isClean: () => false,
+      hasStagedChanges: () => false,
+      commitsAhead: 0,
+      commitsBehind: 0,
+    }),
+  });
+  const ui = createUIMock({ askSelect: async () => "discard", askConfirm: async () => true });
+  await new ResetManager(git, ui).run();
+  expect(git.discardLocalChanges).not.toHaveBeenCalled();
+  expect(ui.warn).toHaveBeenCalledWith("A Git operation started. Local changes were kept.");
+});
+
+test("Reset blocks an existing operation before fetching or discarding", async () => {
+  const git = createGitMock({ getInProgressOperation: async () => "merge" });
+  const ui = createUIMock({ askSelect: async () => "remote" });
+  await new ResetManager(git, ui).run();
+  expect(ui.warn).toHaveBeenCalledWith("Finish the pending merge before resetting.");
+  expect(git.getRemoteResetTarget).not.toHaveBeenCalled();
+  expect(git.resetToRemote).not.toHaveBeenCalled();
+});
+
+test("Reset leaves the branch alone when upstream is missing or changes during fetch", async () => {
+  const missing = createGitMock({ getRemoteResetTarget: async () => null });
+  const moved = createGitMock({
+    getRemoteResetTarget: mock()
+      .mockResolvedValueOnce(TARGET)
+      .mockResolvedValue({ ...TARGET, branch: "feat/other" }),
+  });
+  const ui = createUIMock({ askSelect: async () => "remote" });
+  await new ResetManager(missing, ui).run();
+  await new ResetManager(moved, ui).run();
+  expect(ui.error).toHaveBeenCalledWith("The current branch has no verified remote upstream.");
+  expect(ui.error).toHaveBeenCalledWith("The current branch or upstream changed while fetching.");
+  expect(ui.askConfirm).not.toHaveBeenCalled();
+  expect(missing.fetchRemote).not.toHaveBeenCalled();
+  expect(moved.resetToRemote).not.toHaveBeenCalled();
+});
+
+test("Reset keeps its verification and confirmation when the optional AI summary fails", async () => {
+  const git = createGitMock({
+    getRemoteResetTarget: async () => TARGET,
+    getLogSince: async () => [{ hash: "local", message: "unpublished" }],
+  });
+  const summarize = mock(async () => {
+    throw new Error("offline");
+  });
+  const ui = createUIMock({
+    askSelect: async () => "remote",
+    askConfirm: mock().mockResolvedValueOnce(true).mockResolvedValue(false),
+  });
+  await new ResetManager(git, ui, summarize).run();
+  expect(summarize).toHaveBeenCalledWith(["unpublished"]);
+  expect(ui.warn).toHaveBeenCalledWith("AI summary failed. Review the commits above.");
+  expect(ui.askConfirm).toHaveBeenCalledTimes(2);
+  expect(git.resetToRemote).not.toHaveBeenCalled();
+});
+
+test("an empty AI summary does not obscure the reset preview or a late mutation failure", async () => {
+  const git = createGitMock({
+    getRemoteResetTarget: async () => TARGET,
+    getLogSince: async () => [{ hash: "local", message: "unpublished" }],
+    resetToRemote: () => Promise.reject("index changed"),
+  });
+  const summarize = mock(async () => "");
+  const ui = createUIMock({ askSelect: async () => "remote", askConfirm: async () => true });
+  await new ResetManager(git, ui, summarize).run();
+  expect(summarize).toHaveBeenCalledWith(["unpublished"]);
+  expect(ui.info).not.toHaveBeenCalledWith(expect.stringContaining("What will be lost"));
+  expect(ui.error).toHaveBeenCalledWith("Reset did not complete.\nindex changed");
+  expect(ui.success).not.toHaveBeenCalled();
+});
 
 // ── discard local changes ──────────────────────────────────────────────────────
 
@@ -51,6 +136,7 @@ test("asks confirmation before discarding changes", async () => {
 
   expect(askConfirm).toHaveBeenCalledWith(
     "This will permanently discard all uncommitted changes and untracked files.",
+    false,
   );
 });
 
@@ -105,9 +191,9 @@ test("does not discard when user declines confirmation", async () => {
 
 test("asks confirmation before resetting to remote", async () => {
   const git = createGitMock({
-    getCurrentBranch: mock(() => Promise.resolve("feat/my-feature")),
+    getRemoteResetTarget: mock(async () => TARGET),
     fetchRemote: mock(() => Promise.resolve()),
-    resetHardToRemote: mock(() => Promise.resolve()),
+    resetToRemote: mock(async () => "refs/gitten/recovery/original"),
   });
   const askConfirm = mock(() => Promise.resolve(false));
   const ui = createUIMock({
@@ -118,15 +204,16 @@ test("asks confirmation before resetting to remote", async () => {
   await new ResetManager(git, ui).run();
 
   expect(askConfirm).toHaveBeenCalledWith(
-    "Reset branch 'feat/my-feature' to origin/feat/my-feature? This cannot be undone.",
+    expect.stringContaining("Reset 'feat/local' to team/release"),
+    false,
   );
 });
 
 test("fetches and resets to remote when user confirms", async () => {
   const git = createGitMock({
-    getCurrentBranch: mock(() => Promise.resolve("main")),
+    getRemoteResetTarget: mock(async () => TARGET),
     fetchRemote: mock(() => Promise.resolve()),
-    resetHardToRemote: mock(() => Promise.resolve()),
+    resetToRemote: mock(async () => "refs/gitten/recovery/original"),
   });
   const ui = createUIMock({
     askSelect: mock(() => Promise.resolve("remote" as never)),
@@ -135,16 +222,16 @@ test("fetches and resets to remote when user confirms", async () => {
 
   await new ResetManager(git, ui).run();
 
-  expect(git.fetchRemote).toHaveBeenCalledTimes(1);
-  expect(git.resetHardToRemote).toHaveBeenCalledWith("main");
-  expect(ui.success).toHaveBeenCalledWith("Branch reset to origin/main.");
+  expect(git.fetchRemote).toHaveBeenCalledWith("team");
+  expect(git.resetToRemote).toHaveBeenCalledWith(TARGET);
+  expect(ui.success).toHaveBeenCalledWith("Branch reset to team/release.");
 });
 
 test("does not reset when user declines confirmation", async () => {
   const git = createGitMock({
-    getCurrentBranch: mock(() => Promise.resolve("main")),
+    getRemoteResetTarget: mock(async () => TARGET),
     fetchRemote: mock(() => Promise.resolve()),
-    resetHardToRemote: mock(() => Promise.resolve()),
+    resetToRemote: mock(async () => "refs/gitten/recovery/original"),
   });
   const ui = createUIMock({
     askSelect: mock(() => Promise.resolve("remote" as never)),
@@ -155,12 +242,12 @@ test("does not reset when user declines confirmation", async () => {
 
   // fetchRemote is called before confirm to show commits at risk
   expect(git.fetchRemote).toHaveBeenCalledTimes(1);
-  expect(git.resetHardToRemote).not.toHaveBeenCalled();
+  expect(git.resetToRemote).not.toHaveBeenCalled();
 });
 
 test("shows local commits that would be lost before asking confirmation", async () => {
   const git = createGitMock({
-    getCurrentBranch: mock(() => Promise.resolve("feat/local")),
+    getRemoteResetTarget: mock(async () => TARGET),
     fetchRemote: mock(() => Promise.resolve()),
     getLogSince: mock(() =>
       Promise.resolve([
@@ -168,7 +255,7 @@ test("shows local commits that would be lost before asking confirmation", async 
         { hash: "def5678", message: "fix: also unpushed" },
       ]),
     ),
-    resetHardToRemote: mock(() => Promise.resolve()),
+    resetToRemote: mock(async () => "refs/gitten/recovery/original"),
   });
   const ui = createUIMock({
     askSelect: mock(() => Promise.resolve("remote" as never)),
@@ -200,14 +287,14 @@ test("propagates GoBackSignal when user presses ESC on action menu", async () =>
 
 test("summarizes commits to be lost with AI before confirmation", async () => {
   const git = createGitMock({
-    getCurrentBranch: mock(() => Promise.resolve("feat/test")),
+    getRemoteResetTarget: mock(async () => TARGET),
     getLogSince: mock(() =>
       Promise.resolve([
         { hash: "abc", message: "feat: add feature" },
         { hash: "def", message: "fix: patch bug" },
       ]),
     ),
-    resetHardToRemote: mock(() => Promise.resolve()),
+    resetToRemote: mock(async () => "refs/gitten/recovery/original"),
   });
   const aiSummarizer = mock(() => Promise.resolve("• Added new feature\n• Patched a bug"));
   const ui = createUIMock({
@@ -224,9 +311,9 @@ test("summarizes commits to be lost with AI before confirmation", async () => {
 
 test("skips AI summary when no local commits to lose", async () => {
   const git = createGitMock({
-    getCurrentBranch: mock(() => Promise.resolve("feat/test")),
+    getRemoteResetTarget: mock(async () => TARGET),
     getLogSince: mock(() => Promise.resolve([])),
-    resetHardToRemote: mock(() => Promise.resolve()),
+    resetToRemote: mock(async () => "refs/gitten/recovery/original"),
   });
   const aiSummarizer = mock(() => Promise.resolve("• something"));
   const ui = createUIMock({
@@ -237,4 +324,35 @@ test("skips AI summary when no local commits to lose", async () => {
   await new ResetManager(git, ui, aiSummarizer).run();
 
   expect(aiSummarizer).not.toHaveBeenCalled();
+});
+
+test("does not offer a destructive reset when the fetch fails", async () => {
+  const git = createGitMock({
+    getRemoteResetTarget: mock(async () => TARGET),
+    fetchRemote: mock(async () => {
+      throw new Error("remote unavailable");
+    }),
+  });
+  const ui = createUIMock({ askSelect: async () => "remote" });
+
+  await new ResetManager(git, ui).run();
+
+  expect(ui.askConfirm).not.toHaveBeenCalled();
+  expect(git.resetToRemote).not.toHaveBeenCalled();
+  expect(ui.error).toHaveBeenCalledWith(expect.stringContaining("No changes were made"));
+});
+
+test("refuses to reset when the target changes after confirmation", async () => {
+  const git = createGitMock({
+    getRemoteResetTarget: mock()
+      .mockResolvedValueOnce(TARGET)
+      .mockResolvedValueOnce(TARGET)
+      .mockResolvedValueOnce({ ...TARGET, commit: "c".repeat(40) }),
+  });
+  const ui = createUIMock({ askSelect: async () => "remote", askConfirm: async () => true });
+
+  await new ResetManager(git, ui).run();
+
+  expect(git.resetToRemote).not.toHaveBeenCalled();
+  expect(ui.error).toHaveBeenCalledWith(expect.stringContaining("changed after the preview"));
 });

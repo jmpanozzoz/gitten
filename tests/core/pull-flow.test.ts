@@ -1,9 +1,94 @@
 import { expect, mock, test } from "bun:test";
+import { GoBackSignal } from "../../src/core/domain/navigation";
 import { PullFlow } from "../../src/core/pull-flow";
 import { createGitMock } from "../mocks/git-client.mock";
 import { createUIMock } from "../mocks/ui.mock";
 
 const WITH_REMOTE = [{ name: "origin", url: "https://github.com/user/repo.git" }];
+
+test("cancelling Pull at strategy selection leaves both integration commands uncalled", async () => {
+  const git = createGitMock({ getRemotes: async () => WITH_REMOTE });
+  const ui = createUIMock({
+    askSelect: mock().mockRejectedValue(new GoBackSignal()),
+  });
+  await expect(new PullFlow(git, ui).run()).rejects.toBeInstanceOf(GoBackSignal);
+  expect(git.pull).not.toHaveBeenCalled();
+  expect(git.pullRebase).not.toHaveBeenCalled();
+  expect(ui.success).not.toHaveBeenCalled();
+});
+
+test("resumes a pending rebase through the correct operation without starting another pull", async () => {
+  const git = createGitMock({ getInProgressOperation: async () => "rebase" });
+  const ui = createUIMock({ waitForConflictResolution: async () => true });
+  await new PullFlow(git, ui).run();
+  expect(git.rebaseContinue).toHaveBeenCalledTimes(1);
+  expect(git.mergeContinue).not.toHaveBeenCalled();
+  expect(git.pull).not.toHaveBeenCalled();
+  expect(git.pullRebase).not.toHaveBeenCalled();
+});
+
+test("an explicit abort stops a pending rebase and leaves Merge untouched", async () => {
+  const git = createGitMock({ getInProgressOperation: async () => "rebase" });
+  const ui = createUIMock({ waitForConflictResolution: async () => false });
+  await new PullFlow(git, ui).run();
+  expect(git.rebaseAbort).toHaveBeenCalledTimes(1);
+  expect(git.mergeAbort).not.toHaveBeenCalled();
+  expect(git.rebaseContinue).not.toHaveBeenCalled();
+  expect(ui.info).toHaveBeenCalledWith(expect.stringContaining("Rebase aborted."));
+});
+
+test("Pull propagates a non-Error transport failure without starting recovery", async () => {
+  const git = createGitMock({
+    getRemotes: async () => WITH_REMOTE,
+    pull: () => Promise.reject("connection closed"),
+  });
+  const ui = createUIMock();
+  await expect(new PullFlow(git, ui).run()).rejects.toBe("connection closed");
+  expect(git.mergeAbort).not.toHaveBeenCalled();
+  expect(ui.waitForConflictResolution).not.toHaveBeenCalled();
+  expect(ui.success).not.toHaveBeenCalled();
+});
+
+test("blocks Pull during a different pending operation and explains a no-tracking error", async () => {
+  const ui = createUIMock();
+  const busy = createGitMock({ getInProgressOperation: async () => "revert" });
+  await new PullFlow(busy, ui).run();
+  expect(ui.warn).toHaveBeenCalledWith("Finish the pending revert before pulling.");
+  expect(busy.getRemotes).not.toHaveBeenCalled();
+
+  const git = createGitMock({
+    getRemotes: async () => WITH_REMOTE,
+    pull: async () => {
+      throw new Error("no tracking information");
+    },
+  });
+  await new PullFlow(git, ui).run();
+  expect(ui.error).toHaveBeenCalledWith("This branch has no upstream. Push it first with Sync.");
+  expect(git.mergeAbort).not.toHaveBeenCalled();
+});
+
+test("keeps a successful Pull result when summary input is missing, declined, empty, or offline", async () => {
+  const aiSummarizer = mock().mockResolvedValueOnce("").mockRejectedValueOnce(new Error("offline"));
+  const commits = [{ hash: "abc", message: "first upstream commit" }];
+  const git = createGitMock({
+    getRemotes: async () => WITH_REMOTE,
+    getLastCommit: mock()
+      .mockRejectedValueOnce(new Error("unborn"))
+      .mockResolvedValue({ hash: "old", message: "old" }),
+    getLogSince: mock().mockResolvedValueOnce([]).mockResolvedValue(commits),
+    pull: async () => ({ filesChanged: 1, headChanged: true }),
+  });
+  const askConfirm = mock().mockResolvedValueOnce(false).mockResolvedValue(true);
+  const ui = createUIMock({ askConfirm });
+  const flow = new PullFlow(git, ui, { aiSummarizer });
+  for (let attempt = 0; attempt < 5; attempt++) await flow.run();
+  expect(ui.success).toHaveBeenCalledTimes(5);
+  expect(askConfirm).toHaveBeenCalledTimes(3);
+  expect(aiSummarizer).toHaveBeenCalledTimes(2);
+  expect(aiSummarizer).toHaveBeenCalledWith(["first upstream commit"]);
+  expect(ui.error).not.toHaveBeenCalled();
+  expect(ui.info).not.toHaveBeenCalledWith(expect.stringContaining("What changed"));
+});
 
 test("shows info and returns when no remotes configured", async () => {
   const git = createGitMock({
@@ -57,19 +142,20 @@ test("shows error when branch has no upstream", async () => {
   expect(git.mergeAbort).not.toHaveBeenCalled();
 });
 
-test("on conflict + ENTER: stages, continues merge and shows success", async () => {
+test("on conflict + ENTER: continues merge without staging unrelated files", async () => {
   const git = createGitMock({
+    getInProgressOperation: mock().mockResolvedValueOnce(null).mockResolvedValue("merge"),
     getRemotes: mock(() => Promise.resolve(WITH_REMOTE)),
     pull: mock(() => Promise.reject(new Error("conflict in src/app.ts"))),
     addAll: mock(() => Promise.resolve()),
     mergeContinue: mock(() => Promise.resolve()),
   });
-  const ui = createUIMock();
+  const ui = createUIMock({ askSelect: async () => "merge" });
   const waitForResolution = mock(() => Promise.resolve(true));
 
-  await new PullFlow(git, ui, waitForResolution).run();
+  await new PullFlow(git, ui, { waitForResolution }).run();
 
-  expect(git.addAll).toHaveBeenCalledTimes(1);
+  expect(git.addAll).not.toHaveBeenCalled();
   expect(git.mergeContinue).toHaveBeenCalledTimes(1);
   expect(git.mergeAbort).not.toHaveBeenCalled();
   expect(ui.success).toHaveBeenCalled();
@@ -77,14 +163,15 @@ test("on conflict + ENTER: stages, continues merge and shows success", async () 
 
 test("on conflict + ESC: aborts merge and shows info", async () => {
   const git = createGitMock({
+    getInProgressOperation: mock().mockResolvedValueOnce(null).mockResolvedValue("merge"),
     getRemotes: mock(() => Promise.resolve(WITH_REMOTE)),
     pull: mock(() => Promise.reject(new Error("automatic merge failed; fix conflicts"))),
     mergeAbort: mock(() => Promise.resolve()),
   });
-  const ui = createUIMock();
+  const ui = createUIMock({ askSelect: async () => "merge" });
   const waitForResolution = mock(() => Promise.resolve(false));
 
-  await new PullFlow(git, ui, waitForResolution).run();
+  await new PullFlow(git, ui, { waitForResolution }).run();
 
   expect(git.mergeAbort).toHaveBeenCalledTimes(1);
   expect(git.addAll).not.toHaveBeenCalled();
@@ -95,15 +182,16 @@ test("on conflict + ESC: aborts merge and shows info", async () => {
 
 test("lists conflicted files by name on merge conflict", async () => {
   const git = createGitMock({
+    getInProgressOperation: mock().mockResolvedValueOnce(null).mockResolvedValue("merge"),
     getRemotes: mock(() => Promise.resolve(WITH_REMOTE)),
     pull: mock(() => Promise.reject(new Error("conflict"))),
     getConflictedFiles: mock(() => Promise.resolve(["src/auth.ts", "src/routes.ts"])),
     mergeAbort: mock(() => Promise.resolve()),
   });
-  const ui = createUIMock();
+  const ui = createUIMock({ askSelect: async () => "merge" });
   const waitForResolution = mock(() => Promise.resolve(false));
 
-  await new PullFlow(git, ui, waitForResolution).run();
+  await new PullFlow(git, ui, { waitForResolution }).run();
 
   const warnCalls = (ui.warn as ReturnType<typeof mock>).mock.calls.map((c) => c[0] as string);
   expect(warnCalls.some((m) => m.includes("2 file(s)"))).toBe(true);
@@ -113,15 +201,16 @@ test("lists conflicted files by name on merge conflict", async () => {
 
 test("shows generic conflict message when no files reported by git", async () => {
   const git = createGitMock({
+    getInProgressOperation: mock().mockResolvedValueOnce(null).mockResolvedValue("merge"),
     getRemotes: mock(() => Promise.resolve(WITH_REMOTE)),
     pull: mock(() => Promise.reject(new Error("conflict"))),
     getConflictedFiles: mock(() => Promise.resolve([])),
     mergeAbort: mock(() => Promise.resolve()),
   });
-  const ui = createUIMock();
+  const ui = createUIMock({ askSelect: async () => "merge" });
   const waitForResolution = mock(() => Promise.resolve(false));
 
-  await new PullFlow(git, ui, waitForResolution).run();
+  await new PullFlow(git, ui, { waitForResolution }).run();
 
   const warnCalls = (ui.warn as ReturnType<typeof mock>).mock.calls.map((c) => c[0] as string);
   expect(warnCalls.some((m) => m.includes("detected"))).toBe(true);
@@ -135,7 +224,7 @@ test("rethrows unexpected pull errors", async () => {
   });
   const ui = createUIMock();
 
-  expect(new PullFlow(git, ui).run()).rejects.toThrow("repository not found");
+  await expect(new PullFlow(git, ui).run()).rejects.toThrow("repository not found");
 });
 
 // ─── rebase strategy ─────────────────────────────────────────────────────────
@@ -188,9 +277,10 @@ test("summarizes incoming commits with AI after successful pull", async () => {
   const aiSummarizer = mock(() => Promise.resolve("• Added login feature\n• Fixed typo in header"));
   const ui = createUIMock({
     askSelect: mock(() => Promise.resolve("merge")),
+    askConfirm: async () => true,
   });
 
-  await new PullFlow(git, ui, undefined, aiSummarizer).run();
+  await new PullFlow(git, ui, { aiSummarizer }).run();
 
   expect(aiSummarizer).toHaveBeenCalledWith(["feat: add login", "fix: typo"]);
   const infoCalls = (ui.info as ReturnType<typeof mock>).mock.calls.map((c) => c[0] as string);
@@ -208,7 +298,7 @@ test("skips AI summary when already up to date", async () => {
     askSelect: mock(() => Promise.resolve("merge")),
   });
 
-  await new PullFlow(git, ui, undefined, aiSummarizer).run();
+  await new PullFlow(git, ui, { aiSummarizer }).run();
 
   expect(aiSummarizer).not.toHaveBeenCalled();
 });

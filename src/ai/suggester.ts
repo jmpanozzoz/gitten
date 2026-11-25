@@ -1,8 +1,10 @@
-import type { AIConfig } from "../config/config";
-import type { BranchType } from "./ports/ui.port";
+import { normalizeAIBaseUrl } from "../core/domain/ai-endpoint";
+import type { AIConfig } from "../core/domain/preferences";
+import type { BranchType } from "../core/ports/ui.port";
+import { shareableDiff } from "./shareable-diff";
 
-const MAX_DIFF_CHARS = 6000;
 const CALL_TIMEOUT_MS = 20_000;
+const MAX_RESPONSE_BYTES = 128 * 1024;
 
 const MAX_TOKENS = {
   branch: 60,
@@ -77,8 +79,7 @@ export async function suggestBranchName(
 }
 
 export async function suggestCommitMessage(diff: string, config: AIConfig): Promise<string | null> {
-  const truncated =
-    diff.length > MAX_DIFF_CHARS ? `${diff.slice(0, MAX_DIFF_CHARS)}\n...(truncated)` : diff;
+  const truncated = shareableDiff(diff);
   return callAI(
     COMMIT_SYSTEM_PROMPT,
     `Staged diff:\n\`\`\`\n${truncated}\n\`\`\``,
@@ -100,23 +101,19 @@ export async function suggestAmendMessage(
 }
 
 export async function reviewStagedDiff(diff: string, config: AIConfig): Promise<string[]> {
-  const truncated =
-    diff.length > MAX_DIFF_CHARS ? `${diff.slice(0, MAX_DIFF_CHARS)}\n...(truncated)` : diff;
-  try {
-    const result = await callAI(
-      REVIEW_SYSTEM_PROMPT,
-      `Staged diff:\n\`\`\`\n${truncated}\n\`\`\``,
-      config,
-      MAX_TOKENS.review,
-    );
-    if (!result || result.trim() === "OK") return [];
-    return result
-      .split("\n")
-      .map((l) => l.trim())
-      .filter(Boolean);
-  } catch {
-    return [];
-  }
+  const truncated = shareableDiff(diff);
+  const result = await callAI(
+    REVIEW_SYSTEM_PROMPT,
+    `Staged diff:\n\`\`\`\n${truncated}\n\`\`\``,
+    config,
+    MAX_TOKENS.review,
+  );
+  if (!result) throw new Error("AI returned an empty review");
+  if (result === "OK") return [];
+  return result
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
 }
 
 export async function suggestGitignorePatterns(
@@ -125,16 +122,12 @@ export async function suggestGitignorePatterns(
   config: AIConfig,
 ): Promise<string[]> {
   const prompt = `Tracked files:\n${trackedFiles.slice(0, 100).join("\n")}\n\nCurrent .gitignore:\n${existingPatterns.join("\n")}`;
-  try {
-    const result = await callAI(GITIGNORE_SYSTEM_PROMPT, prompt, config, MAX_TOKENS.gitignore);
-    if (!result) return [];
-    return result
-      .split("\n")
-      .map((l) => l.trim())
-      .filter(Boolean);
-  } catch {
-    return [];
-  }
+  const result = await callAI(GITIGNORE_SYSTEM_PROMPT, prompt, config, MAX_TOKENS.gitignore);
+  if (!result) return [];
+  return result
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
 }
 
 const EXPLAIN_COMMIT_SYSTEM_PROMPT = `You are a git commit analyst. Given a commit diff, explain in one concise sentence what it does and why.
@@ -155,8 +148,7 @@ Rules:
 - Output ONLY the bullet points — no headers, no blank lines`;
 
 export async function explainCommitDiff(diff: string, config: AIConfig): Promise<string | null> {
-  const truncated =
-    diff.length > MAX_DIFF_CHARS ? `${diff.slice(0, MAX_DIFF_CHARS)}\n...(truncated)` : diff;
+  const truncated = shareableDiff(diff);
   return callAI(
     EXPLAIN_COMMIT_SYSTEM_PROMPT,
     `Commit diff:\n\`\`\`\n${truncated}\n\`\`\``,
@@ -175,8 +167,7 @@ Rules:
 - Be concise and concrete`;
 
 export async function explainConflict(diff: string, config: AIConfig): Promise<string | null> {
-  const truncated =
-    diff.length > MAX_DIFF_CHARS ? `${diff.slice(0, MAX_DIFF_CHARS)}\n...(truncated)` : diff;
+  const truncated = shareableDiff(diff);
   return callAI(
     EXPLAIN_CONFLICT_SYSTEM_PROMPT,
     `Conflict diff:\n\`\`\`\n${truncated}\n\`\`\``,
@@ -199,7 +190,13 @@ export async function summarizeCommits(
 }
 
 export async function testAIConnection(config: AIConfig): Promise<void> {
-  await callAI("Reply with exactly: OK", "Test", config, MAX_TOKENS.test);
+  const reply = await callAI(
+    "Reply with exactly: OK",
+    "Test",
+    { ...config, enabled: true },
+    MAX_TOKENS.test,
+  );
+  if (reply !== "OK") throw new Error("AI did not return the expected test response");
 }
 
 async function callAI(
@@ -208,66 +205,102 @@ async function callAI(
   config: AIConfig,
   maxTokens: number,
 ): Promise<string | null> {
-  const url = `${config.baseUrl.replace(/\/$/, "")}/chat/completions`;
+  if (!config.enabled) throw new Error("AI suggestions are disabled.");
+  const endpoint = normalizeAIBaseUrl(config.baseUrl);
+  if (!endpoint) throw new Error("Invalid AI endpoint");
+  const url = `${endpoint}/chat/completions`;
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), CALL_TIMEOUT_MS);
 
-  let response: Response;
   try {
-    response = await fetch(url, {
+    const request = {
+      model: config.model,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userMessage },
+      ],
+      max_tokens: maxTokens,
+      temperature: 0.3,
+    };
+    const headers = new Headers({ "Content-Type": "application/json" });
+    if (config.apiKey) headers.set("Authorization", `Bearer ${config.apiKey}`);
+    const response = await requestAI(url, {
       method: "POST",
+      redirect: "manual",
       signal: controller.signal,
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${config.apiKey}`,
-      },
-      body: JSON.stringify({
-        model: config.model,
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userMessage },
-        ],
-        max_tokens: maxTokens,
-        temperature: 0.3,
-      }),
+      headers,
+      body: JSON.stringify(request),
     });
-  } catch (err) {
-    if (err instanceof Error && err.name === "AbortError") {
-      throw new Error(
-        `Request timed out after ${CALL_TIMEOUT_MS / 1000}s — is ${config.baseUrl} reachable?`,
-      );
+    if (!response.ok) {
+      await response.body?.cancel().catch(() => {});
+      throw new Error(classifyHttpError(response.status));
     }
-    throw new Error(`Network error: ${err instanceof Error ? err.message : String(err)}`);
+    return await readReply(response);
+  } catch (err) {
+    if (controller.signal.aborted || (err instanceof Error && err.name === "AbortError")) {
+      throw new Error(`AI request timed out after ${CALL_TIMEOUT_MS / 1000}s`);
+    }
+    throw err;
   } finally {
     clearTimeout(timer);
   }
-
-  if (!response.ok) {
-    throw new Error(await classifyHttpError(response));
-  }
-
-  const data = (await response.json()) as {
-    choices?: { message?: { content?: string } }[];
-    error?: { message?: string; code?: number };
-  };
-
-  if (data.error) {
-    throw new Error(data.error.message ?? `API error ${data.error.code ?? "unknown"}`);
-  }
-
-  return data.choices?.[0]?.message?.content?.trim() || null;
 }
 
-async function classifyHttpError(response: Response): Promise<string> {
+async function requestAI(url: string, init: RequestInit): Promise<Response> {
   try {
-    const body = (await response.json()) as { error?: { message?: string } };
-    if (body.error?.message) return body.error.message;
-  } catch {
-    /* fall through to status-based message */
+    return await fetch(url, init);
+  } catch (err) {
+    if (init.signal?.aborted || (err instanceof Error && err.name === "AbortError")) throw err;
+    throw new Error("Network error while contacting the AI provider");
   }
+}
 
-  switch (response.status) {
+async function readReply(response: Response): Promise<string | null> {
+  return parseReply(await readResponseBody(response));
+}
+
+async function readResponseBody(response: Response): Promise<string> {
+  const reader = response.body?.getReader();
+  if (!reader) throw new Error("AI provider returned an empty response body");
+  const decoder = new TextDecoder();
+  let body = "";
+  let bytes = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      bytes += value.byteLength;
+      if (bytes > MAX_RESPONSE_BYTES) {
+        await reader.cancel().catch(() => {});
+        throw new Error("AI response exceeds the size limit");
+      }
+      body += decoder.decode(value, { stream: true });
+    }
+  } finally {
+    reader.releaseLock();
+  }
+  return body + decoder.decode();
+}
+
+function parseReply(body: string): string | null {
+  let data: { choices?: { message?: { content?: unknown } }[]; error?: unknown } | null;
+  try {
+    data = JSON.parse(body);
+  } catch {
+    throw new Error("AI provider returned invalid JSON");
+  }
+  if (data?.error) throw new Error("AI provider returned an error");
+
+  const content = data?.choices?.[0]?.message?.content;
+  if (typeof content !== "string") throw new Error("AI provider returned an invalid response");
+  return content.trim() || null;
+}
+
+function classifyHttpError(status: number): string {
+  if (status >= 300 && status < 400)
+    return "AI provider redirected the request. Check its endpoint.";
+  switch (status) {
     case 401:
       return "Invalid API key — check your credentials in Settings";
     case 403:
@@ -279,8 +312,8 @@ async function classifyHttpError(response: Response): Promise<string> {
     case 500:
     case 502:
     case 503:
-      return `Provider error (${response.status}) — the AI service may be down`;
+      return `Provider error (${status}) — the AI service may be down`;
     default:
-      return `HTTP ${response.status}`;
+      return `HTTP ${status}`;
   }
 }

@@ -1,13 +1,26 @@
 import { expect, mock, test } from "bun:test";
+import { GoBackSignal } from "../../src/core/domain/navigation";
 import { StashManager } from "../../src/core/stash-manager";
-import { GoBackSignal } from "../../src/ui/go-back";
 import { createGitMock } from "../mocks/git-client.mock";
 import { createUIMock } from "../mocks/ui.mock";
 
 const STASHES = [
-  { index: 0, message: "WIP on feat/login: abc1234 feat: add form", date: "2 hours ago" },
-  { index: 1, message: "WIP on main: def5678 chore: update deps", date: "yesterday" },
+  {
+    index: 0,
+    oid: "a".repeat(40),
+    message: "WIP on feat/login: abc1234 feat: add form",
+    date: "2 hours ago",
+  },
+  {
+    index: 1,
+    oid: "b".repeat(40),
+    message: "WIP on main: def5678 chore: update deps",
+    date: "yesterday",
+  },
 ];
+
+const first = STASHES[0]!;
+const second = STASHES[1]!;
 
 function selectAction(action: "apply" | "drop" | "push") {
   return { askSelect: mock(() => Promise.resolve(action)) };
@@ -36,7 +49,7 @@ test("shows info when stash list is empty (drop action)", async () => {
   await new StashManager(git, ui).run();
 
   expect(ui.info).toHaveBeenCalled();
-  expect(ui.askMultiSelect).not.toHaveBeenCalled();
+  expect(ui.askSearchMultiSelect).not.toHaveBeenCalled();
 });
 
 // ─── apply / pop ──────────────────────────────────────────────────────────────
@@ -47,15 +60,13 @@ test("applies selected stash with pop when user chooses pop mode", async () => {
     stashPop: mock(() => Promise.resolve()),
   });
   const ui = createUIMock({
-    askSelect: mock()
-      .mockResolvedValueOnce("apply")
-      .mockResolvedValueOnce(0)
-      .mockResolvedValueOnce("pop"),
+    askSelect: mock().mockResolvedValueOnce("apply").mockResolvedValueOnce("pop"),
+    askSearchSelect: async () => first,
   });
 
   await new StashManager(git, ui).run();
 
-  expect(git.stashPop).toHaveBeenCalledWith(0);
+  expect(git.stashPop).toHaveBeenCalledWith({ oid: first.oid, index: first.index });
 });
 
 test("applies selected stash without dropping when user chooses apply mode", async () => {
@@ -64,15 +75,13 @@ test("applies selected stash without dropping when user chooses apply mode", asy
     stashApply: mock(() => Promise.resolve()),
   });
   const ui = createUIMock({
-    askSelect: mock()
-      .mockResolvedValueOnce("apply")
-      .mockResolvedValueOnce(0)
-      .mockResolvedValueOnce("apply"),
+    askSelect: mock().mockResolvedValueOnce("apply").mockResolvedValueOnce("apply"),
+    askSearchSelect: async () => first,
   });
 
   await new StashManager(git, ui).run();
 
-  expect(git.stashApply).toHaveBeenCalledWith(0);
+  expect(git.stashApply).toHaveBeenCalledWith({ oid: first.oid, index: first.index });
   expect(git.stashPop).not.toHaveBeenCalled();
 });
 
@@ -85,7 +94,7 @@ test("drops selected stashes", async () => {
   });
   const ui = createUIMock({
     askSelect: mock(() => Promise.resolve("drop")),
-    askMultiSelect: mock(() => Promise.resolve(["0", "1"])),
+    askSearchMultiSelect: async () => STASHES,
     askConfirm: mock(() => Promise.resolve(true)),
   });
 
@@ -101,14 +110,17 @@ test("drops in reverse index order to preserve stash indices", async () => {
   });
   const ui = createUIMock({
     askSelect: mock(() => Promise.resolve("drop")),
-    askMultiSelect: mock(() => Promise.resolve(["0", "1"])),
+    askSearchMultiSelect: async () => STASHES,
     askConfirm: mock(() => Promise.resolve(true)),
   });
 
   await new StashManager(git, ui).run();
 
   const calls = (git.stashDrop as ReturnType<typeof mock>).mock.calls.map((c) => c[0]);
-  expect(calls[0]).toBeGreaterThan(calls[1]);
+  expect(calls).toEqual([
+    { oid: second.oid, index: second.index },
+    { oid: first.oid, index: first.index },
+  ]);
 });
 
 test("aborts drop when user declines confirmation", async () => {
@@ -118,7 +130,7 @@ test("aborts drop when user declines confirmation", async () => {
   });
   const ui = createUIMock({
     askSelect: mock(() => Promise.resolve("drop")),
-    askMultiSelect: mock(() => Promise.resolve(["0"])),
+    askSearchMultiSelect: async () => [first],
     askConfirm: mock(() => Promise.resolve(false)),
   });
 
@@ -131,15 +143,15 @@ test("aborts drop when user declines confirmation", async () => {
 
 test("stashes current changes with optional message", async () => {
   const git = createGitMock({
-    getStatus: mock(() =>
-      Promise.resolve({
-        files: [{ path: "src/app.ts", status: "M" }],
-        isClean: () => false,
-        hasStagedChanges: () => false,
-        commitsAhead: 0,
-        commitsBehind: 0,
-      }),
-    ),
+    describeStatus: async () => ({
+      branch: "feature",
+      upstream: null,
+      ahead: 0,
+      behind: 0,
+      staged: [],
+      unstaged: ["src/app.ts"],
+      untracked: [],
+    }),
     stashWithMessage: mock(() => Promise.resolve()),
   });
   const ui = createUIMock({
@@ -149,20 +161,11 @@ test("stashes current changes with optional message", async () => {
 
   await new StashManager(git, ui).run();
 
-  expect(git.stashWithMessage).toHaveBeenCalledWith("WIP: half-done feature");
+  expect(git.stashWithMessage).toHaveBeenCalledWith("WIP: half-done feature", false);
 });
 
 test("aborts stash push when working tree is clean", async () => {
   const git = createGitMock({
-    getStatus: mock(() =>
-      Promise.resolve({
-        files: [],
-        isClean: () => true,
-        hasStagedChanges: () => false,
-        commitsAhead: 0,
-        commitsBehind: 0,
-      }),
-    ),
     stashWithMessage: mock(() => Promise.resolve()),
   });
   const ui = createUIMock({ ...selectAction("push") });
@@ -182,18 +185,16 @@ test("shows stash diff when user requests preview before applying", async () => 
     stashPop: mock(() => Promise.resolve()),
   });
   const ui = createUIMock({
-    askSelect: mock()
-      .mockResolvedValueOnce("apply")
-      .mockResolvedValueOnce(0)
-      .mockResolvedValueOnce("pop"),
+    askSelect: mock().mockResolvedValueOnce("apply").mockResolvedValueOnce("pop"),
+    askSearchSelect: async () => first,
     askConfirm: mock(() => Promise.resolve(true)),
   });
 
   await new StashManager(git, ui).run();
 
-  expect(git.getStashDiff).toHaveBeenCalledWith(0);
-  expect(ui.info).toHaveBeenCalledWith(expect.stringContaining("+const x = 1;"));
-  expect(git.stashPop).toHaveBeenCalledWith(0);
+  expect(git.getStashDiff).toHaveBeenCalledWith(first.oid);
+  expect(ui.showDiff).toHaveBeenCalledWith(expect.stringContaining("+const x = 1;"));
+  expect(git.stashPop).toHaveBeenCalledWith({ oid: first.oid, index: first.index });
 });
 
 test("skips preview and applies directly when user declines preview", async () => {
@@ -203,17 +204,15 @@ test("skips preview and applies directly when user declines preview", async () =
     stashPop: mock(() => Promise.resolve()),
   });
   const ui = createUIMock({
-    askSelect: mock()
-      .mockResolvedValueOnce("apply")
-      .mockResolvedValueOnce(0)
-      .mockResolvedValueOnce("pop"),
+    askSelect: mock().mockResolvedValueOnce("apply").mockResolvedValueOnce("pop"),
+    askSearchSelect: async () => first,
     askConfirm: mock(() => Promise.resolve(false)),
   });
 
   await new StashManager(git, ui).run();
 
   expect(git.getStashDiff).not.toHaveBeenCalled();
-  expect(git.stashPop).toHaveBeenCalledWith(0);
+  expect(git.stashPop).toHaveBeenCalledWith({ oid: first.oid, index: first.index });
 });
 
 // ─── stash stat display ───────────────────────────────────────────────────────
@@ -225,16 +224,14 @@ test("shows file count and insertion/deletion stat before preview prompt", async
     stashPop: mock(() => Promise.resolve()),
   });
   const ui = createUIMock({
-    askSelect: mock()
-      .mockResolvedValueOnce("apply")
-      .mockResolvedValueOnce(0)
-      .mockResolvedValueOnce("pop"),
+    askSelect: mock().mockResolvedValueOnce("apply").mockResolvedValueOnce("pop"),
+    askSearchSelect: async () => first,
     askConfirm: mock(() => Promise.resolve(false)),
   });
 
   await new StashManager(git, ui).run();
 
-  expect(git.getStashStat).toHaveBeenCalledWith(0);
+  expect(git.getStashStat).toHaveBeenCalledWith(first.oid);
   expect(ui.info).toHaveBeenCalledWith(expect.stringContaining("3 file(s)"));
   expect(ui.info).toHaveBeenCalledWith(expect.stringContaining("+12"));
   expect(ui.info).toHaveBeenCalledWith(expect.stringContaining("−4"));
@@ -250,4 +247,99 @@ test("propagates GoBackSignal when user presses ESC on action menu", async () =>
 
   await expect(new StashManager(git, ui).run()).rejects.toBeInstanceOf(GoBackSignal);
   expect(git.getStashes).not.toHaveBeenCalled();
+});
+
+test("a partial stash drop reports the count and stops on an outdated selection", async () => {
+  const git = createGitMock({
+    getStashes: async () => STASHES,
+    stashDrop: mock()
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new Error("stale selection")),
+  });
+  const ui = createUIMock({
+    ...selectAction("drop"),
+    askSearchMultiSelect: async () => STASHES,
+    askConfirm: async () => true,
+  });
+  await new StashManager(git, ui).run();
+  expect(ui.warn).toHaveBeenCalledWith(
+    expect.stringContaining("Dropped 1 of 2 selected stash(es)"),
+  );
+  expect(ui.success).not.toHaveBeenCalled();
+});
+
+test("an untracked-only working tree is stashed only after explicit opt-in", async () => {
+  const git = createGitMock({
+    describeStatus: async () => ({
+      branch: "main",
+      upstream: null,
+      ahead: 0,
+      behind: 0,
+      staged: [],
+      unstaged: [],
+      untracked: ["new.txt"],
+    }),
+  });
+  const ui = createUIMock({
+    ...selectAction("push"),
+    askConfirm: mock().mockResolvedValueOnce(false).mockResolvedValueOnce(true),
+  });
+  const flow = new StashManager(git, ui);
+  await flow.run();
+  expect(git.stashWithMessage).not.toHaveBeenCalled();
+  await flow.run();
+  expect(git.stashWithMessage).toHaveBeenCalledWith("", true);
+});
+
+test("Stash keeps the list intact on an empty drop selection or a non-Error failure", async () => {
+  const git = createGitMock({
+    getStashes: async () => STASHES,
+    stashDrop: mock().mockRejectedValue("stash list unavailable"),
+  });
+  const ui = createUIMock({
+    ...selectAction("drop"),
+    askSearchMultiSelect: mock().mockResolvedValueOnce([]).mockResolvedValue(STASHES),
+    askConfirm: async () => true,
+  });
+  const flow = new StashManager(git, ui);
+  await flow.run();
+  expect(git.stashDrop).not.toHaveBeenCalled();
+  await flow.run();
+  expect(git.stashDrop).toHaveBeenCalledTimes(1);
+  expect(ui.warn).toHaveBeenCalledWith(expect.stringContaining("stash list unavailable"));
+});
+
+test("a textual stash apply failure reports the selected identity without success", async () => {
+  const git = createGitMock({
+    getStashes: async () => STASHES,
+    stashApply: mock().mockRejectedValue("working tree locked"),
+  });
+  const ui = createUIMock({
+    ...selectAction("apply"),
+    askSearchSelect: async () => first,
+    askConfirm: async () => true,
+  });
+  await new StashManager(git, ui).run();
+  expect(ui.info).toHaveBeenCalledWith("No diff available for this stash.");
+  expect(ui.warn).toHaveBeenCalledWith(expect.stringContaining("working tree locked"));
+  expect(ui.success).not.toHaveBeenCalled();
+});
+
+test("Stash stops before writing if a Git operation became pending", async () => {
+  const git = createGitMock({
+    describeStatus: async () => ({
+      branch: "main",
+      upstream: null,
+      ahead: 0,
+      behind: 0,
+      staged: [],
+      unstaged: ["readme.txt"],
+      untracked: [],
+    }),
+    getInProgressOperation: async () => "rebase",
+  });
+  const ui = createUIMock({ ...selectAction("push") });
+  await new StashManager(git, ui).run();
+  expect(git.stashWithMessage).not.toHaveBeenCalled();
+  expect(ui.warn).toHaveBeenCalledWith(expect.stringContaining("Git operation changed"));
 });

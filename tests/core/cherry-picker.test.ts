@@ -1,5 +1,6 @@
 import { expect, mock, test } from "bun:test";
 import { CherryPicker } from "../../src/core/cherry-picker";
+import { GoBackSignal } from "../../src/core/domain/navigation";
 import { createGitMock } from "../mocks/git-client.mock";
 import { createUIMock } from "../mocks/ui.mock";
 
@@ -13,14 +14,73 @@ const COMMITS = [
 
 test("shows info when there are no other branches", async () => {
   const git = createGitMock({
-    getBranches: mock(() => Promise.resolve({ all: ["main"], current: "feat/test" })),
+    getBranches: mock(() => Promise.resolve({ all: ["feat/test"], current: "feat/test" })),
   });
   const ui = createUIMock();
 
   await new CherryPicker(git, ui).run();
 
-  expect(ui.info).toHaveBeenCalled();
+  expect(ui.info).toHaveBeenCalledWith("No other branches to cherry-pick from.");
+  expect(ui.askSearchSelect).not.toHaveBeenCalled();
   expect(git.cherryPick).not.toHaveBeenCalled();
+});
+
+test("resumes a pending cherry-pick without selecting or applying commits again", async () => {
+  const git = createGitMock({ getInProgressOperation: async () => "cherry-pick" });
+  const ui = createUIMock();
+  await new CherryPicker(git, ui, { waitForResolution: async () => true }).run();
+  expect(git.cherryPickContinue).toHaveBeenCalledTimes(1);
+  expect(git.cherryPick).not.toHaveBeenCalled();
+  expect(ui.askSearchSelect).not.toHaveBeenCalled();
+});
+
+test("blocks cherry-pick while another Git operation is pending", async () => {
+  const git = createGitMock({ getInProgressOperation: async () => "rebase" });
+  const ui = createUIMock();
+  await new CherryPicker(git, ui).run();
+  expect(ui.warn).toHaveBeenCalledWith("Finish the pending rebase before cherry-picking.");
+  expect(git.cherryPick).not.toHaveBeenCalled();
+});
+
+test("does not apply a reviewed cherry-pick to a different branch", async () => {
+  const getBranches = mock()
+    .mockResolvedValueOnce({ all: ["source", "topic", "main"], current: "topic" })
+    .mockResolvedValue({ all: ["source", "topic", "main"], current: "main" });
+  const git = createGitMock({ getBranches, getLog: async () => COMMITS });
+  const ui = createUIMock({
+    askSearchSelect: mock().mockResolvedValue("refs/heads/source"),
+    askSearchMultiSelect: mock().mockResolvedValue(["abc1234"]),
+    askConfirm: mock().mockResolvedValue(true),
+  });
+  await new CherryPicker(git, ui).run();
+  expect(git.cherryPick).not.toHaveBeenCalled();
+  expect(ui.warn).toHaveBeenCalledWith(
+    "The destination branch changed. Review the cherry-pick again.",
+  );
+});
+
+test("Cherry-pick reports a partial sequence on a non-conflict error and propagates cancellation", async () => {
+  for (const failure of [new Error("missing commit"), new GoBackSignal()]) {
+    const git = createGitMock({
+      getBranches: async () => ({ all: ["topic", "source"], current: "topic" }),
+      getLog: async () => COMMITS,
+      cherryPick: mock().mockResolvedValueOnce(undefined).mockRejectedValueOnce(failure),
+    });
+    const ui = createUIMock({
+      askSearchSelect: mock().mockResolvedValue("refs/heads/source"),
+      askSearchMultiSelect: mock().mockResolvedValue(["abc1234", "def5678"]),
+      askConfirm: mock().mockResolvedValue(true),
+    });
+    const run = new CherryPicker(git, ui).run();
+    if (failure instanceof GoBackSignal) await expect(run).rejects.toBe(failure);
+    else {
+      await run;
+      expect(ui.error).toHaveBeenCalledWith("Could not apply abc1234. Applied 1 of 2 commit(s).");
+    }
+    expect(git.cherryPick).toHaveBeenCalledTimes(2);
+    expect(git.cherryPickAbort).not.toHaveBeenCalled();
+    expect(ui.success).not.toHaveBeenCalled();
+  }
 });
 
 test("shows info when selected branch has no commits", async () => {
@@ -73,19 +133,26 @@ test("excludes current branch from source branch list", async () => {
   await new CherryPicker(git, ui).run();
 
   const branchOptions = (askSearchSelect.mock.calls[0] as unknown[])[1] as { value: string }[];
-  expect(branchOptions.map((o) => o.value)).not.toContain("feat/a");
-  expect(branchOptions.map((o) => o.value)).toContain("main");
-  expect(branchOptions.map((o) => o.value)).toContain("feat/b");
+  expect(branchOptions.map((o) => o.value)).not.toContain("refs/heads/feat/a");
+  expect(branchOptions.map((o) => o.value)).toContain("refs/heads/main");
+  expect(branchOptions.map((o) => o.value)).toContain("refs/heads/feat/b");
 });
 
-test("includes remote-only branches in source branch list", async () => {
+test("includes full remote refs in the source branch list", async () => {
   const git = createGitMock({
     getBranches: mock(() => Promise.resolve({ all: ["main"], current: "feat/test" })),
-    getRemoteBranches: mock(() => Promise.resolve(["feat/remote-only"])),
+    getTrackingBranches: async () => [
+      {
+        name: "feat/remote-only",
+        remote: "review",
+        ref: "refs/remotes/review/feat/remote-only",
+        head: "b".repeat(40),
+      },
+    ],
     getLog: mock(() => Promise.resolve(COMMITS)),
     cherryPick: mock(() => Promise.resolve()),
   });
-  const askSearchSelect = mock(() => Promise.resolve("origin/feat/remote-only"));
+  const askSearchSelect = mock(() => Promise.resolve("refs/remotes/review/feat/remote-only"));
   const ui = createUIMock({
     askSearchSelect,
     askSearchMultiSelect: mock(() => Promise.resolve(["abc1234"])),
@@ -98,14 +165,20 @@ test("includes remote-only branches in source branch list", async () => {
     value: string;
     label: string;
   }[];
-  expect(branchOptions.some((o) => o.value === "origin/feat/remote-only")).toBe(true);
-  expect(branchOptions.some((o) => o.label.includes("remote only"))).toBe(true);
+  expect(branchOptions.some((o) => o.value === "refs/remotes/review/feat/remote-only")).toBe(true);
+  expect(branchOptions.some((o) => o.label.includes("review/feat/remote-only"))).toBe(true);
 });
 
-test("deduplicates branches already available locally", async () => {
+test("keeps local branches distinct from same-named remote branches", async () => {
   const git = createGitMock({
     getBranches: mock(() => Promise.resolve({ all: ["main", "feat/local"], current: "feat/test" })),
-    getRemoteBranches: mock(() => Promise.resolve(["feat/local", "feat/remote-only"])),
+    getTrackingBranches: async () =>
+      ["feat/local", "feat/remote-only"].map((name) => ({
+        name,
+        remote: "review",
+        ref: `refs/remotes/review/${name}`,
+        head: "b".repeat(40),
+      })),
     getLog: mock(() => Promise.resolve(COMMITS)),
     cherryPick: mock(() => Promise.resolve()),
   });
@@ -120,8 +193,9 @@ test("deduplicates branches already available locally", async () => {
 
   const branchOptions = (askSearchSelect.mock.calls[0] as unknown[])[1] as { value: string }[];
   const values = branchOptions.map((o) => o.value);
-  expect(values.filter((v) => v.includes("feat/local")).length).toBe(1);
-  expect(values.some((v) => v === "origin/feat/remote-only")).toBe(true);
+  expect(values).toContain("refs/heads/feat/local");
+  expect(values).toContain("refs/remotes/review/feat/local");
+  expect(values.some((v) => v === "refs/remotes/review/feat/remote-only")).toBe(true);
 });
 
 // ─── applying commits ──────────────────────────────────────────────────────────
@@ -185,6 +259,7 @@ test("does not apply when the user declines the plan confirmation", async () => 
 test("on conflict + ENTER: calls cherryPickContinue", async () => {
   const git = createGitMock({
     getBranches: mock(() => Promise.resolve({ all: ["main", "feat/other"], current: "feat/test" })),
+    getInProgressOperation: mock().mockResolvedValueOnce(null).mockResolvedValue("cherry-pick"),
     getLog: mock(() => Promise.resolve(COMMITS)),
     cherryPick: mock(() => Promise.reject(new Error("conflict"))),
     cherryPickContinue: mock(() => Promise.resolve()),
@@ -196,7 +271,7 @@ test("on conflict + ENTER: calls cherryPickContinue", async () => {
   });
   const waitForResolution = mock(() => Promise.resolve(true));
 
-  await new CherryPicker(git, ui, waitForResolution).run();
+  await new CherryPicker(git, ui, { waitForResolution }).run();
 
   expect(git.cherryPickContinue).toHaveBeenCalledTimes(1);
   expect(git.cherryPickAbort).not.toHaveBeenCalled();
@@ -205,6 +280,7 @@ test("on conflict + ENTER: calls cherryPickContinue", async () => {
 test("on conflict + ESC: calls cherryPickAbort", async () => {
   const git = createGitMock({
     getBranches: mock(() => Promise.resolve({ all: ["main", "feat/other"], current: "feat/test" })),
+    getInProgressOperation: mock().mockResolvedValueOnce(null).mockResolvedValue("cherry-pick"),
     getLog: mock(() => Promise.resolve(COMMITS)),
     cherryPick: mock(() => Promise.reject(new Error("conflict"))),
     cherryPickAbort: mock(() => Promise.resolve()),
@@ -216,7 +292,7 @@ test("on conflict + ESC: calls cherryPickAbort", async () => {
   });
   const waitForResolution = mock(() => Promise.resolve(false));
 
-  await new CherryPicker(git, ui, waitForResolution).run();
+  await new CherryPicker(git, ui, { waitForResolution }).run();
 
   expect(git.cherryPickAbort).toHaveBeenCalledTimes(1);
   expect(git.cherryPickContinue).not.toHaveBeenCalled();
@@ -225,6 +301,7 @@ test("on conflict + ESC: calls cherryPickAbort", async () => {
 test("stops the sequence when a mid-sequence conflict is aborted", async () => {
   const git = createGitMock({
     getBranches: mock(() => Promise.resolve({ all: ["main", "feat/other"], current: "feat/test" })),
+    getInProgressOperation: mock().mockResolvedValueOnce(null).mockResolvedValue("cherry-pick"),
     getLog: mock(() => Promise.resolve(COMMITS)),
     cherryPick: mock()
       .mockResolvedValueOnce(undefined) // def5678 applies (oldest first)
@@ -238,7 +315,7 @@ test("stops the sequence when a mid-sequence conflict is aborted", async () => {
   });
   const waitForResolution = mock(() => Promise.resolve(false)); // ESC → abort
 
-  await new CherryPicker(git, ui, waitForResolution).run();
+  await new CherryPicker(git, ui, { waitForResolution }).run();
 
   expect(git.cherryPick).toHaveBeenCalledTimes(2);
   expect(git.cherryPickAbort).toHaveBeenCalledTimes(1);
@@ -249,6 +326,7 @@ test("stops the sequence when a mid-sequence conflict is aborted", async () => {
 test("lists conflicted files by name on cherry-pick conflict", async () => {
   const git = createGitMock({
     getBranches: mock(() => Promise.resolve({ all: ["main", "feat/other"], current: "feat/test" })),
+    getInProgressOperation: mock().mockResolvedValueOnce(null).mockResolvedValue("cherry-pick"),
     getLog: mock(() => Promise.resolve(COMMITS)),
     cherryPick: mock(() => Promise.reject(new Error("conflict"))),
     getConflictedFiles: mock(() => Promise.resolve(["src/auth.ts", "src/utils.ts"])),
@@ -261,7 +339,7 @@ test("lists conflicted files by name on cherry-pick conflict", async () => {
   });
   const waitForResolution = mock(() => Promise.resolve(false));
 
-  await new CherryPicker(git, ui, waitForResolution).run();
+  await new CherryPicker(git, ui, { waitForResolution }).run();
 
   const warnCalls = (ui.warn as ReturnType<typeof mock>).mock.calls.map((c) => c[0] as string);
   expect(warnCalls.some((m) => m.includes("2 file(s)"))).toBe(true);
@@ -272,6 +350,7 @@ test("lists conflicted files by name on cherry-pick conflict", async () => {
 test("shows generic conflict message when git reports no conflicted files", async () => {
   const git = createGitMock({
     getBranches: mock(() => Promise.resolve({ all: ["main", "feat/other"], current: "feat/test" })),
+    getInProgressOperation: mock().mockResolvedValueOnce(null).mockResolvedValue("cherry-pick"),
     getLog: mock(() => Promise.resolve(COMMITS)),
     cherryPick: mock(() => Promise.reject(new Error("conflict"))),
     getConflictedFiles: mock(() => Promise.resolve([])),
@@ -284,7 +363,7 @@ test("shows generic conflict message when git reports no conflicted files", asyn
   });
   const waitForResolution = mock(() => Promise.resolve(false));
 
-  await new CherryPicker(git, ui, waitForResolution).run();
+  await new CherryPicker(git, ui, { waitForResolution }).run();
 
   const warnCalls = (ui.warn as ReturnType<typeof mock>).mock.calls.map((c) => c[0] as string);
   expect(warnCalls.some((m) => m.includes("detected"))).toBe(true);
@@ -335,10 +414,10 @@ test("explains a single selected commit with AI", async () => {
   const ui = createUIMock({
     askSearchSelect: mock(() => Promise.resolve("feat/other")),
     askSearchMultiSelect: mock(() => Promise.resolve(["abc1234"])),
-    askConfirm: mock(() => Promise.resolve(false)), // decline the apply plan
+    askConfirm: mock().mockResolvedValueOnce(true).mockResolvedValueOnce(false),
   });
 
-  await new CherryPicker(git, ui, undefined, aiExplainer).run();
+  await new CherryPicker(git, ui, { aiExplainer }).run();
 
   expect(aiExplainer).toHaveBeenCalledTimes(1);
   expect(aiExplainer).toHaveBeenCalledWith("diff --git a/src/app.ts...");
@@ -359,7 +438,7 @@ test("skips AI explanation when multiple commits are selected", async () => {
     askConfirm: mock(() => Promise.resolve(true)),
   });
 
-  await new CherryPicker(git, ui, undefined, aiExplainer).run();
+  await new CherryPicker(git, ui, { aiExplainer }).run();
 
   expect(aiExplainer).not.toHaveBeenCalled();
 });
@@ -378,7 +457,7 @@ test("proceeds normally when aiExplainer throws", async () => {
     askConfirm: mock(() => Promise.resolve(true)),
   });
 
-  await new CherryPicker(git, ui, undefined, aiExplainer).run();
+  await new CherryPicker(git, ui, { aiExplainer }).run();
 
   expect(git.cherryPick).toHaveBeenCalledWith("abc1234");
 });

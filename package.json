@@ -4,25 +4,35 @@
   "module": "index.ts",
   "type": "module",
   "private": true,
+  "packageManager": "bun@1.4.4",
   "scripts": {
-    "dev": "bun --hot index.ts",
-    "build": "bun build index.ts --compile --outfile gitten",
+    "dev": "bun --no-env-file --hot index.ts",
+    "build": "bun build index.ts --compile --no-compile-autoload-dotenv --no-compile-autoload-bunfig --outfile gitten",
     "test": "bun test",
     "coverage": "bun test --coverage",
+    "quality:doctor": "bun scripts/quality/doctor.ts",
+    "quality:test": "bun scripts/quality/run-tests.ts",
+    "quality:coverage": "bun scripts/quality/coverage.ts",
+    "quality:static": "tsc --noEmit && biome ci && bun scripts/quality/static.ts",
+    "quality:check": "bun scripts/quality/check.ts",
+    "hooks:install": "bun scripts/quality/install-hooks.ts",
     "lint": "biome ci",
     "lint:fix": "biome check --write"
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.4.16",
-    "@types/bun": "latest",
-    "@types/node": "^25.8.0"
-  },
-  "peerDependencies": {
-    "typescript": "^5"
+    "@biomejs/biome": "2.4.16",
+    "@types/bun": "1.3.14",
+    "@types/istanbul-lib-coverage": "2.0.6",
+    "@types/istanbul-lib-instrument": "1.7.8",
+    "@types/node": "25.8.0",
+    "istanbul-lib-coverage": "3.2.2",
+    "istanbul-lib-instrument": "6.0.3",
+    "typescript": "5.9.3"
   },
   "dependencies": {
     "@clack/prompts": "^1.4.0",
+    "@simple-git/argv-parser": "3.0.0",
     "picocolors": "^1.1.1",
-    "simple-git": "^3.36.0"
+    "simple-git": "4.1.0"
   }
 }

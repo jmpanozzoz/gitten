@@ -1,0 +1,109 @@
+name: Native binaries
+
+on:
+  workflow_call:
+    inputs:
+      upload:
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    name: Native ${{ matrix.target }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: linux-x64
+            runner: ubuntu-24.04
+          - target: linux-arm64
+            runner: ubuntu-24.04-arm
+          - target: darwin-x64
+            runner: macos-15-intel
+          - target: darwin-arm64
+            runner: macos-15
+          - target: windows-x64
+            runner: windows-2025
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: 1.4.4
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+      - name: Build and run the binary on its target
+        shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          set -euo pipefail
+          asset="gitten-$TARGET"
+          if [[ "$TARGET" == windows-* ]]; then asset+=".exe"; fi
+          bun build index.ts --compile --no-compile-autoload-dotenv --no-compile-autoload-bunfig \
+            --target="bun-$TARGET" --outfile="dist/$asset"
+          version=$(bun -p 'require("./package.json").version')
+          test "$("./dist/$asset" --version)" = "gitten v$version"
+          "./dist/$asset" --help | grep -F 'Usage: gitten'
+          echo "GITTEN_TEST_BINARY=dist/$asset" >> "$GITHUB_ENV"
+      - name: Test the POSIX installer and require executable line coverage
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "$RUNNER_OS" == macOS ]]; then
+            test "$(/bin/bash -c 'printf "%s.%s" "${BASH_VERSINFO[0]}" "${BASH_VERSINFO[1]}"')" = 3.2
+            export PATH="/bin:$PATH"
+          fi
+          venv="$RUNNER_TEMP/gitten-bash-coverage"
+          python3 -m venv "$venv"
+          "$venv/bin/python" -m pip install --only-binary=:all: -r tests/native/bash-coverage-requirements.txt
+          "$venv/bin/python" tests/native/bash-coverage.py
+      - name: Exercise both Homebrew formula branches and verify line coverage
+        if: runner.os == 'macOS'
+        run: ruby tests/native/formula.test.rb
+      - name: Prepare the pinned PowerShell coverage runner
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $moduleRoot = Join-Path $env:RUNNER_TEMP 'gitten-pester'
+          $null = New-Item -ItemType Directory -Path $moduleRoot
+          Save-Module -Name Pester -RequiredVersion 5.7.1 -Path $moduleRoot -Force
+          $manifest = Join-Path $moduleRoot 'Pester/5.7.1/Pester.psd1'
+          "GITTEN_PESTER_MODULE=$manifest" >> $env:GITHUB_ENV
+      - name: Test the installer and measure commands in Windows PowerShell 5.1
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: |
+          if ($PSVersionTable.PSVersion.Major -ne 5 -or $PSVersionTable.PSVersion.Minor -ne 1) {
+            throw 'The minimum-version test requires Windows PowerShell 5.1.'
+          }
+          ./tests/native/measure-install-ps1.ps1 -FixtureBinary $env:GITTEN_TEST_BINARY `
+            -PesterModule $env:GITTEN_PESTER_MODULE -IsolatedUserPath `
+            -Report (Join-Path $env:RUNNER_TEMP 'gitten-ps51-coverage.xml')
+      - name: Test the installer and measure commands in PowerShell 7
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          if ($PSVersionTable.PSVersion.Major -ne 7) { throw 'This test requires PowerShell 7.' }
+          ./tests/native/measure-install-ps1.ps1 -FixtureBinary $env:GITTEN_TEST_BINARY `
+            -PesterModule $env:GITTEN_PESTER_MODULE -IsolatedUserPath `
+            -Report (Join-Path $env:RUNNER_TEMP 'gitten-ps7-coverage.xml')
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: runner.os == 'Windows' && always()
+        with:
+          name: gitten-windows-installer-coverage-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/gitten-ps*-coverage.xml
+          if-no-files-found: ignore
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: inputs.upload
+        with:
+          name: gitten-binary-${{ matrix.target }}
+          path: dist/gitten-*
+          if-no-files-found: error
+          overwrite: true

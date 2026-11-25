@@ -1,157 +1,110 @@
 #Requires -Version 5.1
-<#
-.SYNOPSIS
-  Installs gitten on Windows.
-.EXAMPLE
-  irm https://raw.githubusercontent.com/jmpanozzoz/gitten/main/install.ps1 | iex
-#>
-[CmdletBinding()] param()
-$ErrorActionPreference = "Stop"
-$ProgressPreference    = "SilentlyContinue"
+[CmdletBinding()]
+param()
 
-$REPO     = "jmpanozzoz/gitten"
-$ASSET    = "gitten-windows-x64.exe"
-$BINARY   = "gitten.exe"
-$BAR_W    = 36
-
-# ── clack-style primitives ─────────────────────────────────────────────────────
-function _Sep  { Write-Host "  " -NoNewline; Write-Host "│" -ForegroundColor DarkGray }
-function _Msg  { param($m)
-  Write-Host "  " -NoNewline; Write-Host "│" -NoNewline -ForegroundColor DarkGray
-  Write-Host "  $m"
-}
-function _Row  { param($label, $value)
-  Write-Host "  " -NoNewline; Write-Host "│" -NoNewline -ForegroundColor DarkGray
-  Write-Host "  " -NoNewline
-  Write-Host ("{0,-12}" -f $label) -NoNewline -ForegroundColor DarkGray
-  Write-Host "  $value"
-}
-function _Ok   { param($m)
-  Write-Host "  " -NoNewline; Write-Host "◇" -NoNewline -ForegroundColor DarkGray
-  Write-Host "  " -NoNewline; Write-Host "✓" -NoNewline -ForegroundColor Green
-  Write-Host "  $m"
-}
-function _Warn { param($m)
-  Write-Host "  " -NoNewline; Write-Host "│" -NoNewline -ForegroundColor DarkGray
-  Write-Host "  " -NoNewline; Write-Host "▲" -NoNewline -ForegroundColor Yellow
-  Write-Host "  $m"
-}
-function _Fail { param($m)
-  Write-Host "  " -NoNewline; Write-Host "│" -NoNewline -ForegroundColor DarkGray
-  Write-Host "  " -NoNewline; Write-Host "✗" -NoNewline -ForegroundColor Red
-  Write-Host "  $m"; exit 1
-}
-function _Act  { param($m)
-  Write-Host "  " -NoNewline; Write-Host "◆" -NoNewline -ForegroundColor Cyan
-  Write-Host "  $m"
-}
-function _Intro { param($m)
-  Write-Host ""
-  _Sep
-  Write-Host "  " -NoNewline; Write-Host "◇" -NoNewline -ForegroundColor DarkGray
-  Write-Host "  " -NoNewline; Write-Host $m -ForegroundColor White
-  _Sep
-}
-function _Outro { param($m)
-  _Sep
-  Write-Host "  " -NoNewline; Write-Host "└" -NoNewline -ForegroundColor DarkGray
-  Write-Host "  $m"
-  Write-Host ""
-}
-function _Bar  { param([int]$pct)
-  $filled = [Math]::Floor(($pct * $BAR_W) / 100)
-  $empty  = $BAR_W - $filled
-  $f = "─" * $filled
-  $e = "─" * $empty
-  Write-Host -NoNewline "`r  "
-  Write-Host -NoNewline "│" -ForegroundColor DarkGray
-  Write-Host -NoNewline "  "
-  Write-Host -NoNewline $f -ForegroundColor White
-  Write-Host -NoNewline $e -ForegroundColor DarkGray
-  Write-Host -NoNewline ("  {0,3}%" -f $pct)
+function Get-GittenRelease {
+  $response = Invoke-RestMethod -ErrorAction Stop -MaximumRedirection 0 `
+    -Uri "https://api.github.com/repos/jmpanozzoz/gitten/releases/latest"
+  $tag = $response.tag_name
+  if ($tag -isnot [string] -or $tag -cnotmatch '\Av[0-9]+\.[0-9]+\.[0-9]+\z') {
+    throw "Unexpected release tag."
+  }
+  $manifests = @($response.assets | Where-Object { $_.name -ceq 'SHA256SUMS' })
+  if ($manifests.Count -ne 1 -or $manifests[0].state -cne 'uploaded') {
+    throw "Missing or ambiguous release manifest metadata."
+  }
+  $digest = $manifests[0].digest
+  if ($digest -isnot [string] -or $digest -cnotmatch '\Asha256:[a-f0-9]{64}\z') {
+    throw "Invalid release manifest digest."
+  }
+  return @{ Tag = $tag; ManifestDigest = $digest.Substring(7) }
 }
 
-# ── Architecture check ─────────────────────────────────────────────────────────
-$arch = $env:PROCESSOR_ARCHITECTURE
-if ($arch -ne "AMD64") { _Fail "Unsupported architecture: $arch. Only x64 is supported." }
-
-# ── Previous version ───────────────────────────────────────────────────────────
-$prevVer = ""
-$existing = Get-Command gitten -ErrorAction SilentlyContinue
-if ($existing) { try { $prevVer = (& gitten --version 2>$null) } catch {} }
-
-# ── Install directory ──────────────────────────────────────────────────────────
-$installDir = Join-Path $env:LOCALAPPDATA "Programs\gitten"
-if (-not (Test-Path $installDir)) {
-  New-Item -ItemType Directory -Path $installDir -Force | Out-Null
-}
-$dest        = Join-Path $installDir $BINARY
-$downloadUrl = "https://github.com/$REPO/releases/latest/download/$ASSET"
-
-# ── Header ─────────────────────────────────────────────────────────────────────
-_Intro "🐱 gitten installer"
-_Row "Platform" "Windows x64"
-_Row "Binary"   $ASSET
-_Row "Target"   $dest
-_Sep
-
-# ── Download with progress bar ─────────────────────────────────────────────────
-_Act "Downloading $ASSET"
-_Bar 0
-
-$webClient = New-Object System.Net.WebClient
-$tmpFile   = [System.IO.Path]::GetTempFileName()
-
-try {
-  $done = $false
-  $webClient.DownloadFileAsync([uri]$downloadUrl, $dest)
-
-  # Register progress event
-  $webClient.add_DownloadProgressChanged({
-    param($s, $e)
-    _Bar $e.ProgressPercentage
-  })
-  $webClient.add_DownloadFileCompleted({
-    param($s, $e)
-    $script:done = $true
-    if ($e.Error) { throw $e.Error }
-  })
-
-  while (-not $done) { Start-Sleep -Milliseconds 100 }
-
-} catch {
-  Write-Host ""
-  _Fail "Download failed: $_`n  Check https://github.com/$REPO/releases"
-} finally {
-  $webClient.Dispose()
-  Remove-Item $tmpFile -ErrorAction SilentlyContinue
+function Get-GittenDownload {
+  param([string]$Url, [string]$Destination)
+  Invoke-WebRequest -Uri $Url -UseBasicParsing -ErrorAction Stop -OutFile $Destination
 }
 
-Write-Host ""    # newline after progress bar
-
-# ── PATH ───────────────────────────────────────────────────────────────────────
-_Sep
-_Ok "Installed at $dest"
-
-$userPath = [Environment]::GetEnvironmentVariable("PATH", "User")
-if ($userPath -notlike "*$installDir*") {
-  [Environment]::SetEnvironmentVariable("PATH", "$userPath;$installDir", "User")
-  $env:PATH = "$env:PATH;$installDir"
-  _Ok "Added to PATH"
+function Confirm-GittenArtifact {
+  param([string]$Manifest, [string]$Asset, [string]$Artifact)
+  $pattern = '^([a-fA-F0-9]{64})\s+' + [Regex]::Escape($Asset) + '$'
+  $entries = @(Select-String -LiteralPath $Manifest -Pattern $pattern)
+  if ($entries.Count -ne 1) {
+    throw "Missing or ambiguous checksum for $Asset."
+  }
+  $expected = $entries[0].Matches[0].Groups[1].Value
+  $actual = (Get-FileHash -LiteralPath $Artifact -Algorithm SHA256).Hash
+  if ($expected -ine $actual) {
+    throw "SHA-256 checksum mismatch for $Asset."
+  }
 }
 
-# ── Verify ─────────────────────────────────────────────────────────────────────
-try {
-  $newVer = (& $dest --version 2>$null)
-  _Ok "Verified  $newVer"
-} catch {
-  _Warn "Could not verify — try: $dest --version"
-  $newVer = ""
+function Install-Gitten {
+  param(
+    [string]$Directory = $env:GITTEN_INSTALL_DIR,
+    [string]$Architecture = $env:PROCESSOR_ARCHITECTURE,
+    [string]$LocalAppData = $env:LOCALAPPDATA
+  )
+  $ErrorActionPreference = "Stop"
+  $ProgressPreference = "SilentlyContinue"
+  if ($Architecture -ne 'AMD64') {
+    throw "Unsupported platform. Gitten requires Windows x64."
+  }
+  if (-not $Directory) {
+    $Directory = Join-Path $LocalAppData "Programs\gitten"
+  }
+
+  $null = New-Item -ItemType Directory -Path $Directory -Force
+  $Directory = (Get-Item -LiteralPath $Directory).FullName
+  $destination = Join-Path $Directory "gitten.exe"
+  $asset = "gitten-windows-x64.exe"
+  $release = Get-GittenRelease
+  $tag = $release.Tag
+  $base = "https://github.com/jmpanozzoz/gitten/releases/download/$tag"
+  $temporary = Join-Path $Directory (".gitten-install-" + [Guid]::NewGuid().ToString("N"))
+  $null = New-Item -ItemType Directory -Path $temporary
+  try {
+    $manifest = Join-Path $temporary "SHA256SUMS"
+    $candidate = Join-Path $temporary $asset
+    Write-Host "Downloading $asset from $tag"
+    Get-GittenDownload "$base/SHA256SUMS" $manifest
+    if ((Get-FileHash -LiteralPath $manifest -Algorithm SHA256).Hash -ine $release.ManifestDigest) {
+      throw "SHA-256 checksum mismatch for the release manifest."
+    }
+    Get-GittenDownload "$base/$asset" $candidate
+    Confirm-GittenArtifact $manifest $asset $candidate
+
+    $version = (& $candidate --version) -join "`n"
+    if ($LASTEXITCODE -ne 0 -or $version -cne "gitten $tag") {
+      throw "The verified binary failed its version check."
+    }
+
+    if ([IO.File]::Exists($destination)) {
+      $backup = Join-Path $temporary 'previous.exe'
+      [IO.File]::Replace($candidate, $destination, $backup)
+    } else {
+      [IO.File]::Move($candidate, $destination)
+    }
+    Write-Host "Installed $version at $destination"
+  } finally {
+    Remove-Item -LiteralPath $temporary -Recurse -Force -ErrorAction SilentlyContinue
+  }
+
+  Add-GittenToPath $Directory
 }
 
-# ── Outro ──────────────────────────────────────────────────────────────────────
-if ($prevVer -and $prevVer -ne $newVer) {
-  _Outro "Updated $prevVer → $newVer. Restart your terminal, then run: gitten"
-} else {
-  _Outro "$($newVer ?? 'gitten') installed. Restart your terminal, then run: gitten"
+function Add-GittenToPath {
+  param([string]$Directory)
+  $userPath = [Environment]::GetEnvironmentVariable("PATH", "User")
+  $entries = @($userPath -split ';' | Where-Object { $_ })
+  if ($entries -inotcontains $Directory) {
+    [Environment]::SetEnvironmentVariable("PATH", (($entries + $Directory) -join ';'), "User")
+  }
+  if ((@($env:PATH -split ';')) -inotcontains $Directory) {
+    $env:PATH = "$env:PATH;$Directory"
+  }
+}
+
+if ($MyInvocation.InvocationName -ne '.') {
+  Install-Gitten
 }
