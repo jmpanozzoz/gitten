@@ -2,8 +2,8 @@ import { confirmAISend } from "./ai-consent";
 import { GoBackSignal } from "./domain/navigation";
 import { DEFAULT_BRANCH_PREFIXES } from "./domain/preferences";
 import type { AIBranchSuggester } from "./ports/ai.port";
-import type { IGitClient } from "./ports/git-client.port";
 import type { BranchType, IUI } from "./ports/ui.port";
+import type { CreateBranchPort } from "./ports/workflow-git.port";
 
 /** Descriptions shown next to the built-in prefixes; custom prefixes show bare. */
 const PREFIX_DESCRIPTIONS = new Map([
@@ -16,7 +16,7 @@ const PREFIX_DESCRIPTIONS = new Map([
 
 export class BranchCreator {
   constructor(
-    private readonly git: IGitClient,
+    private readonly git: CreateBranchPort,
     private readonly ui: IUI,
     private readonly aiSuggester?: AIBranchSuggester,
     private readonly prefixes: readonly string[] = DEFAULT_BRANCH_PREFIXES,

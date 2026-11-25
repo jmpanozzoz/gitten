@@ -147,7 +147,6 @@ test("on conflict + ENTER: continues merge without staging unrelated files", asy
     getInProgressOperation: mock().mockResolvedValueOnce(null).mockResolvedValue("merge"),
     getRemotes: mock(() => Promise.resolve(WITH_REMOTE)),
     pull: mock(() => Promise.reject(new Error("conflict in src/app.ts"))),
-    addAll: mock(() => Promise.resolve()),
     mergeContinue: mock(() => Promise.resolve()),
   });
   const ui = createUIMock({ askSelect: async () => "merge" });
@@ -155,7 +154,6 @@ test("on conflict + ENTER: continues merge without staging unrelated files", asy
 
   await new PullFlow(git, ui, { waitForResolution }).run();
 
-  expect(git.addAll).not.toHaveBeenCalled();
   expect(git.mergeContinue).toHaveBeenCalledTimes(1);
   expect(git.mergeAbort).not.toHaveBeenCalled();
   expect(ui.success).toHaveBeenCalled();
@@ -174,7 +172,6 @@ test("on conflict + ESC: aborts merge and shows info", async () => {
   await new PullFlow(git, ui, { waitForResolution }).run();
 
   expect(git.mergeAbort).toHaveBeenCalledTimes(1);
-  expect(git.addAll).not.toHaveBeenCalled();
   expect(ui.info).toHaveBeenCalled();
 });
 

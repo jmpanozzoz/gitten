@@ -1,8 +1,8 @@
 import { resolveConflict } from "./conflict-resolver";
 import { DEFAULT_LIMITS } from "./domain/preferences";
 import type { AIConflictExplainer } from "./ports/ai.port";
-import type { IGitClient } from "./ports/git-client.port";
 import type { IUI } from "./ports/ui.port";
+import type { RevertPort } from "./ports/workflow-git.port";
 import { PROTECTED_BRANCHES } from "./protected-branches";
 
 interface RevertCommitOptions {
@@ -13,7 +13,7 @@ interface RevertCommitOptions {
 
 export class RevertCommit {
   constructor(
-    private readonly git: IGitClient,
+    private readonly git: RevertPort,
     private readonly ui: IUI,
     private readonly options: RevertCommitOptions = {},
   ) {}

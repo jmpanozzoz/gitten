@@ -1,7 +1,7 @@
 import { confirmAISend } from "./ai-consent";
 import { showDiffPages } from "./diff-pages";
 import type { AIMessageImprover } from "./ports/ai.port";
-import type { CommitSummary, IGitClient } from "./ports/git-client.port";
+import type { AmendPort, CommitSummary } from "./ports/git-client.port";
 import type { IUI } from "./ports/ui.port";
 import { PROTECTED_BRANCHES } from "./protected-branches";
 
@@ -15,7 +15,7 @@ interface AmendPreview {
 
 export class AmendFlow {
   constructor(
-    private readonly git: IGitClient,
+    private readonly git: AmendPort,
     private readonly ui: IUI,
     private readonly aiSuggester?: AIMessageImprover,
   ) {}

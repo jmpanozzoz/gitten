@@ -3,7 +3,7 @@ import { showDiffPages } from "./diff-pages";
 import { GoBackSignal } from "./domain/navigation";
 import { sameResetSource } from "./domain/reset-target";
 import type { AICommitReviewer, AICommitSuggester } from "./ports/ai.port";
-import type { IGitClient, StatusSummary } from "./ports/git-client.port";
+import type { StatusSummary, SyncPort } from "./ports/git-client.port";
 import type { IUI } from "./ports/ui.port";
 import { PROTECTED_BRANCHES } from "./protected-branches";
 import { PushBranch } from "./push-branch";
@@ -13,7 +13,7 @@ type UpstreamCheck = "missing" | "unverified" | "verified";
 
 export class SyncFlow {
   constructor(
-    private readonly git: IGitClient,
+    private readonly git: SyncPort,
     private readonly ui: IUI,
     private readonly aiSuggester?: AICommitSuggester,
     private readonly aiReviewer?: AICommitReviewer,

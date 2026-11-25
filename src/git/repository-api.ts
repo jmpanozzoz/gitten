@@ -57,7 +57,6 @@ export const repositoryAPI = {
         previousPath: f.from,
       })),
       isClean: () => status.isClean(),
-      hasStagedChanges: () => status.staged.length > 0,
       commitsAhead: status.ahead,
       commitsBehind: status.behind,
     };

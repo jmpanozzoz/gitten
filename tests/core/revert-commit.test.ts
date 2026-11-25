@@ -146,7 +146,6 @@ test("calls revertContinue when conflict is resolved and user presses ENTER", as
     revertCommit: mock(() => Promise.reject(new Error("conflict"))),
     getConflictedFiles: mock().mockResolvedValueOnce(["src/app.ts"]).mockResolvedValueOnce([]),
     revertContinue: mock(() => Promise.resolve()),
-    addAll: mock(() => Promise.resolve()),
   });
   const ui = createUIMock({
     askSearchSelect: mock(() => Promise.resolve("abc1234")),
@@ -156,7 +155,6 @@ test("calls revertContinue when conflict is resolved and user presses ENTER", as
 
   await new RevertCommit(git, ui, { waitForResolution }).run();
 
-  expect(git.addAll).not.toHaveBeenCalled();
   expect(git.revertContinue).toHaveBeenCalledTimes(1);
 });
 

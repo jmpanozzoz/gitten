@@ -1,8 +1,8 @@
 import { confirmAISend } from "./ai-consent";
 import { GoBackSignal } from "./domain/navigation";
 import type { AIGitignoreSuggester } from "./ports/ai.port";
-import type { IGitClient } from "./ports/git-client.port";
 import type { IUI } from "./ports/ui.port";
+import type { GitignorePort } from "./ports/workflow-git.port";
 
 type GitignoreAction = "add" | "template" | "ai" | "view";
 
@@ -67,7 +67,7 @@ const TEMPLATES: Record<TemplateName, string[]> = {
 
 export class GitignoreManager {
   constructor(
-    private readonly git: IGitClient,
+    private readonly git: GitignorePort,
     private readonly ui: IUI,
     private readonly aiSuggester?: AIGitignoreSuggester,
   ) {}

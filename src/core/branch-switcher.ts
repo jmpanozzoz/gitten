@@ -1,11 +1,12 @@
 import { GoBackSignal } from "./domain/navigation";
 import { sameResetSource, sameResetTarget } from "./domain/reset-target";
-import type { IGitClient, TrackingBranch } from "./ports/git-client.port";
+import type { TrackingBranch } from "./ports/git-client.port";
 import type { IUI } from "./ports/ui.port";
+import type { SwitchBranchPort } from "./ports/workflow-git.port";
 
 export class BranchSwitcher {
   constructor(
-    private readonly git: IGitClient,
+    private readonly git: SwitchBranchPort,
     private readonly ui: IUI,
   ) {}
 

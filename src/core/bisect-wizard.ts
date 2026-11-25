@@ -2,14 +2,15 @@ import { GoBackSignal } from "./domain/navigation";
 import { DEFAULT_LIMITS } from "./domain/preferences";
 import { explainDiff } from "./explain-diff";
 import type { AICommitExplainer } from "./ports/ai.port";
-import type { BisectResult, CommitSummary, IGitClient } from "./ports/git-client.port";
+import type { BisectResult, CommitSummary } from "./ports/git-client.port";
 import type { IUI } from "./ports/ui.port";
+import type { BisectPort } from "./ports/workflow-git.port";
 
 type Verdict = "bad" | "good" | "skip" | "stop";
 
 export class BisectWizard {
   constructor(
-    private readonly git: IGitClient,
+    private readonly git: BisectPort,
     private readonly ui: IUI,
     private readonly aiExplainer?: AICommitExplainer,
     private readonly logLimit = DEFAULT_LIMITS.bisectLogLimit,

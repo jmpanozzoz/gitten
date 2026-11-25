@@ -4,7 +4,6 @@ import type {
   BranchSummary,
   CommitSelection,
   CommitSummary,
-  DiffStat,
   IGitClient,
   PullResult,
   Remote,
@@ -86,7 +85,6 @@ export function createGitMock(overrides: Partial<IGitClient> = {}): IGitClient {
       Promise.resolve({
         files: [],
         isClean: () => true,
-        hasStagedChanges: () => false,
         commitsAhead: 0,
         commitsBehind: 0,
       } satisfies StatusSummary),
@@ -102,12 +100,8 @@ export function createGitMock(overrides: Partial<IGitClient> = {}): IGitClient {
     })),
     getStagedPathDiff: mock(async () => ""),
     unstagePaths: mock(async () => {}),
-    addAll: mock(() => Promise.resolve()),
-    addFiles: mock(() => Promise.resolve()),
-    getDiffStat: mock(() => Promise.resolve({ insertions: 0, deletions: 0 } satisfies DiffStat)),
     getStagedDiff: mock(() => Promise.resolve("")),
     readDiff: mock(() => Promise.resolve("")),
-    commit: mock(() => Promise.resolve()),
     previewSelectedCommit: mock(async (paths) => makeCommitSelection(paths)),
     commitSelection: mock(async () => "a".repeat(40)),
     previewBranchPush: mock(async (remote) => ({

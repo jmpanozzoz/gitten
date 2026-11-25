@@ -1,8 +1,9 @@
 import { confirmAISend } from "./ai-consent";
 import { GoBackSignal } from "./domain/navigation";
 import type { AICommitSummarizer } from "./ports/ai.port";
-import type { CommitSummary, IGitClient } from "./ports/git-client.port";
+import type { CommitSummary } from "./ports/git-client.port";
 import type { IUI } from "./ports/ui.port";
+import type { TagPort } from "./ports/workflow-git.port";
 import { choosePushRemote, formatPushDestination } from "./push-destination";
 
 type BumpType = "major" | "minor" | "patch";
@@ -40,7 +41,7 @@ function parseVersion(value: string): [bigint, bigint, bigint] | null {
 
 export class TagWizard {
   constructor(
-    private readonly git: IGitClient,
+    private readonly git: TagPort,
     private readonly ui: IUI,
     private readonly aiSummarizer?: AICommitSummarizer,
   ) {}

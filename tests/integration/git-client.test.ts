@@ -128,19 +128,19 @@ test("getStatus reflects modified files", async () => {
   expect(status.files.length).toBeGreaterThan(0);
 });
 
-test("getStatus is clean after addAll and commit", async () => {
+test("getStatus is clean after committing working changes", async () => {
   writeFileSync(join(dir, "new-file.txt"), "content");
-  await client.addAll();
-  await client.commit("test: add new-file");
+  await simpleGit(dir).add("-A");
+  await simpleGit(dir).commit("test: add new-file");
   const status = await client.getStatus();
   expect(status.isClean()).toBe(true);
 });
 
 test("untracked files do not count as staged changes", async () => {
   writeFileSync(join(dir, "untracked.txt"), "new");
-  expect((await client.getStatus()).hasStagedChanges()).toBe(false);
-  await client.addFiles(["untracked.txt"]);
-  expect((await client.getStatus()).hasStagedChanges()).toBe(true);
+  expect((await client.describeStatus()).staged).toEqual([]);
+  await simpleGit(dir).add(["--", "untracked.txt"]);
+  expect((await client.describeStatus()).staged.map(({ path }) => path)).toEqual(["untracked.txt"]);
 });
 
 test("getStatus.commitsAhead is 0 on a fresh local branch with no remote", async () => {
@@ -192,14 +192,13 @@ test("branch activity resolves a literal ref when a tracked file has the same na
 
 // ─── staging ──────────────────────────────────────────────────────────────────
 
-test("addFiles stages only the specified files", async () => {
+test("the staged preview includes only staged files", async () => {
   writeFileSync(join(dir, "a.txt"), "a");
   writeFileSync(join(dir, "b.txt"), "b");
-  await client.addFiles(["a.txt"]);
-  const git = simpleGit(dir);
-  const st = await git.status();
-  expect(st.staged).toContain("a.txt");
-  expect(st.staged).not.toContain("b.txt");
+  await simpleGit(dir).add(["--", "a.txt"]);
+  const diff = await client.getStagedDiff();
+  expect(diff).toContain("+++ b/a.txt");
+  expect(diff).not.toContain("b.txt");
 });
 
 test("Sync previews and commits only selected paths, preserving unrelated staging", async () => {
@@ -299,11 +298,10 @@ test("a stale Sync preview and a rejected pre-commit hook leave HEAD and index u
 
 // ─── diff ─────────────────────────────────────────────────────────────────────
 
-test("getDiffStat returns insertions and deletions after staging", async () => {
+test("the staged diff shows inserted content", async () => {
   writeFileSync(join(dir, "README.md"), "line1\nline2\nline3");
-  await client.addAll();
-  const stat = await client.getDiffStat();
-  expect(stat.insertions).toBeGreaterThan(0);
+  await simpleGit(dir).add("-A");
+  expect(await client.getStagedDiff()).toContain("+line3");
 });
 
 // ─── commit log ───────────────────────────────────────────────────────────────
@@ -326,7 +324,7 @@ test("getLastCommit returns the most recent commit", async () => {
 
 test("discardLocalChanges removes uncommitted modifications and untracked files", async () => {
   writeFileSync(join(dir, "README.md"), "staged change");
-  await client.addFiles(["README.md"]);
+  await simpleGit(dir).add(["--", "README.md"]);
   writeFileSync(join(dir, "README.md"), "unstaged change");
   writeFileSync(join(dir, "untracked.txt"), "new file");
 
@@ -650,7 +648,7 @@ test("message-only amend preserves the commit tree, staged files, and message bo
   const git = simpleGit(dir);
   const before = (await git.raw(["rev-parse", "HEAD^{tree}"])).trim();
   writeFileSync(join(dir, "draft.txt"), "draft");
-  await client.addFiles(["draft.txt"]);
+  await simpleGit(dir).add(["--", "draft.txt"]);
   const body = "Release notes\n\nReviewed-by: Example";
 
   await client.amendCommit(`fix: amended subject\n\n${body}`, true);
@@ -665,7 +663,7 @@ test("message-only amend restores HEAD and the exact index when a hook changes t
   const original = await git.revparse(["HEAD"]);
   const index = join(dir, ".git", "index");
   writeFileSync(join(dir, "staged.txt"), "staged content");
-  await client.addFiles(["staged.txt"]);
+  await simpleGit(dir).add(["--", "staged.txt"]);
   const bytes = readFileSync(index);
   writeFileSync(join(dir, "outside.txt"), "unreviewed local content");
   const preCommit = join(dir, ".git", "hooks", "pre-commit");
@@ -695,7 +693,7 @@ test("message-only amend leaves a detached HEAD and pending changes intact when 
   const original = await git.revparse(["HEAD"]);
   await git.raw(["switch", "--detach", original]);
   writeFileSync(join(dir, "staged.txt"), "keep");
-  await client.addFiles(["staged.txt"]);
+  await simpleGit(dir).add(["--", "staged.txt"]);
   const index = readFileSync(join(dir, ".git", "index"));
   const hook = join(dir, ".git", "hooks", "pre-commit");
   writeFileSync(hook, "#!/bin/sh\necho 'amend declined by fixture' >&2\nexit 1\n", { mode: 0o755 });
@@ -795,7 +793,7 @@ test.each(["merge", "rebase"] as const)("Pull finishes a real %s conflict", asyn
         expect(await client.getInProgressOperation()).toBe(strategy);
         writeFileSync(join(dir, "README.md"), "resolved change\n");
         writeFileSync(join(dir, "unrelated.txt"), "leave this untracked");
-        await client.addFiles(["README.md"]);
+        await simpleGit(dir).add(["--", "README.md"]);
         return true;
       },
     }).run();
@@ -928,7 +926,7 @@ test("amendNoEdit adds staged files to last commit without changing the message"
   await git.raw(["commit", "--amend", "--cleanup=verbatim", "-m", message]);
   await git.raw(["config", "--local", "commit.cleanup", "strip"]);
   writeFileSync(join(dir, "extra.txt"), "extra content");
-  await client.addAll();
+  await simpleGit(dir).add("-A");
   await client.amendNoEdit();
 
   const branch = await client.getCurrentBranch();
@@ -960,8 +958,8 @@ test("getLogSince returns only commits after the given tag", async () => {
   await client.createAnnotatedTag("v1.0.0", "initial release");
 
   writeFileSync(join(dir, "new.txt"), "new content");
-  await client.addAll();
-  await client.commit("feat: add new file");
+  await simpleGit(dir).add("-A");
+  await simpleGit(dir).commit("feat: add new file");
 
   const commits = await client.getLogSince("v1.0.0");
   expect(commits.length).toBe(1);
@@ -978,8 +976,8 @@ test("getLogSince returns empty array when no commits since tag", async () => {
 
 test("bisectStart, bisectGood, and bisectReset complete without error", async () => {
   writeFileSync(join(dir, "b.txt"), "b");
-  await client.addAll();
-  await client.commit("fix: second commit");
+  await simpleGit(dir).add("-A");
+  await simpleGit(dir).commit("fix: second commit");
 
   const branch = await client.getCurrentBranch();
   const log = await client.getLog(branch, 10);
@@ -999,11 +997,11 @@ test("bisectReset restores HEAD to original branch", async () => {
   const originalBranch = await client.getCurrentBranch();
 
   writeFileSync(join(dir, "b.txt"), "b");
-  await client.addAll();
-  await client.commit("second");
+  await simpleGit(dir).add("-A");
+  await simpleGit(dir).commit("second");
   writeFileSync(join(dir, "c.txt"), "c");
-  await client.addAll();
-  await client.commit("third");
+  await simpleGit(dir).add("-A");
+  await simpleGit(dir).commit("third");
 
   const log = await client.getLog(originalBranch, 10);
   const goodHash = log[log.length - 1]!.hash;

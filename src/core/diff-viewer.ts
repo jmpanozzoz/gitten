@@ -1,12 +1,13 @@
 import { showDiffPages } from "./diff-pages";
-import type { DiffRequest, IGitClient } from "./ports/git-client.port";
+import type { DiffRequest } from "./ports/git-client.port";
 import type { IUI } from "./ports/ui.port";
+import type { DiffPort } from "./ports/workflow-git.port";
 
 type DiffScope = DiffRequest["scope"];
 
 export class DiffViewer {
   constructor(
-    private readonly git: IGitClient,
+    private readonly git: DiffPort,
     private readonly ui: IUI,
   ) {}
 

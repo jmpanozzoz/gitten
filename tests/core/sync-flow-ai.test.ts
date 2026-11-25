@@ -7,7 +7,6 @@ const FILES = [{ path: "src/app.ts", status: "M" }];
 const DIRTY_STATUS = {
   files: FILES,
   isClean: () => false,
-  hasStagedChanges: () => false,
   commitsAhead: 0,
   commitsBehind: 0,
 };

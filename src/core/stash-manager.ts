@@ -1,13 +1,14 @@
 import { showDiffPages } from "./diff-pages";
-import type { IGitClient, RepositoryStatus, StashEntry } from "./ports/git-client.port";
+import type { RepositoryStatus, StashEntry } from "./ports/git-client.port";
 import type { IUI } from "./ports/ui.port";
+import type { StashPort } from "./ports/workflow-git.port";
 
 type StashAction = "apply" | "drop" | "push";
 type ApplyMode = "pop" | "apply";
 
 export class StashManager {
   constructor(
-    private readonly git: IGitClient,
+    private readonly git: StashPort,
     private readonly ui: IUI,
   ) {}
 

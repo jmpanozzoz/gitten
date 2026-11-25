@@ -1,10 +1,10 @@
 import { isRepositoryFilePath } from "./domain/purge-path";
-import type { IGitClient } from "./ports/git-client.port";
 import type { IUI } from "./ports/ui.port";
+import type { PurgePort } from "./ports/workflow-git.port";
 
 export class HistoryPurge {
   constructor(
-    private readonly git: IGitClient,
+    private readonly git: PurgePort,
     private readonly ui: IUI,
   ) {}
 

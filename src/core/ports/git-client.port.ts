@@ -31,7 +31,6 @@ export interface LogPage {
 export interface StatusSummary {
   files: { path: string; status: string; previousPath?: string }[];
   isClean(): boolean;
-  hasStagedChanges(): boolean;
   commitsAhead: number;
   commitsBehind: number;
 }
@@ -103,14 +102,17 @@ export interface ConflictPort {
   hasStagedConflictMarkers(): Promise<boolean>;
 }
 
-export interface RepositoryStatusPort extends ConflictPort {
-  describeStatus(): Promise<RepositoryStatus>;
-  getStagedPathDiff(paths: string[]): Promise<string>;
-  unstagePaths(paths: string[]): Promise<void>;
+interface MergeRecoveryPort {
   mergeContinue(): Promise<void>;
   mergeAbort(): Promise<void>;
   rebaseContinue(): Promise<void>;
   rebaseAbort(): Promise<void>;
+}
+
+export interface RepositoryStatusPort extends ConflictPort, MergeRecoveryPort {
+  describeStatus(): Promise<RepositoryStatus>;
+  getStagedPathDiff(paths: string[]): Promise<string>;
+  unstagePaths(paths: string[]): Promise<void>;
   cherryPickContinue(): Promise<void>;
   cherryPickAbort(): Promise<void>;
   revertContinue(): Promise<void>;
@@ -144,6 +146,36 @@ export interface BranchPushPort {
   pushBranch(plan: BranchPushPlan, setUpstream?: boolean): Promise<void>;
 }
 
+interface UpstreamPort {
+  fetchRemote(remote?: string): Promise<void>;
+  getRemoteResetTarget(): Promise<RemoteResetTarget | null>;
+}
+
+export interface SyncPort extends BranchPushPort, UpstreamPort {
+  getStatus(): Promise<StatusSummary>;
+  getInProgressOperation(): Promise<GitOperation | null>;
+  getCurrentBranch(): Promise<string>;
+  previewSelectedCommit(paths: readonly string[]): Promise<CommitSelection>;
+  commitSelection(selection: CommitSelection, message: string): Promise<string>;
+}
+
+export interface AmendPort {
+  getInProgressOperation(): Promise<GitOperation | null>;
+  getCurrentBranch(): Promise<string>;
+  getLastCommit(): Promise<CommitSummary>;
+  getStagedDiff(): Promise<string>;
+  amendCommit(message: string, messageOnly?: boolean): Promise<void>;
+  amendNoEdit(): Promise<void>;
+}
+
+export interface PullPort extends ConflictPort, MergeRecoveryPort {
+  getRemotes(): Promise<Remote[]>;
+  getLastCommit(): Promise<CommitSummary>;
+  getLogSince(ref: string, head?: string): Promise<CommitSummary[]>;
+  pull(): Promise<PullResult>;
+  pullRebase(): Promise<PullResult>;
+}
+
 export interface HistoryCommit {
   oid: string;
   firstParent: string | null;
@@ -173,21 +205,21 @@ export interface HistoryRewritePort {
   squashRange(range: HistoryRange, message: string): Promise<string>;
 }
 
-export interface ResetPort {
+export interface ResetPort extends UpstreamPort {
   getStatus(): Promise<StatusSummary>;
   getInProgressOperation(): Promise<GitOperation | null>;
   discardLocalChanges(): Promise<void>;
-  fetchRemote(remote?: string): Promise<void>;
-  getRemoteResetTarget(): Promise<RemoteResetTarget | null>;
   resetToRemote(target: RemoteResetTarget): Promise<string>;
   getLogSince(ref: string, head?: string): Promise<CommitSummary[]>;
 }
 
 export interface IGitClient
   extends RepositoryStatusPort,
-    BranchPushPort,
     HistoryRewritePort,
-    ResetPort {
+    ResetPort,
+    SyncPort,
+    AmendPort,
+    PullPort {
   checkIsRepo(): Promise<boolean>;
   getRepositoryRoot(): Promise<string>;
   hasIndexLock(): Promise<boolean>;
@@ -195,7 +227,6 @@ export interface IGitClient
   addRemote(name: string, url: string): Promise<void>;
   removeRemote(name: string): Promise<void>;
   setRemoteUrl(name: string, url: string): Promise<void>;
-  getCurrentBranch(): Promise<string>;
   getRepoContext(): Promise<RepoContext>;
   getBranches(): Promise<BranchSummary>;
   getTrackingBranches(): Promise<TrackingBranch[]>;
@@ -214,23 +245,12 @@ export interface IGitClient
   readLogPage(request: { head?: string; limit: number; offset: number }): Promise<LogPage>;
   cherryPick(hash: string): Promise<void>;
   revertCommit(hash: string): Promise<void>;
-  pull(): Promise<PullResult>;
-  addAll(): Promise<void>;
-  addFiles(paths: string[]): Promise<void>;
-  getDiffStat(): Promise<DiffStat>;
-  getStagedDiff(): Promise<string>;
   readDiff(request: DiffRequest): Promise<string>;
-  commit(message: string): Promise<void>;
-  previewSelectedCommit(paths: readonly string[]): Promise<CommitSelection>;
-  commitSelection(selection: CommitSelection, message: string): Promise<string>;
   readGitignore(): Promise<string[]>;
   writeGitignore(lines: string[], expected?: readonly string[]): Promise<void>;
   getTrackedFiles(): Promise<string[]>;
   getIgnoredTrackedFiles(): Promise<string[]>;
   untrackFiles(paths: string[]): Promise<void>;
-  getLastCommit(): Promise<CommitSummary>;
-  amendCommit(message: string, messageOnly?: boolean): Promise<void>;
-  amendNoEdit(): Promise<void>;
   getPackageVersion(): Promise<string | null>;
   getLastTag(head?: string): Promise<string | null>;
   createAnnotatedTag(name: string, message: string, commit?: string): Promise<void>;
@@ -257,7 +277,6 @@ export interface IGitClient
   getStashStat(
     oid: string,
   ): Promise<{ filesChanged: number; insertions: number; deletions: number }>;
-  pullRebase(): Promise<PullResult>;
 }
 
 export interface BisectResult {

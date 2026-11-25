@@ -3,11 +3,13 @@
 ## Layers
 
 - `index.ts`, `src/app.ts`, and `src/composition/` own CLI status codes, application startup, menus, and dependency wiring.
-- `src/core/` owns workflows. It uses application modules, pure models in `src/core/domain/`, and interfaces in `src/core/ports/`. Port declarations may use domain models. The domain has no terminal, Git, filesystem, or network effects.
+- `src/core/` owns workflows. It uses application modules, pure models in `src/core/domain/`, and interfaces in `src/core/ports/`. Each workflow receives only its Git operations. Sync and Pull share push, upstream, and recovery capabilities where needed. The full Git client is assembled by the adapter and wired by composition. Port declarations may use domain models. The domain has no terminal, Git, filesystem, or network effects.
 - `src/git/`, `src/ui/`, `src/ai/`, `src/config/`, and `src/utils/` supply adapters. Adapters use the domain and ports. Composition wires concrete adapters together. The Git client assembles repository, index, operation, history, rewrite, stash, purge, and remote capabilities.
 - `scripts/quality/` owns validation. Tests can use the module or adapter under test. Application production sources cannot depend on tests or tooling.
 
 The interactive CLI and development doctor check the Git executable on `PATH` against the same minimum version before running repository commands. The CLI prints help and version without invoking Git.
+
+Sync owns commit creation through its selection and verification flow. The Git adapter exposes staged review and operation-specific mutations. Integration tests prepare repositories directly with Git and assert the resulting application behavior.
 
 Cancelling the first initialization prompt exits without creating a repository. Once Git initializes it, cancelling remote setup keeps the local repository. A remote setup failure reports the partial result and exits with status 1 so the user can inspect Remotes and retry.
 

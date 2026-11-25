@@ -12,21 +12,18 @@ const FILES = [
 const DIRTY_STATUS = {
   files: FILES,
   isClean: () => false,
-  hasStagedChanges: () => false,
   commitsAhead: 0,
   commitsBehind: 0,
 };
 const CLEAN_STATUS = {
   files: [],
   isClean: () => true,
-  hasStagedChanges: () => false,
   commitsAhead: 0,
   commitsBehind: 0,
 };
 const CLEAN_STATUS_AHEAD = {
   files: [],
   isClean: () => true,
-  hasStagedChanges: () => false,
   commitsAhead: 3,
   commitsBehind: 0,
 };
@@ -480,7 +477,6 @@ test("warns and aborts when branch is behind remote and user chooses to pull fir
   const BEHIND_STATUS = {
     files: FILES,
     isClean: () => false,
-    hasStagedChanges: () => false,
     commitsAhead: 0,
     commitsBehind: 3,
   };
@@ -499,7 +495,6 @@ test("proceeds with commit when branch is behind but user continues anyway", asy
   const BEHIND_STATUS = {
     files: FILES,
     isClean: () => false,
-    hasStagedChanges: () => false,
     commitsAhead: 0,
     commitsBehind: 2,
   };

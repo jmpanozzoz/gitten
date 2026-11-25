@@ -136,7 +136,6 @@ test("calls amendNoEdit when user selects staged-only and files are staged", asy
       Promise.resolve({
         files: [{ path: "src/app.ts", status: "A" }],
         isClean: () => false,
-        hasStagedChanges: () => true,
         commitsAhead: 0,
         commitsBehind: 0,
       }),
@@ -161,7 +160,6 @@ test("warns and aborts when user selects staged-only but nothing is staged", asy
       Promise.resolve({
         files: [],
         isClean: () => true,
-        hasStagedChanges: () => false,
         commitsAhead: 0,
         commitsBehind: 0,
       }),
@@ -188,7 +186,6 @@ test("amends both staged files and message when user selects both", async () => 
       Promise.resolve({
         files: [{ path: "src/app.ts", status: "A" }],
         isClean: () => false,
-        hasStagedChanges: () => true,
         commitsAhead: 0,
         commitsBehind: 0,
       }),
@@ -214,7 +211,6 @@ test("warns and aborts both-mode when nothing is staged", async () => {
       Promise.resolve({
         files: [],
         isClean: () => true,
-        hasStagedChanges: () => false,
         commitsAhead: 0,
         commitsBehind: 0,
       }),

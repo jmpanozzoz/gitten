@@ -15,14 +15,12 @@ const UPSTREAM = {
 const CLEAN = {
   files: [],
   isClean: () => true,
-  hasStagedChanges: () => false,
   commitsAhead: 0,
   commitsBehind: 0,
 };
 const DIRTY = {
   files: [{ path: "src/app.ts", status: "M" }],
   isClean: () => false,
-  hasStagedChanges: () => false,
   commitsAhead: 0,
   commitsBehind: 0,
 };
@@ -160,7 +158,6 @@ test("warns and offers pull when branch is behind origin after switching", async
   const BEHIND = {
     files: [],
     isClean: () => true,
-    hasStagedChanges: () => false,
     commitsAhead: 0,
     commitsBehind: 5,
   };
@@ -188,7 +185,6 @@ test("skips pull when user declines the behind warning", async () => {
   const BEHIND = {
     files: [],
     isClean: () => true,
-    hasStagedChanges: () => false,
     commitsAhead: 0,
     commitsBehind: 2,
   };
@@ -212,7 +208,6 @@ test("does not warn when branch is up to date after switching", async () => {
   const UP_TO_DATE = {
     files: [],
     isClean: () => true,
-    hasStagedChanges: () => false,
     commitsAhead: 0,
     commitsBehind: 0,
   };

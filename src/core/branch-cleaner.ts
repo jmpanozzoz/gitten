@@ -1,14 +1,15 @@
 import { GoBackSignal } from "./domain/navigation";
 import { redactRemoteCredentials } from "./domain/remote-display";
-import type { IGitClient, TrackingBranch } from "./ports/git-client.port";
+import type { TrackingBranch } from "./ports/git-client.port";
 import type { IUI } from "./ports/ui.port";
+import type { BranchCleanupPort } from "./ports/workflow-git.port";
 import { PROTECTED_BRANCHES } from "./protected-branches";
 
 type BranchDeletion = Pick<TrackingBranch, "name"> & { target?: TrackingBranch };
 
 export class BranchCleaner {
   constructor(
-    private readonly git: IGitClient,
+    private readonly git: BranchCleanupPort,
     private readonly ui: IUI,
   ) {}
 

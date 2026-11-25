@@ -1,12 +1,12 @@
-import type { IGitClient } from "./ports/git-client.port";
 import type { IUI } from "./ports/ui.port";
+import type { WorktreePort } from "./ports/workflow-git.port";
 
 type WorktreeAction = "list" | "add" | "remove";
 type BranchSource = "existing" | "new";
 
 export class WorktreeManager {
   constructor(
-    private readonly git: IGitClient,
+    private readonly git: WorktreePort,
     private readonly ui: IUI,
   ) {}
 

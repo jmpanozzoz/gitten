@@ -1,7 +1,7 @@
 import { confirmAISend } from "./ai-consent";
 import { resolveConflict } from "./conflict-resolver";
 import type { AICommitSummarizer, AIConflictExplainer } from "./ports/ai.port";
-import type { IGitClient, PullResult } from "./ports/git-client.port";
+import type { PullPort, PullResult } from "./ports/git-client.port";
 import type { IUI } from "./ports/ui.port";
 
 type PullStrategy = "merge" | "rebase";
@@ -14,7 +14,7 @@ interface PullFlowOptions {
 
 export class PullFlow {
   constructor(
-    private readonly git: IGitClient,
+    private readonly git: PullPort,
     private readonly ui: IUI,
     private readonly options: PullFlowOptions = {},
   ) {}

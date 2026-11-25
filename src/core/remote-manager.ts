@@ -1,14 +1,14 @@
 import { GoBackSignal } from "./domain/navigation";
 import { redactRemoteCredentials } from "./domain/remote-display";
-import type { IGitClient } from "./ports/git-client.port";
 import type { IUI } from "./ports/ui.port";
+import type { ManageRemotesPort } from "./ports/workflow-git.port";
 
 type RemoteAction = "add" | "change-url" | "remove";
 type InitResult = { status: "linked" | "local-only" } | { status: "remote-failed"; error: unknown };
 
 export class RemoteManager {
   constructor(
-    private readonly git: IGitClient,
+    private readonly git: ManageRemotesPort,
     private readonly ui: IUI,
   ) {}
 

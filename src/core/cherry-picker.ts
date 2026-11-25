@@ -3,8 +3,9 @@ import { GoBackSignal } from "./domain/navigation";
 import { DEFAULT_LIMITS } from "./domain/preferences";
 import { explainDiff } from "./explain-diff";
 import type { AICommitExplainer, AIConflictExplainer } from "./ports/ai.port";
-import type { BranchSummary, CommitSummary, IGitClient } from "./ports/git-client.port";
+import type { BranchSummary, CommitSummary } from "./ports/git-client.port";
 import type { IUI } from "./ports/ui.port";
+import type { CherryPickPort } from "./ports/workflow-git.port";
 import { PROTECTED_BRANCHES } from "./protected-branches";
 
 interface CherryPickerOptions {
@@ -16,7 +17,7 @@ interface CherryPickerOptions {
 
 export class CherryPicker {
   constructor(
-    private readonly git: IGitClient,
+    private readonly git: CherryPickPort,
     private readonly ui: IUI,
     private readonly options: CherryPickerOptions = {},
   ) {}

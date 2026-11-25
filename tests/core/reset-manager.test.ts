@@ -18,7 +18,6 @@ test("discarding changes stops if a Git operation starts during confirmation", a
     getStatus: async () => ({
       files: [{ path: "keep.txt", status: "M" }],
       isClean: () => false,
-      hasStagedChanges: () => false,
       commitsAhead: 0,
       commitsBehind: 0,
     }),
@@ -97,7 +96,6 @@ test("shows info and returns when working tree is clean (discard action)", async
       Promise.resolve({
         files: [],
         isClean: () => true,
-        hasStagedChanges: () => false,
         commitsAhead: 0,
         commitsBehind: 0,
       }),
@@ -119,7 +117,6 @@ test("asks confirmation before discarding changes", async () => {
       Promise.resolve({
         files: [{ path: "file.ts", status: "M" }],
         isClean: () => false,
-        hasStagedChanges: () => false,
         commitsAhead: 0,
         commitsBehind: 0,
       }),
@@ -146,7 +143,6 @@ test("discards local changes when user confirms", async () => {
       Promise.resolve({
         files: [{ path: "file.ts", status: "M" }],
         isClean: () => false,
-        hasStagedChanges: () => false,
         commitsAhead: 0,
         commitsBehind: 0,
       }),
@@ -170,7 +166,6 @@ test("does not discard when user declines confirmation", async () => {
       Promise.resolve({
         files: [{ path: "file.ts", status: "M" }],
         isClean: () => false,
-        hasStagedChanges: () => false,
         commitsAhead: 0,
         commitsBehind: 0,
       }),

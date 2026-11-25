@@ -1,14 +1,15 @@
 import { showDiffPages } from "./diff-pages";
 import { explainDiff } from "./explain-diff";
 import type { AICommitExplainer } from "./ports/ai.port";
-import type { IGitClient, LogPage } from "./ports/git-client.port";
+import type { LogPage } from "./ports/git-client.port";
 import type { IUI } from "./ports/ui.port";
+import type { LogPort } from "./ports/workflow-git.port";
 
 const LOG_LIMIT = 30;
 
 export class LogBrowser {
   constructor(
-    private readonly git: IGitClient,
+    private readonly git: LogPort,
     private readonly ui: IUI,
     private readonly aiExplainer?: AICommitExplainer,
   ) {}

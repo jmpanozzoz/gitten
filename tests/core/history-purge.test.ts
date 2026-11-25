@@ -33,7 +33,6 @@ test("aborts when working tree has uncommitted changes", async () => {
       Promise.resolve({
         files: [{ path: ".env", status: "?" }],
         isClean: () => false,
-        hasStagedChanges: () => false,
         commitsAhead: 0,
         commitsBehind: 0,
       }),

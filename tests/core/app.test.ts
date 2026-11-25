@@ -170,7 +170,6 @@ test("dispatches to amend handler from more submenu", async () => {
       Promise.resolve({
         files: [],
         isClean: () => true,
-        hasStagedChanges: () => false,
         commitsAhead: 0,
         commitsBehind: 0,
       }),

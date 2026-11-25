@@ -1,4 +1,4 @@
-import type { CommitSelection, DiffRequest, DiffStat } from "../core/ports/git-client.port";
+import type { CommitSelection, DiffRequest } from "../core/ports/git-client.port";
 import type { GitContext } from "./client-context";
 import { readIgnoreFile, writeIgnoreFile } from "./ignore-file";
 import { SelectedCommit } from "./selected-commit";
@@ -13,16 +13,6 @@ const REVIEW_DIFF_FLAGS = [
 ];
 
 export const indexAPI = {
-  async addAll(): Promise<void> {
-    await this.git.add(".");
-  },
-  async addFiles(paths: string[]): Promise<void> {
-    await this.git.add(["-A", "--", ...paths]);
-  },
-  async getDiffStat(): Promise<DiffStat> {
-    const diff = await this.git.diffSummary(["--cached"]);
-    return { insertions: diff.insertions, deletions: diff.deletions };
-  },
   async getStagedDiff(): Promise<string> {
     return this.readDiff({ scope: "staged" });
   },
@@ -53,9 +43,6 @@ export const indexAPI = {
     ]);
     const comparison = request.scope === "merge-base" ? [`${base}...${target}`] : [base, target];
     return this.git.diff([...REVIEW_DIFF_FLAGS, ...comparison, "--"]);
-  },
-  async commit(message: string): Promise<void> {
-    await this.git.commit(message);
   },
   previewSelectedCommit(paths: readonly string[]): Promise<CommitSelection> {
     return new SelectedCommit(this.git).preview(paths);

@@ -17,7 +17,6 @@ const history = {
 const dirty = (): StatusSummary => ({
   files: [{ path: "x.ts", status: "M" }],
   isClean: () => false,
-  hasStagedChanges: () => false,
   commitsAhead: 0,
   commitsBehind: 0,
 });
